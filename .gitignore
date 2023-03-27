@@ -1,0 +1,6 @@
+.venv
+.DS_Store
+gfpgan
+images
+settings.ini
+data/GFPGANv1.4.pth
