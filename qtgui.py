@@ -11,17 +11,20 @@ from compel import Compel
 from diffusers import (EulerAncestralDiscreteScheduler,
                        StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
 from PIL import Image, PngImagePlugin
-from PySide6.QtCore import QSettings, QSize, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import (QAction, QColor, QFontMetrics, QIcon, QImage,
-                           QPainter, QPalette, QPixmap)
+from PySide6.QtCore import QSettings, QSize, Qt, QThread, Signal
+from PySide6.QtGui import (QAction, QFontMetrics, QIcon, QImage, QPalette,
+                           QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QCheckBox, QDoubleSpinBox, QFrame, QGridLayout,
                                QHBoxLayout, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QMainWindow, QMenu,
                                QMessageBox, QPlainTextEdit, QProgressBar,
                                QPushButton, QScrollArea, QSizePolicy, QSlider,
-                               QSpinBox, QSplitter, QToolBar, QToolButton,
-                               QVBoxLayout, QWidget)
+                               QSpinBox, QSplitter, QStyle, QStyleOptionSlider,
+                               QToolBar, QToolButton, QVBoxLayout, QWidget)
+
+if sys.platform == "darwin":
+    from AppKit import NSApplication
 
 warnings.filterwarnings('ignore')
 from gfpgan import GFPGANer
@@ -145,26 +148,20 @@ class ImageMetadata:
 class PlaceholderTextEdit(QPlainTextEdit):
     def __init__(self, desired_lines, placeholder_text, parent=None):
         super().__init__(parent)
-        self._placeholder_text = placeholder_text
 
-        font_metrics = QFontMetrics(self.font())
+        font = self.font()
+        font.setPointSize(14)
+        self.setFont(font)
+
+        font_metrics = QFontMetrics(font)
         line_height = font_metrics.lineSpacing()
         margins = self.contentsMargins()
         frame_width = self.frameWidth()
         document_margins = self.document().documentMargin()
 
         self.setFixedHeight(line_height * desired_lines + margins.top() + margins.bottom() + 2 * frame_width + 2 * document_margins)
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-
-        painter = QPainter(self.viewport())
-
-        if not self.toPlainText():
-            painter.setPen(QColor(Qt.gray))
-            rect = self.contentsRect()
-            rect.adjust(5, 5, -5, -5)
-            painter.drawText(rect, Qt.TextWordWrap, self._placeholder_text)
+        self.setPlaceholderText(placeholder_text)
+        self.setTabChangesFocus(True)
 
 class ThumbnailViewer(QListWidget):
     def __init__(self, parent=None):
@@ -194,8 +191,6 @@ class ThumbnailViewer(QListWidget):
         self.menu.addAction(self.action_use_initial_image)
         self.menu.addAction(self.action_send_to_img2img)
         self.menu.addAction(self.action_delete)
-    
-        QTimer.singleShot(0, self.update_icon_size)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -222,7 +217,9 @@ class ThumbnailViewer(QListWidget):
         self.insertItem(0, item)
 
     def update_icon_size(self):
-        available_width = self.width() - self.verticalScrollBar().width()
+        style = QApplication.instance().style()
+        scrollbar_width = style.pixelMetric(QStyle.PM_ScrollBarExtent, QStyleOptionSlider())
+        available_width = self.width() - scrollbar_width
         num_columns = int((available_width) / (self.min_thumbnail_size))
         num_columns = max(1, num_columns)
         new_icon_size = int((available_width - num_columns) / num_columns)
@@ -607,7 +604,7 @@ class MainWindow(QMainWindow):
 
         self.prompt_edit = PlaceholderTextEdit(8, 'Prompt')
         self.prompt_edit.setPlainText(self.settings.value('prompt'))
-        self.negative_prompt_edit = PlaceholderTextEdit(3, 'Negative Prompts')
+        self.negative_prompt_edit = PlaceholderTextEdit(3, 'Negative Prompt')
         self.negative_prompt_edit.setPlainText(self.settings.value('negative_prompt'))
 
         self.generate_button = QPushButton('Generate')
@@ -800,11 +797,7 @@ class MainWindow(QMainWindow):
         self.next_image_id = self.next_image_id + 1
 
         # Apply settings that impact other controls
-        self.mode = self.settings.value('mode')
-        if self.mode == 'txt2img':
-            txt2img_button.setChecked(True)
-        elif self.mode == 'img2img':
-            img2img_button.setChecked(True)
+        self.set_mode(self.settings.value('mode'))
 
         # Initialize pipelines
         self.init_thread = InitThread(self)
@@ -815,6 +808,13 @@ class MainWindow(QMainWindow):
         self.pipes = pipes
         self.gfpgan = gfpgan
         self.generate_button.setEnabled(True)
+
+    def set_mode(self, mode):
+        self.mode = mode
+        if self.mode == 'txt2img':
+            self.button_group.button(0).setChecked(True)
+        elif self.mode == 'img2img':
+            self.button_group.button(1).setChecked(True)
 
     def on_mode_changed(self, button_id, checked):
         if not checked:
@@ -864,6 +864,13 @@ class MainWindow(QMainWindow):
     
     def update_progress(self, progress_amount):
         self.progress_bar.setValue(progress_amount)
+        if sys.platform == "darwin":
+            sharedApplication = NSApplication.sharedApplication()
+            dockTile = sharedApplication.dockTile()
+            if progress_amount > 0:
+                dockTile.setBadgeLabel_('{:d}%'.format(progress_amount))
+            else:
+                dockTile.setBadgeLabel_(None)
 
     def image_complete(self, output_file):
         self.thumbnail_viewer.add_thumbnail(output_file)
@@ -873,7 +880,7 @@ class MainWindow(QMainWindow):
     def generate_complete(self, next_image_id):
         self.next_image_id = next_image_id
         self.generate_button.setEnabled(True)
-        self.progress_bar.setValue(0)
+        self.update_progress(0)
 
     def randomize_seed(self):
         seed = random.randint(0, 0x7fff_ffff_ffff_ffff)
@@ -906,6 +913,7 @@ class MainWindow(QMainWindow):
     def on_use_seed(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
+            self.manual_seed_check_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
 
     def on_use_all(self):
@@ -913,31 +921,35 @@ class MainWindow(QMainWindow):
         if image_metadata is not None:
             self.prompt_edit.setPlainText(image_metadata.prompt)
             self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
+            self.manual_seed_check_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
             self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
             self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
             self.width_spin_box.setValue(image_metadata.width)
             self.height_spin_box.setValue(image_metadata.height)
-            self.img_strength.spin_box.setValue(image_metadata.img_strength)
-            if image_metadata.gfpgan_strength > 0.0:
+            if image_metadata.mode == 'img2img':
+                self.image_viewer.set_left_image(image_metadata.source_path)
+                self.img_strength.spin_box.setValue(image_metadata.img_strength)
+            if image_metadata.gfpgan_enabled:
                 self.gfpgan_strength.check_box.setChecked(True)
-                self.gfpgan_strength.spin_box.setValue(self.gfpgan_strength)
+                self.gfpgan_strength.spin_box.setValue(image_metadata.gfpgan_strength)
             else:
                 self.gfpgan_strength.check_box.setChecked(False)
+            self.set_mode(image_metadata.mode)
 
     def on_use_initial_image(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.source_path)
             self.img_strength.spin_box.setValue(image_metadata.img_strength)
-            self.button_group.button(1).setChecked(True)
+            self.set_mode('img2img')
 
     def on_send_to_img2img(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.path)
-            self.button_group.button(1).setChecked(True)
-
+            self.set_mode('img2img')
+ 
     def on_delete(self):
         item = self.thumbnail_viewer.currentItem()
         image_metadata = self.get_current_metadata()

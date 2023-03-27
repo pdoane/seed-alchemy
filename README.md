@@ -24,6 +24,7 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
     pip install torch
     pip install compel
     pip install gfpgan
+    pip install pyobjc
     ```
 6. Run the GUI
     ```sh
@@ -32,10 +33,11 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Pipeline cancellation
 - Image metadata UI
-- Keyboard shortcuts
 - Samplers (hard-coded to Euler Ancestral)
+- Toolbar for image actions
+- Pipeline cancellation
+- Keyboard shortcuts
 - Models (hard-coded in source)
 - Upscaling ESRGAN
 - Image collections
@@ -43,3 +45,4 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 - In Progress Display
 - Additional pipelines (e.g. depth2img, ControlNet)
 - Local models
+- Respond to local filesystem changes
