@@ -33,9 +33,7 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Image metadata UI
 - Samplers (hard-coded to Euler Ancestral)
-- Toolbar for image actions
 - Pipeline cancellation
 - Keyboard shortcuts
 - Models (hard-coded in source)

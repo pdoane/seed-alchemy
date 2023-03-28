@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QSpinBox, QSplitter, QStyle, QStyleOptionSlider,
                                QToolBar, QToolButton, QVBoxLayout, QWidget)
 
-if sys.platform == "darwin":
+if sys.platform == 'darwin':
     from AppKit import NSApplication
 
 warnings.filterwarnings('ignore')
@@ -167,12 +167,12 @@ class ThumbnailViewer(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.action_use_prompt = QAction('Use Prompt')
-        self.action_use_seed = QAction('Use Seed')
-        self.action_use_all = QAction('Use All')
-        self.action_use_initial_image = QAction('Use Initial Image')
-        self.action_send_to_img2img = QAction('Send to Image to Image')
-        self.action_delete = QAction('Delete Image')
+        self.action_send_to_img2img = QAction(QIcon('data/share_icon.png'), 'Send to Image to Image')
+        self.action_use_prompt = QAction(QIcon('data/use_prompt_icon.png'), 'Use Prompt')
+        self.action_use_seed = QAction(QIcon('data/use_seed_icon.png'), 'Use Seed')
+        self.action_use_all = QAction(QIcon('data/use_all_icon.png'), 'Use All')
+        self.action_use_initial_image = QAction(QIcon('data/use_initial_image_icon.png'), 'Use Initial Image')
+        self.action_delete = QAction(QIcon('data/delete_icon.png'), 'Delete Image')
 
         self.setViewMode(QListWidget.IconMode)
         self.setResizeMode(QListWidget.Adjust)
@@ -185,11 +185,13 @@ class ThumbnailViewer(QListWidget):
         self.margin = 0
 
         self.menu = QMenu()
+        self.menu.addAction(self.action_send_to_img2img)
+        self.menu.addSeparator()
         self.menu.addAction(self.action_use_prompt)
         self.menu.addAction(self.action_use_seed)
         self.menu.addAction(self.action_use_all)
         self.menu.addAction(self.action_use_initial_image)
-        self.menu.addAction(self.action_send_to_img2img)
+        self.menu.addSeparator()
         self.menu.addAction(self.action_delete)
 
     def resizeEvent(self, event):
@@ -231,12 +233,98 @@ class ThumbnailViewer(QListWidget):
     def show_context_menu(self, point):
         self.menu.exec(self.mapToGlobal(point))
 
-class ImageViewer(QWidget):
-    def __init__(self, both_images_visible, parent=None):
+class MetadataRow:
+    def __init__(self, label_text, multiline=False):
+        self.label = QLabel(label_text)
+        self.label.setStyleSheet('font-weight: bold; background-color: transparent')
+
+        self.value = QLabel()
+        self.value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.value.setStyleSheet('background-color: transparent')
+        self.value.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.value.setCursor(Qt.IBeamCursor)
+
+        if multiline:
+            self.value.setWordWrap(True)
+
+        self.frame = QFrame()
+        self.frame.setContentsMargins(0, 0, 0, 0)
+        self.frame.setStyleSheet('background-color: transparent')
+
+        hlayout = QHBoxLayout(self.frame)
+        hlayout.setContentsMargins(0, 0, 0, 0)
+        hlayout.addWidget(self.label)
+        hlayout.addWidget(self.value)
+
+class ImageMetadataFrame(QFrame):
+    def __init__(self, parent=None):
         super().__init__(parent)
+
+        self.setStyleSheet('background-color: rgba(0, 0, 0, 127);')
+
+        self.path = MetadataRow('Path:')
+        self.mode = MetadataRow('Mode:')
+        self.model = MetadataRow('Model:')
+        self.prompt = MetadataRow('Prompt:', multiline=True)
+        self.negative_prompt = MetadataRow('Negative Prompt:', multiline=True)
+        self.seed = MetadataRow('Seed:')
+        self.num_inference_steps = MetadataRow('Steps:')
+        self.guidance_scale = MetadataRow('CFG Scale:')
+        self.width = MetadataRow('Width:')
+        self.height = MetadataRow('Height:')
+        self.source_path = MetadataRow('Source Path:')
+        self.img_strength = MetadataRow('Image Strength:')
+        self.gfpgan_strength = MetadataRow('Face Restoration:')
+
+        vlayout = QVBoxLayout(self)
+        vlayout.addWidget(self.path.frame)
+        vlayout.addWidget(self.mode.frame)
+        vlayout.addWidget(self.model.frame)
+        vlayout.addWidget(self.prompt.frame)
+        vlayout.addWidget(self.negative_prompt.frame)
+        vlayout.addWidget(self.seed.frame)
+        vlayout.addWidget(self.num_inference_steps.frame)
+        vlayout.addWidget(self.guidance_scale.frame)
+        vlayout.addWidget(self.width.frame)
+        vlayout.addWidget(self.height.frame)
+        vlayout.addWidget(self.source_path.frame)
+        vlayout.addWidget(self.img_strength.frame)
+        vlayout.addWidget(self.gfpgan_strength.frame)
+        vlayout.addStretch()
+
+    def update(self, metadata):
+        self.path.value.setText(os.path.join(IMAGES_PATH, metadata.path))
+        self.mode.value.setText(metadata.mode)
+        self.model.value.setText(REPO_ID)
+        self.prompt.value.setText(metadata.prompt)
+        self.negative_prompt.value.setText(metadata.negative_prompt)
+        self.seed.value.setText(str(metadata.seed))
+        self.num_inference_steps.value.setText(str(metadata.num_inference_steps))
+        self.guidance_scale.value.setText(str(metadata.guidance_scale))
+        self.width.value.setText(str(metadata.width))
+        self.height.value.setText(str(metadata.height))
+        if metadata.mode == 'img2img':
+            self.source_path.frame.setVisible(True)
+            self.source_path.value.setText(os.path.join(IMAGES_PATH, metadata.source_path))
+            self.img_strength.frame.setVisible(True)
+            self.img_strength.value.setText(str(metadata.img_strength))
+        else:
+            self.source_path.frame.setVisible(False)
+            self.img_strength.frame.setVisible(False)
+        if metadata.gfpgan_enabled:
+            self.gfpgan_strength.frame.setVisible(True)
+            self.gfpgan_strength.value.setText(str(metadata.gfpgan_strength))
+        else:
+            self.gfpgan_strength.frame.setVisible(False)
+
+class ImageViewer(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setMinimumWidth(300)
         self.padding = 5
         self.minimum_image_size = 100
-        self.both_images_visible = both_images_visible
+        self.both_images_visible = False
 
         self.left_image_path_ = ''
         self.right_image_path_ = ''
@@ -246,79 +334,158 @@ class ImageViewer(QWidget):
 
         self.left_label = QLabel(self)
         self.right_label = QLabel(self)
+        self.right_controls_frame = QFrame(self)
+        self.metadata_frame = ImageMetadataFrame(self)
+        self.metadata_frame.setVisible(False)
+
+        icon_size = QSize(24, 24)
+
+        self.send_to_img2img_button = QToolButton()
+        self.send_to_img2img_button.setIcon(QIcon('data/share_icon.png'))
+        self.send_to_img2img_button.setIconSize(icon_size)
+        self.send_to_img2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.send_to_img2img_button.setToolTip('Send to Image to Image')
+        self.send_to_img2img_button.setToolTipDuration(0)
+
+        self.use_prompt_button = QToolButton()
+        self.use_prompt_button.setIcon(QIcon('data/use_prompt_icon.png'))
+        self.use_prompt_button.setIconSize(icon_size)
+        self.use_prompt_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.use_prompt_button.setToolTip('Use Prompt')
+        self.use_prompt_button.setToolTipDuration(0)
+
+        self.use_seed_button = QToolButton()
+        self.use_seed_button.setIcon(QIcon('data/use_seed_icon.png'))
+        self.use_seed_button.setIconSize(icon_size)
+        self.use_seed_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.use_seed_button.setToolTip('Use Seed')
+        self.use_seed_button.setToolTipDuration(0)
+
+        self.use_initial_image_button = QToolButton()
+        self.use_initial_image_button.setIcon(QIcon('data/use_initial_image_icon.png'))
+        self.use_initial_image_button.setIconSize(icon_size)
+        self.use_initial_image_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.use_initial_image_button.setToolTip('Use Initial Image')
+        self.use_initial_image_button.setToolTipDuration(0)
+
+        self.use_all_button = QToolButton()
+        self.use_all_button.setIcon(QIcon('data/use_all_icon.png'))
+        self.use_all_button.setIconSize(icon_size)
+        self.use_all_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.use_all_button.setToolTip('Use All')
+        self.use_all_button.setToolTipDuration(0)
+
+        self.metadata_button = QToolButton()
+        self.metadata_button.setIcon(QIcon('data/metadata_icon.png'))
+        self.metadata_button.setIconSize(icon_size)
+        self.metadata_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.metadata_button.setCheckable(True)
+        self.metadata_button.setToolTip('Toggle Image Metadata')
+        self.metadata_button.setToolTipDuration(0)
+        self.metadata_button.toggled.connect(self.on_metadata_button_changed)
+
+        self.delete_button = QToolButton()
+        self.delete_button.setIcon(QIcon('data/delete_icon.png'))
+        self.delete_button.setIconSize(icon_size)
+        self.delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.delete_button.setToolTip('Delete')
+        self.delete_button.setToolTipDuration(0)
+
+        right_controls_layout = QHBoxLayout(self.right_controls_frame)
+        right_controls_layout.setContentsMargins(0, 0, 0, 0)
+        right_controls_layout.setSpacing(0)
+        right_controls_layout.addStretch()
+        right_controls_layout.addWidget(self.send_to_img2img_button)
+        right_controls_layout.addSpacing(8)
+        right_controls_layout.addWidget(self.use_prompt_button)
+        right_controls_layout.addWidget(self.use_seed_button)
+        right_controls_layout.addWidget(self.use_initial_image_button)
+        right_controls_layout.addWidget(self.use_all_button)
+        right_controls_layout.addSpacing(8)
+        right_controls_layout.addWidget(self.metadata_button)
+        right_controls_layout.addSpacing(8)
+        right_controls_layout.addWidget(self.delete_button)
+        right_controls_layout.addStretch()
 
         background_color = QApplication.instance().palette().color(QPalette.Base)
-        self.setStyleSheet(f'background-color: {background_color.name()};')
+        self.setStyleSheet(f'ImageViewer {{ background-color: {background_color.name()}; }}')
         self.setAttribute(Qt.WA_StyledBackground, True)
 
     def resizeEvent(self, event):
         self.update_images()
 
     def update_images(self):
-        window_width = self.width()
-        window_height = self.height()
-
-        left_image_width = self.left_image.width() if self.left_image is not None else 1
-        left_image_height = self.left_image.height() if self.left_image is not None else 1
-        right_image_width = self.right_image.width() if self.right_image is not None else 1
-        right_image_height = self.right_image.height() if self.right_image is not None else 1
+        widget_width = self.width()
+        widget_height = self.height()
+        controls_height = 24
+        image_width = self.right_image.width() if self.right_image is not None else 1
+        image_height = self.right_image.height() if self.right_image is not None else 1
 
         if self.both_images_visible:
-            available_height = window_height - 2 * self.padding
-            available_width = window_width - 3 * self.padding
+            available_height = widget_height - controls_height - 4 * self.padding
+            available_width = widget_width - 3 * self.padding
 
-            right_height = min(available_height, right_image_height)
-            right_width = int(right_image_width * (right_height / right_image_height))
+            right_height = min(available_height, image_height)
+            right_width = int(image_width * (right_height / image_height))
 
             remaining_width = available_width - right_width
-            left_width = min(remaining_width, left_image_width)
-            left_height = int(left_image_height * (left_width / left_image_width))
+            left_width = min(remaining_width, image_width)
+            left_height = int(image_height * (left_width / image_width))
 
             if left_height > available_height:
                 left_height = available_height
-                left_width = int(left_image_width * (left_height / left_image_height))
+                left_width = int(image_width * (left_height / image_height))
 
             if left_height < self.minimum_image_size:
                 left_height = self.minimum_image_size
-                left_width = int(left_image_width * (left_height / left_image_height))
+                left_width = int(image_width * (left_height / image_height))
                 right_width = available_width - left_width
-                right_height = int(right_image_height * (right_width / right_image_width))
+                right_height = int(image_height * (right_width / image_width))
                 if right_height > available_height:
                     right_height = available_height
-                    right_width = int(right_image_width * (right_height / right_image_height))
+                    right_width = int(image_width * (right_height / image_height))
                 if right_height < self.minimum_image_size:
                     right_height = self.minimum_image_size
-                    right_width = int(right_image_width * (right_height / right_image_height))
+                    right_width = int(image_width * (right_height / image_height))
 
             if self.left_image is not None:
                 left_pixmap = QPixmap.fromImage(self.left_image).scaled(left_width, left_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.left_label.setPixmap(left_pixmap)
+            else:
+                self.left_label.setText('Choose a source image')
 
             if self.right_image is not None:
                 right_pixmap = QPixmap.fromImage(self.right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.right_label.setPixmap(right_pixmap)
 
-            left_x = (window_width - left_width - right_width - self.padding) // 2
+            left_x = (widget_width - left_width - right_width - self.padding) // 2
+            left_y = controls_height + 2 * self.padding + (available_height - left_height) // 2
             right_x = left_x + self.padding + left_width
+            right_y = controls_height + 2 * self.padding + (available_height - right_height) // 2
 
             self.left_label.setVisible(True)
-            self.left_label.setGeometry(left_x, (window_height - left_height) // 2, left_width, left_height)
-            self.right_label.setGeometry(right_x, (window_height - right_height) // 2, right_width, right_height)
+            self.left_label.setGeometry(left_x, left_y, left_width, left_height)
+            self.right_controls_frame.setGeometry(right_x, self.padding, right_width, controls_height)
+            self.right_label.setGeometry(right_x, right_y, right_width, right_height)
+            self.metadata_frame.setGeometry(right_x, right_y, right_width, right_height)
         else:
-            available_height = window_height - 2 * self.padding
-            available_width = window_width - 2 * self.padding
+            available_height = widget_height - controls_height - 4 * self.padding
+            available_width = widget_width - 2 * self.padding
 
-            right_height = min(available_height, right_image_height)
-            right_width = int(right_image_width * (right_height / right_image_height))
+            right_height = min(available_height, image_height)
+            right_width = int(image_width * (right_height / image_height))
 
             if self.right_image is not None:
                 right_pixmap = QPixmap.fromImage(self.right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.right_label.setPixmap(right_pixmap)
 
-            right_x = (window_width - right_width) // 2
+            right_x = (widget_width - right_width) // 2
+            right_y = controls_height + 2 * self.padding + (available_height - right_height) // 2
 
             self.left_label.setVisible(False)
-            self.right_label.setGeometry(right_x, (window_height - right_height) // 2, right_width, right_height)
+            self.right_controls_frame.setGeometry(right_x, self.padding, right_width, controls_height)
+            self.right_label.setGeometry(right_x, right_y, right_width, right_height)
+            self.metadata_frame.setGeometry(right_x, right_y, right_width, right_height)
 
     def set_both_images_visible(self, both_images_visible):
         self.both_images_visible = both_images_visible
@@ -331,14 +498,30 @@ class ImageViewer(QWidget):
         return self.right_image_path_
 
     def set_left_image(self, path):
-        self.left_image_path_ = path
-        self.left_image = QImage(os.path.join(IMAGES_PATH, path))
+        fullpath = os.path.join(IMAGES_PATH, path)
+        if os.path.exists(fullpath):
+            self.left_image_path_ = path
+            self.left_image = QImage(fullpath)
+        else:
+            self.left_image_path_ = ''
+            self.left_image = None
         self.update_images()
 
     def set_right_image(self, path):
+        full_path = os.path.join(IMAGES_PATH, path)
+        image = Image.open(full_path)
+        self.metadata = ImageMetadata()
+        self.metadata.path = path
+        self.metadata.load_from_png_info(image.info)
+
         self.right_image_path_ = path
-        self.right_image = QImage(os.path.join(IMAGES_PATH, path))
+        self.right_image = to_qimage(image)
+        self.metadata_frame.update(self.metadata)
+
         self.update_images()
+
+    def on_metadata_button_changed(self, state):
+        self.metadata_frame.setVisible(state)
 
 class FloatSliderSpinBox(QWidget):
     def __init__(self, name, initial_value, checkable=False, parent=None):
@@ -569,28 +752,28 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Modes
-        toolbar = QToolBar()
-        toolbar.setMovable(False)
-        self.addToolBar(Qt.LeftToolBarArea, toolbar)
+        mode_toolbar = QToolBar()
+        mode_toolbar.setMovable(False)
+        self.addToolBar(Qt.LeftToolBarArea, mode_toolbar)
 
         txt2img_button = QToolButton()
         txt2img_button.setIcon(QIcon('data/txt2img_icon.png'))
         txt2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        txt2img_button.setStyleSheet('QToolButton:checked { background-color: darkblue; }')
         txt2img_button.setCheckable(True)
         txt2img_button.setAutoExclusive(True)
         txt2img_button.setToolTip('Text To Image')
+        txt2img_button.setToolTipDuration(0)
 
         img2img_button = QToolButton()
         img2img_button.setIcon(QIcon('data/img2img_icon.png'))
         img2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        img2img_button.setStyleSheet('QToolButton:checked { background-color: darkblue; }')
         img2img_button.setCheckable(True)
         img2img_button.setAutoExclusive(True)
         img2img_button.setToolTip('Image To Image')
+        img2img_button.setToolTipDuration(0)
 
-        toolbar.addWidget(txt2img_button)
-        toolbar.addWidget(img2img_button)
+        mode_toolbar.addWidget(txt2img_button)
+        mode_toolbar.addWidget(img2img_button)
 
         self.button_group = QButtonGroup()
         self.button_group.addButton(txt2img_button, 0)
@@ -718,14 +901,13 @@ class MainWindow(QMainWindow):
         config_layout.addStretch()
 
         # Image viewer
-        image_frame = QFrame()
-        image_frame.setContentsMargins(0, 0, 0, 0)
-        self.image_viewer = ImageViewer(False)
-        self.image_viewer.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-
-        image_layout = QVBoxLayout(image_frame)
-        image_layout.setContentsMargins(0, 0, 0, 0)
-        image_layout.addWidget(self.image_viewer)
+        self.image_viewer = ImageViewer()
+        self.image_viewer.send_to_img2img_button.pressed.connect(lambda: self.on_send_to_img2img(self.image_viewer.metadata))
+        self.image_viewer.use_prompt_button.pressed.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
+        self.image_viewer.use_seed_button.pressed.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
+        self.image_viewer.use_initial_image_button.pressed.connect(lambda: self.on_use_initial_image(self.image_viewer.metadata))
+        self.image_viewer.use_all_button.pressed.connect(lambda: self.on_use_all(self.image_viewer.metadata))
+        self.image_viewer.delete_button.pressed.connect(lambda: self.on_delete(self.image_viewer.metadata))
 
         #  Thumbnail viewer
         thumbnail_frame = QFrame()
@@ -733,12 +915,12 @@ class MainWindow(QMainWindow):
 
         self.thumbnail_viewer = ThumbnailViewer()
         self.thumbnail_viewer.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
-        self.thumbnail_viewer.action_use_prompt.triggered.connect(self.on_use_prompt)
-        self.thumbnail_viewer.action_use_seed.triggered.connect(self.on_use_seed)
-        self.thumbnail_viewer.action_use_all.triggered.connect(self.on_use_all)
-        self.thumbnail_viewer.action_use_initial_image.triggered.connect(self.on_use_initial_image)
-        self.thumbnail_viewer.action_send_to_img2img.triggered.connect(self.on_send_to_img2img)
-        self.thumbnail_viewer.action_delete.triggered.connect(self.on_delete)
+        self.thumbnail_viewer.action_send_to_img2img.triggered.connect(lambda: self.on_send_to_img2img(self.get_thumbnail_metadata()))
+        self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.get_thumbnail_metadata()))
+        self.thumbnail_viewer.action_use_seed.triggered.connect(lambda: self.on_use_seed(self.get_thumbnail_metadata()))
+        self.thumbnail_viewer.action_use_initial_image.triggered.connect(lambda: self.on_use_initial_image(self.get_thumbnail_metadata()))
+        self.thumbnail_viewer.action_use_all.triggered.connect(lambda: self.on_use_all(self.get_thumbnail_metadata()))
+        self.thumbnail_viewer.action_delete.triggered.connect(lambda: self.on_delete(self.get_thumbnail_metadata()))
 
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
@@ -750,7 +932,7 @@ class MainWindow(QMainWindow):
         thumbnail_layout.addWidget(scroll_area)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(image_frame)
+        splitter.addWidget(self.image_viewer)
         splitter.addWidget(thumbnail_frame)
         splitter.setStretchFactor(0, 1)  # left widget
         splitter.setStretchFactor(1, 0)  # right widget
@@ -759,7 +941,6 @@ class MainWindow(QMainWindow):
         background_color = palette.color(QPalette.Window)
 
         self.progress_bar = QProgressBar()
-        self.progress_bar.setStyleSheet('QProgressBar::chunk {{ background-color: blue; }}')
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
 
@@ -864,7 +1045,7 @@ class MainWindow(QMainWindow):
     
     def update_progress(self, progress_amount):
         self.progress_bar.setValue(progress_amount)
-        if sys.platform == "darwin":
+        if sys.platform == 'darwin':
             sharedApplication = NSApplication.sharedApplication()
             dockTile = sharedApplication.dockTile()
             if progress_amount > 0:
@@ -898,26 +1079,34 @@ class MainWindow(QMainWindow):
             image_metadata = item.data(Qt.UserRole)
             self.image_viewer.set_right_image(image_metadata.path)
 
-    def get_current_metadata(self):
+    def get_thumbnail_metadata(self):
         item = self.thumbnail_viewer.currentItem()
         if item is not None:
             return item.data(Qt.UserRole)
         return None
-
-    def on_use_prompt(self):
-        image_metadata = self.get_current_metadata()
+    
+    def on_send_to_img2img(self, image_metadata):
+        if image_metadata is not None:
+            self.image_viewer.set_left_image(image_metadata.path)
+            self.set_mode('img2img')
+    
+    def on_use_prompt(self, image_metadata):
         if image_metadata is not None:
             self.prompt_edit.setPlainText(image_metadata.prompt)
             self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
 
-    def on_use_seed(self):
-        image_metadata = self.get_current_metadata()
+    def on_use_seed(self, image_metadata):
         if image_metadata is not None:
             self.manual_seed_check_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
 
-    def on_use_all(self):
-        image_metadata = self.get_current_metadata()
+    def on_use_initial_image(self, image_metadata):
+        if image_metadata is not None:
+            self.image_viewer.set_left_image(image_metadata.source_path)
+            self.img_strength.spin_box.setValue(image_metadata.img_strength)
+            self.set_mode('img2img')
+ 
+    def on_use_all(self, image_metadata):
         if image_metadata is not None:
             self.prompt_edit.setPlainText(image_metadata.prompt)
             self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
@@ -937,22 +1126,7 @@ class MainWindow(QMainWindow):
                 self.gfpgan_strength.check_box.setChecked(False)
             self.set_mode(image_metadata.mode)
 
-    def on_use_initial_image(self):
-        image_metadata = self.get_current_metadata()
-        if image_metadata is not None:
-            self.image_viewer.set_left_image(image_metadata.source_path)
-            self.img_strength.spin_box.setValue(image_metadata.img_strength)
-            self.set_mode('img2img')
-
-    def on_send_to_img2img(self):
-        image_metadata = self.get_current_metadata()
-        if image_metadata is not None:
-            self.image_viewer.set_left_image(image_metadata.path)
-            self.set_mode('img2img')
- 
-    def on_delete(self):
-        item = self.thumbnail_viewer.currentItem()
-        image_metadata = self.get_current_metadata()
+    def on_delete(self, image_metadata):
         if image_metadata is not None:
             message_box = QMessageBox()
             message_box.setIcon(QMessageBox.Warning)
@@ -966,6 +1140,7 @@ class MainWindow(QMainWindow):
                 image_path = os.path.join(IMAGES_PATH, image_metadata.path)
                 os.remove(image_path)
 
+                item = self.thumbnail_viewer.currentItem()
                 self.thumbnail_viewer.takeItem(self.thumbnail_viewer.row(item))
 
 def main():
@@ -973,6 +1148,23 @@ def main():
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon('data/app_icon.png'))
     app.setApplicationName(APP_NAME)
+    app.setStyleSheet('''
+    QToolButton {
+        background-color: rgba(50, 50, 50, 255);
+    }
+    QToolButton:hover {
+        background-color: darkgrey;
+    }
+    QToolButton:checked {
+        background-color: darkblue;
+    }
+    QToolButton:pressed {
+        background-color: darkblue;
+    }
+    QProgressBar:chunk {
+        background-color: blue;
+    }
+    ''')
     main_window = MainWindow()
     main_window.show()
     sys.exit(app.exec())
