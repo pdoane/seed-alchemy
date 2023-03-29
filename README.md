@@ -33,11 +33,11 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Samplers (hard-coded to Euler Ancestral)
 - Pipeline cancellation
+- Latent Upscaling
 - Keyboard shortcuts
 - Models (hard-coded in source)
-- Upscaling ESRGAN
+- Long Prompt Weighting
 - Image collections
 - Thumbnail Cache
 - In Progress Display

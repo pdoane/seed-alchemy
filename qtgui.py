@@ -1,27 +1,37 @@
-import json
 import os
+
+os.environ['DISABLE_TELEMETRY'] = '1'
+os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] ='1'
+
+import json
 import random
 import re
 import sys
+import traceback
 import warnings
 
 import numpy as np
 import torch
 from compel import Compel
-from diffusers import (EulerAncestralDiscreteScheduler,
-                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
+from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
+                       DiffusionPipeline, EulerAncestralDiscreteScheduler,
+                       EulerDiscreteScheduler, HeunDiscreteScheduler,
+                       LMSDiscreteScheduler, PNDMScheduler, SchedulerMixin,
+                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline,
+                       UniPCMultistepScheduler)
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, QSize, Qt, QThread, Signal
 from PySide6.QtGui import (QAction, QFontMetrics, QIcon, QImage, QPalette,
                            QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
-                               QCheckBox, QDoubleSpinBox, QFrame, QGridLayout,
-                               QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                               QListWidgetItem, QMainWindow, QMenu,
-                               QMessageBox, QPlainTextEdit, QProgressBar,
-                               QPushButton, QScrollArea, QSizePolicy, QSlider,
-                               QSpinBox, QSplitter, QStyle, QStyleOptionSlider,
-                               QToolBar, QToolButton, QVBoxLayout, QWidget)
+                               QCheckBox, QComboBox, QDoubleSpinBox, QFrame,
+                               QGridLayout, QHBoxLayout, QLabel, QLineEdit,
+                               QListWidget, QListWidgetItem, QMainWindow,
+                               QMenu, QMessageBox, QPlainTextEdit,
+                               QProgressBar, QPushButton, QScrollArea,
+                               QSizePolicy, QSlider, QSpinBox, QSplitter,
+                               QStyle, QStyleOptionSlider, QToolBar,
+                               QToolButton, QVBoxLayout, QWidget)
 
 if sys.platform == 'darwin':
     from AppKit import NSApplication
@@ -35,7 +45,26 @@ warnings.resetwarnings()
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
 IMAGES_PATH = 'images/outputs'
-REPO_ID = 'stabilityai/stable-diffusion-2-1-base'
+#REPO_ID = 'stabilityai/stable-diffusion-2-1-base'
+REPO_ID = 'darkstorm2150/Protogen_Nova_Official_Release'
+
+pipes: dict[str, DiffusionPipeline] = {}
+schedulers: dict[str, SchedulerMixin] = {
+    'ddim': DDIMScheduler,
+    'ddpm': DDPMScheduler,
+    'deis_multi': DEISMultistepScheduler,
+    # 'dpm_multi': DPMSolverMultistepScheduler,
+    # 'dpm': DPMSolverSinglestepScheduler,
+    # 'k_dpm_2': KDPM2DiscreteScheduler,
+    # 'k_dpm_2_a': KDPM2AncestralDiscreteScheduler,
+    'k_euler': EulerDiscreteScheduler,
+    'k_euler_a': EulerAncestralDiscreteScheduler,
+    'k_heun': HeunDiscreteScheduler,
+    'k_lms': LMSDiscreteScheduler,
+    'pndm': PNDMScheduler,
+    'uni_pc': UniPCMultistepScheduler,
+}
+gfpgan: GFPGANer = None
 
 def set_default_setting(settings, key, value):
     if not settings.contains(key):
@@ -58,6 +87,7 @@ def to_qimage(pil_image):
 class ImageMetadata:
     def __init__(self):
         self.mode = 'txt2img'
+        self.scheduler = 'k_euler_a'
         self.path = ''
         self.prompt = ''
         self.negative_prompt = ''
@@ -73,6 +103,7 @@ class ImageMetadata:
 
     def load_from_settings(self, settings):
         self.mode = settings.value('mode')
+        self.scheduler = settings.value('scheduler')
         self.prompt = settings.value('prompt')
         self.negative_prompt = settings.value('negative_prompt')
         self.seed = int(settings.value('seed'))
@@ -96,6 +127,7 @@ class ImageMetadata:
             if 'image' in data:
                 image_data = data['image']
                 self.mode = image_data.get('type', 'txt2img')
+                self.scheduler = image_data.get('sampler', 'k_euler_a')
                 self.prompt = image_data.get('prompt', '')
                 self.negative_prompt = image_data.get('negative_prompt', '')
                 self.seed = int(image_data.get('seed', 5))
@@ -129,7 +161,7 @@ class ImageMetadata:
                 'width': str(self.width),
                 'seed': str(self.seed),
                 'type': self.mode,
-                'sampler': 'k_euler_a',
+                'sampler': self.scheduler,
             }
         }
         if self.mode == 'img2img':
@@ -139,8 +171,8 @@ class ImageMetadata:
             sd_metadata['image']['gfpgan_strength'] = self.gfpgan_strength
 
         png_info.add_text('Dream',
-            '"{:s} [{:s}]" -s {:d} -S {:d} -W {:d} -H {:d} -C {:f} -A k_euler_a'.format(
-                self.prompt, self.negative_prompt, self.num_inference_steps, self.seed, self.width, self.height, self.guidance_scale
+            '"{:s} [{:s}]" -s {:d} -S {:d} -W {:d} -H {:d} -C {:f} -A {:s}'.format(
+                self.prompt, self.negative_prompt, self.num_inference_steps, self.seed, self.width, self.height, self.guidance_scale, self.scheduler
             ))
         png_info.add_text('sd-metadata', json.dumps(sd_metadata))
 
@@ -264,6 +296,7 @@ class ImageMetadataFrame(QFrame):
 
         self.path = MetadataRow('Path:')
         self.mode = MetadataRow('Mode:')
+        self.scheduler = MetadataRow('Scheduler:')
         self.model = MetadataRow('Model:')
         self.prompt = MetadataRow('Prompt:', multiline=True)
         self.negative_prompt = MetadataRow('Negative Prompt:', multiline=True)
@@ -279,6 +312,7 @@ class ImageMetadataFrame(QFrame):
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
         vlayout.addWidget(self.mode.frame)
+        vlayout.addWidget(self.scheduler.frame)
         vlayout.addWidget(self.model.frame)
         vlayout.addWidget(self.prompt.frame)
         vlayout.addWidget(self.negative_prompt.frame)
@@ -295,6 +329,7 @@ class ImageMetadataFrame(QFrame):
     def update(self, metadata):
         self.path.value.setText(os.path.join(IMAGES_PATH, metadata.path))
         self.mode.value.setText(metadata.mode)
+        self.scheduler.value.setText(metadata.scheduler)
         self.model.value.setText(REPO_ID)
         self.prompt.value.setText(metadata.prompt)
         self.negative_prompt.value.setText(metadata.negative_prompt)
@@ -581,27 +616,34 @@ class FloatSliderSpinBox(QWidget):
         self.slider.setValue(slider_value)
 
 class InitThread(QThread):
-    task_complete = Signal(dict, GFPGANer)
+    task_complete = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
- 
+
     def run(self):
+        try:
+            self.run_()
+        except Exception as e:
+            traceback.print_exc()        
+ 
+    def run_(self):
         warnings.filterwarnings('ignore')
 
         dtype = torch.float32
         device = 'mps'
         base_pipe = StableDiffusionPipeline.from_pretrained(REPO_ID, safety_checker=None, torch_dtype=dtype, requires_safety_checker=False)
 
-        pipes = {}
+        global pipes
         pipes['txt2img'] = base_pipe
         pipes['img2img'] = StableDiffusionImg2ImgPipeline(**base_pipe.components, requires_safety_checker=False)
 
-        for pipe in pipes.values():
-            pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(pipe.scheduler.config)
+        for mode in pipes:
+            pipe = pipes[mode]
             pipe.enable_attention_slicing()
-            pipe = pipe.to(device)
+            pipes[mode] = pipe.to(device)
 
+        global gfpgan
         gfpgan = GFPGANer(
             model_path='data/GFPGANv1.4.pth',
             upscale=1,
@@ -612,33 +654,40 @@ class InitThread(QThread):
 
         warnings.resetwarnings()
 
-        self.task_complete.emit(pipes, gfpgan)
+        self.task_complete.emit()
 
 class GenerateThread(QThread):
     update_progress = Signal(int)
     image_complete = Signal(str)
     task_complete = Signal(int)
 
-    def __init__(self, next_image_id, mode, pipes, gfpgan, settings, parent=None):
+    def __init__(self, next_image_id, settings, parent=None):
         super().__init__(parent)
 
         self.next_image_id = next_image_id
-        self.mode = mode
-        self.pipes = pipes
-        self.gfpgan = gfpgan
+        self.mode = settings.value('mode')
         self.metadata = ImageMetadata()
         self.metadata.load_from_settings(settings)
         self.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
 
     def run(self):
+        try:
+            self.run_()
+        except Exception as e:
+            traceback.print_exc()        
+ 
+    def run_(self):
         # mode
-        pipe = self.pipes[self.mode]
+        pipe = pipes[self.mode]
         if self.mode == 'img2img':
             image_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
             f = open(image_path, 'rb')
             source_image = Image.open(f).convert('RGB')
             source_image = source_image.resize((self.metadata.width, self.metadata.height))
             f.close()
+
+        # scheduler
+        pipe.scheduler = schedulers[self.metadata.scheduler].from_config(pipe.scheduler.config)
 
         # generator
         generator = torch.Generator().manual_seed(self.metadata.seed)
@@ -681,7 +730,7 @@ class GenerateThread(QThread):
             if self.metadata.gfpgan_strength > 0.0:
                 bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
 
-                _, _, restored_img = self.gfpgan.enhance(
+                _, _, restored_img = gfpgan.enhance(
                     bgr_image_array,
                     has_aligned=False,
                     only_center_face=False,
@@ -734,6 +783,7 @@ class MainWindow(QMainWindow):
         # Settings
         self.settings = QSettings('settings.ini', QSettings.IniFormat)
         set_default_setting(self.settings, 'mode', 'txt2img')
+        set_default_setting(self.settings, 'scheduler', 'k_euler_a')
         set_default_setting(self.settings, 'prompt', '')
         set_default_setting(self.settings, 'negative_prompt', '')
         set_default_setting(self.settings, 'manual_seed', False)
@@ -796,11 +846,6 @@ class MainWindow(QMainWindow):
 
         controls_frame = QFrame()
         controls_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        controls_grid = QGridLayout()
-        controls_grid.setContentsMargins(0, 0, 0, 0)
-        controls_grid.setVerticalSpacing(2)
-        controls_grid.setRowMinimumHeight(2, 10)
-        controls_frame.setLayout(controls_grid)
 
         num_images_label = QLabel('Images')
         num_images_label.setAlignment(Qt.AlignCenter)
@@ -842,17 +887,30 @@ class MainWindow(QMainWindow):
         self.height_spin_box.setMinimum(64)
         self.height_spin_box.setMaximum(1024)
         self.height_spin_box.setValue(int(self.settings.value('height')))
+        scheduler_label = QLabel('Scheduler')
+        scheduler_label.setAlignment(Qt.AlignCenter)
+        self.scheduler_combo_box = QComboBox()
+        self.scheduler_combo_box.addItems(schedulers.keys())
+        self.scheduler_combo_box.setFixedWidth(120)
+        self.scheduler_combo_box.setCurrentText(self.settings.value('scheduler'))
 
+        controls_grid = QGridLayout(controls_frame)
+        controls_grid.setContentsMargins(0, 0, 0, 0)
+        controls_grid.setVerticalSpacing(2)
+        controls_grid.setRowMinimumHeight(2, 10)
         controls_grid.addWidget(num_images_label, 0, 0)
         controls_grid.addWidget(self.num_images_spin_box, 1, 0)
         controls_grid.addWidget(num_steps_label, 0, 1)
         controls_grid.addWidget(self.num_steps_spin_box, 1, 1)
         controls_grid.addWidget(guidance_scale_label, 0, 2)
         controls_grid.addWidget(self.guidance_scale_spin_box, 1, 2)
+        controls_grid.setAlignment(self.guidance_scale_spin_box, Qt.AlignCenter)
         controls_grid.addWidget(width_label, 3, 0)
         controls_grid.addWidget(self.width_spin_box, 4, 0)
         controls_grid.addWidget(height_label, 3, 1)
         controls_grid.addWidget(self.height_spin_box, 4, 1)
+        controls_grid.addWidget(scheduler_label, 3, 2)
+        controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
 
         self.manual_seed_check_box = QCheckBox('Manual Seed')
 
@@ -985,9 +1043,7 @@ class MainWindow(QMainWindow):
         self.init_thread.task_complete.connect(self.init_complete)
         self.init_thread.start()
 
-    def init_complete(self, pipes, gfpgan):
-        self.pipes = pipes
-        self.gfpgan = gfpgan
+    def init_complete(self):
         self.generate_button.setEnabled(True)
 
     def set_mode(self, mode):
@@ -1014,6 +1070,7 @@ class MainWindow(QMainWindow):
             self.randomize_seed()
 
         self.settings.setValue('mode', self.mode)
+        self.settings.setValue('scheduler', self.scheduler_combo_box.currentText())
         self.settings.setValue('prompt', self.prompt_edit.toPlainText())
         self.settings.setValue('negative_prompt', self.negative_prompt_edit.toPlainText())
         self.settings.setValue('manual_seed', self.manual_seed_check_box.isChecked())
@@ -1032,9 +1089,6 @@ class MainWindow(QMainWindow):
 
         self.generate_thread = GenerateThread(
             next_image_id = self.next_image_id,
-            mode = self.mode,
-            pipes = self.pipes,
-            gfpgan = self.gfpgan,
             settings = self.settings,
             parent = self
         )
@@ -1116,6 +1170,7 @@ class MainWindow(QMainWindow):
             self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
             self.width_spin_box.setValue(image_metadata.width)
             self.height_spin_box.setValue(image_metadata.height)
+            self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
             if image_metadata.mode == 'img2img':
                 self.image_viewer.set_left_image(image_metadata.source_path)
                 self.img_strength.spin_box.setValue(image_metadata.img_strength)
