@@ -33,13 +33,13 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Latent Upscaling
 - Keyboard shortcuts
-- Models (hard-coded in source)
-- Long Prompt Weighting
 - Image collections
 - Thumbnail Cache
 - In Progress Display
 - Additional pipelines (e.g. depth2img, ControlNet)
+- Model manager UI
 - Local models
+- Long Prompt Weighting
 - Respond to local filesystem changes
+- Latent Upscaling (revisit later, issues to resolve in diffusers library)

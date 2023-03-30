@@ -45,9 +45,8 @@ warnings.resetwarnings()
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
 IMAGES_PATH = 'images/outputs'
-#REPO_ID = 'stabilityai/stable-diffusion-2-1-base'
-REPO_ID = 'darkstorm2150/Protogen_Nova_Official_Release'
 
+settings: QSettings = None
 pipes: dict[str, DiffusionPipeline] = {}
 schedulers: dict[str, SchedulerMixin] = {
     'ddim': DDIMScheduler,
@@ -68,11 +67,11 @@ gfpgan: GFPGANer = None
 next_image_id: int = 0
 request_cancel: bool = False
 
-def set_default_setting(settings, key, value):
+def set_default_setting(key, value):
     if not settings.contains(key):
         settings.setValue(key, value)
 
-def bool_setting(settings, key):
+def bool_setting(key):
     value = settings.value(key)
     if value is not None:
         if isinstance(value, bool):
@@ -88,7 +87,8 @@ def to_qimage(pil_image):
 
 class ImageMetadata:
     def __init__(self):
-        self.mode = 'txt2img'
+        self.type = 'txt2img'
+        self.model = 'stabilityai/stable-diffusion-2-1-base'
         self.scheduler = 'k_euler_a'
         self.path = ''
         self.prompt = ''
@@ -103,8 +103,9 @@ class ImageMetadata:
         self.gfpgan_enabled = False
         self.gfpgan_strength  = 0.0
 
-    def load_from_settings(self, settings):
-        self.mode = settings.value('mode')
+    def load_from_settings(self):
+        self.type = settings.value('type')
+        self.model = settings.value('model')
         self.scheduler = settings.value('scheduler')
         self.prompt = settings.value('prompt')
         self.negative_prompt = settings.value('negative_prompt')
@@ -115,20 +116,21 @@ class ImageMetadata:
         self.height = int(settings.value('height'))
         self.source_path = ''
         self.img_strength = 0.0
-        if self.mode == 'img2img':
+        if self.type == 'img2img':
             self.source_path = settings.value('source_path')
             self.img_strength = float(settings.value('img_strength'))
-        self.gfpgan_enabled = bool_setting(settings, 'gfpgan_enabled')
+        self.gfpgan_enabled = bool_setting('gfpgan_enabled')
         self.gfpgan_strength = 0.0
         if self.gfpgan_enabled:
             self.gfpgan_strength = float(settings.value('gfpgan_strength'))
     
     def load_from_png_info(self, image_info):
         if 'sd-metadata' in image_info:
-            data = json.loads(image_info['sd-metadata'])
-            if 'image' in data:
-                image_data = data['image']
-                self.mode = image_data.get('type', 'txt2img')
+            sd_metadata = json.loads(image_info['sd-metadata'])
+            self.model = sd_metadata.get('model_weights', 'stabilityai/stable-diffusion-2-1-base')
+            if 'image' in sd_metadata:
+                image_data = sd_metadata['image']
+                self.type = image_data.get('type', 'txt2img')
                 self.scheduler = image_data.get('sampler', 'k_euler_a')
                 self.prompt = image_data.get('prompt', '')
                 self.negative_prompt = image_data.get('negative_prompt', '')
@@ -139,7 +141,7 @@ class ImageMetadata:
                 self.height = int(image_data.get('height', 512))
                 self.source_path = ''
                 self.img_strength = 0.0
-                if self.mode == 'img2img':
+                if self.type == 'img2img':
                     self.source_path = image_data.get('source_path', '')
                     self.img_strength = float(image_data.get('img_strength', 0.5))
                 self.gfpgan_enabled = 'gfpgan_strength' in image_data
@@ -150,7 +152,7 @@ class ImageMetadata:
     def save_to_png_info(self, png_info):
         sd_metadata = {
             'model': 'stable diffusion',
-            'model_weights': REPO_ID,
+            'model_weights': self.model,
             'model_hash': '',    # TODO
             'app_id': APP_NAME,
             'APP_VERSION': APP_VERSION,
@@ -162,11 +164,11 @@ class ImageMetadata:
                 'height': str(self.height),
                 'width': str(self.width),
                 'seed': str(self.seed),
-                'type': self.mode,
+                'type': self.type,
                 'sampler': self.scheduler,
             }
         }
-        if self.mode == 'img2img':
+        if self.type == 'img2img':
             sd_metadata['image']['source_path'] = self.source_path
             sd_metadata['image']['img_strength'] = self.img_strength
         if self.gfpgan_enabled:
@@ -297,9 +299,9 @@ class ImageMetadataFrame(QFrame):
         self.setStyleSheet('background-color: rgba(0, 0, 0, 127);')
 
         self.path = MetadataRow('Path:')
-        self.mode = MetadataRow('Mode:')
-        self.scheduler = MetadataRow('Scheduler:')
+        self.type = MetadataRow('Type:')
         self.model = MetadataRow('Model:')
+        self.scheduler = MetadataRow('Scheduler:')
         self.prompt = MetadataRow('Prompt:', multiline=True)
         self.negative_prompt = MetadataRow('Negative Prompt:', multiline=True)
         self.seed = MetadataRow('Seed:')
@@ -313,7 +315,7 @@ class ImageMetadataFrame(QFrame):
 
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
-        vlayout.addWidget(self.mode.frame)
+        vlayout.addWidget(self.type.frame)
         vlayout.addWidget(self.scheduler.frame)
         vlayout.addWidget(self.model.frame)
         vlayout.addWidget(self.prompt.frame)
@@ -330,9 +332,9 @@ class ImageMetadataFrame(QFrame):
 
     def update(self, metadata):
         self.path.value.setText(os.path.join(IMAGES_PATH, metadata.path))
-        self.mode.value.setText(metadata.mode)
+        self.type.value.setText(metadata.type)
         self.scheduler.value.setText(metadata.scheduler)
-        self.model.value.setText(REPO_ID)
+        self.model.value.setText(metadata.model)
         self.prompt.value.setText(metadata.prompt)
         self.negative_prompt.value.setText(metadata.negative_prompt)
         self.seed.value.setText(str(metadata.seed))
@@ -340,7 +342,7 @@ class ImageMetadataFrame(QFrame):
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
         self.width.value.setText(str(metadata.width))
         self.height.value.setText(str(metadata.height))
-        if metadata.mode == 'img2img':
+        if metadata.type == 'img2img':
             self.source_path.frame.setVisible(True)
             self.source_path.value.setText(os.path.join(IMAGES_PATH, metadata.source_path))
             self.img_strength.frame.setVisible(True)
@@ -636,16 +638,19 @@ class InitThread(QThread):
 
         dtype = torch.float32
         device = 'mps'
-        base_pipe = StableDiffusionPipeline.from_pretrained(REPO_ID, safety_checker=None, torch_dtype=dtype, requires_safety_checker=False)
+        if bool_setting('safety_checker'):
+            base_pipe = StableDiffusionPipeline.from_pretrained(settings.value('model'), torch_dtype=dtype)
+        else:
+            base_pipe = StableDiffusionPipeline.from_pretrained(settings.value('model'), safety_checker=None, torch_dtype=dtype, requires_safety_checker=False)
 
         global pipes
         pipes['txt2img'] = base_pipe
         pipes['img2img'] = StableDiffusionImg2ImgPipeline(**base_pipe.components, requires_safety_checker=False)
 
-        for mode in pipes:
-            pipe = pipes[mode]
+        for type in pipes:
+            pipe = pipes[type]
             pipe.enable_attention_slicing()
-            pipes[mode] = pipe.to(device)
+            pipes[type] = pipe.to(device)
 
         global gfpgan
         gfpgan = GFPGANer(
@@ -666,12 +671,12 @@ class GenerateThread(QThread):
     image_complete = Signal(str)
     task_complete = Signal()
 
-    def __init__(self, settings, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.mode = settings.value('mode')
+        self.type = settings.value('type')
         self.metadata = ImageMetadata()
-        self.metadata.load_from_settings(settings)
+        self.metadata.load_from_settings()
         self.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
 
     def run(self):
@@ -685,9 +690,9 @@ class GenerateThread(QThread):
         self.task_complete.emit()
  
     def run_(self):
-        # mode
-        pipe = pipes[self.mode]
-        if self.mode == 'img2img':
+        # type
+        pipe = pipes[self.type]
+        if self.type == 'img2img':
             image_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
             f = open(image_path, 'rb')
             source_image = Image.open(f).convert('RGB')
@@ -706,7 +711,7 @@ class GenerateThread(QThread):
         negative_prompt_embeds = compel_proc(self.metadata.negative_prompt)
 
         # generate
-        if self.mode == 'txt2img':
+        if self.type == 'txt2img':
             images = pipe(
                 width=self.metadata.width,
                 height=self.metadata.height,
@@ -718,7 +723,7 @@ class GenerateThread(QThread):
                 negative_prompt_embeds=negative_prompt_embeds,
                 callback=self.generate_callback,
             ).images
-        elif self.mode == 'img2img':
+        elif self.type == 'img2img':
             images = pipe(
                 image=source_image,
                 strength=self.metadata.img_strength,
@@ -780,7 +785,7 @@ class GenerateThread(QThread):
         self.update_progress.emit(progress_amount)
 
     def compute_total_steps(self):
-        if self.mode == 'img2img':
+        if self.type == 'img2img':
             steps = int(self.metadata.num_inference_steps * self.metadata.img_strength)
         else:
             steps = self.metadata.num_inference_steps
@@ -790,24 +795,6 @@ class GenerateThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-
-        # Settings
-        self.settings = QSettings('settings.ini', QSettings.IniFormat)
-        set_default_setting(self.settings, 'mode', 'txt2img')
-        set_default_setting(self.settings, 'scheduler', 'k_euler_a')
-        set_default_setting(self.settings, 'prompt', '')
-        set_default_setting(self.settings, 'negative_prompt', '')
-        set_default_setting(self.settings, 'manual_seed', False)
-        set_default_setting(self.settings, 'seed', 1)
-        set_default_setting(self.settings, 'num_images_per_prompt', 1)
-        set_default_setting(self.settings, 'num_inference_steps', 30)
-        set_default_setting(self.settings, 'guidance_scale', 7.5)
-        set_default_setting(self.settings, 'width', 512)
-        set_default_setting(self.settings, 'height', 512)
-        set_default_setting(self.settings, 'source_path', '')
-        set_default_setting(self.settings, 'img_strength', 0.5)
-        set_default_setting(self.settings, 'gfpgan_enabled', False)
-        set_default_setting(self.settings, 'gfpgan_strength', 0.8)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -847,9 +834,9 @@ class MainWindow(QMainWindow):
         config_frame.setContentsMargins(0, 0, 0, 0)
 
         self.prompt_edit = PlaceholderTextEdit(8, 'Prompt')
-        self.prompt_edit.setPlainText(self.settings.value('prompt'))
+        self.prompt_edit.setPlainText(settings.value('prompt'))
         self.negative_prompt_edit = PlaceholderTextEdit(3, 'Negative Prompt')
-        self.negative_prompt_edit.setPlainText(self.settings.value('negative_prompt'))
+        self.negative_prompt_edit.setPlainText(settings.value('negative_prompt'))
 
         self.generate_button = QPushButton('Generate')
         self.generate_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -875,14 +862,14 @@ class MainWindow(QMainWindow):
         self.num_images_spin_box.setAlignment(Qt.AlignCenter)
         self.num_images_spin_box.setFixedWidth(80)
         self.num_images_spin_box.setMinimum(1)
-        self.num_images_spin_box.setValue(int(self.settings.value('num_images_per_prompt')))
+        self.num_images_spin_box.setValue(int(settings.value('num_images_per_prompt')))
         num_steps_label = QLabel('Steps')
         num_steps_label.setAlignment(Qt.AlignCenter)
         self.num_steps_spin_box = QSpinBox()
         self.num_steps_spin_box.setAlignment(Qt.AlignCenter)
         self.num_steps_spin_box.setFixedWidth(80)
         self.num_steps_spin_box.setMinimum(1)
-        self.num_steps_spin_box.setValue(int(self.settings.value('num_inference_steps')))
+        self.num_steps_spin_box.setValue(int(settings.value('num_inference_steps')))
         guidance_scale_label = QLabel('CFG Scale')
         guidance_scale_label.setAlignment(Qt.AlignCenter)
         self.guidance_scale_spin_box = QDoubleSpinBox()
@@ -890,7 +877,7 @@ class MainWindow(QMainWindow):
         self.guidance_scale_spin_box.setFixedWidth(80)
         self.guidance_scale_spin_box.setSingleStep(0.5)
         self.guidance_scale_spin_box.setMinimum(0.5)
-        self.guidance_scale_spin_box.setValue(float(self.settings.value('guidance_scale')))
+        self.guidance_scale_spin_box.setValue(float(settings.value('guidance_scale')))
         width_label = QLabel('Width')
         width_label.setAlignment(Qt.AlignCenter)
         self.width_spin_box = QSpinBox()
@@ -899,7 +886,7 @@ class MainWindow(QMainWindow):
         self.width_spin_box.setSingleStep(64)
         self.width_spin_box.setMinimum(64)
         self.width_spin_box.setMaximum(1024)
-        self.width_spin_box.setValue(int(self.settings.value('width')))
+        self.width_spin_box.setValue(int(settings.value('width')))
         height_label = QLabel('Height')
         height_label.setAlignment(Qt.AlignCenter)
         self.height_spin_box = QSpinBox()
@@ -908,13 +895,13 @@ class MainWindow(QMainWindow):
         self.height_spin_box.setSingleStep(64)
         self.height_spin_box.setMinimum(64)
         self.height_spin_box.setMaximum(1024)
-        self.height_spin_box.setValue(int(self.settings.value('height')))
+        self.height_spin_box.setValue(int(settings.value('height')))
         scheduler_label = QLabel('Scheduler')
         scheduler_label.setAlignment(Qt.AlignCenter)
         self.scheduler_combo_box = QComboBox()
         self.scheduler_combo_box.addItems(schedulers.keys())
         self.scheduler_combo_box.setFixedWidth(120)
-        self.scheduler_combo_box.setCurrentText(self.settings.value('scheduler'))
+        self.scheduler_combo_box.setCurrentText(settings.value('scheduler'))
 
         controls_grid = QGridLayout(controls_frame)
         controls_grid.setContentsMargins(0, 0, 0, 0)
@@ -940,7 +927,7 @@ class MainWindow(QMainWindow):
         self.seed_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.seed_lineedit = QLineEdit()
         self.seed_lineedit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.seed_lineedit.setText(str(self.settings.value('seed')))
+        self.seed_lineedit.setText(str(settings.value('seed')))
         seed_random_button = QPushButton('New')
         seed_random_button.clicked.connect(self.on_seed_random_clicked)
 
@@ -958,16 +945,16 @@ class MainWindow(QMainWindow):
         seed_vlayout.addLayout(seed_check_box_layout)
         seed_vlayout.addWidget(self.seed_frame)
 
-        manual_seed = bool_setting(self.settings, 'manual_seed')
+        manual_seed = bool_setting('manual_seed')
         self.seed_frame.setEnabled(manual_seed)
         self.manual_seed_check_box.setChecked(manual_seed)
         self.manual_seed_check_box.stateChanged.connect(self.on_manual_seed_check_box_changed)
 
-        self.img_strength = FloatSliderSpinBox('Image Strength', float(self.settings.value('img_strength')))
+        self.img_strength = FloatSliderSpinBox('Image Strength', float(settings.value('img_strength')))
         self.img_strength.setVisible(False)
 
-        self.gfpgan_strength = FloatSliderSpinBox('Face Restoration', float(self.settings.value('gfpgan_strength')), checkable=True)
-        self.gfpgan_strength.check_box.setChecked(bool_setting(self.settings, 'gfpgan_enabled'))
+        self.gfpgan_strength = FloatSliderSpinBox('Face Restoration', float(settings.value('gfpgan_strength')), checkable=True)
+        self.gfpgan_strength.check_box.setChecked(bool_setting('gfpgan_enabled'))
 
         config_layout = QVBoxLayout(config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0) 
@@ -1043,8 +1030,8 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 600)
 
         # Gather images
-        if self.settings.value('source_path') != '':
-            self.image_viewer.set_left_image(self.settings.value('source_path'))
+        if settings.value('source_path') != '':
+            self.image_viewer.set_left_image(settings.value('source_path'))
 
         image_files = sorted([file for file in os.listdir(IMAGES_PATH) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
 
@@ -1062,7 +1049,7 @@ class MainWindow(QMainWindow):
         next_image_id = next_image_id + 1
 
         # Apply settings that impact other controls
-        self.set_mode(self.settings.value('mode'))
+        self.set_type(settings.value('type'))
 
         # Initialize pipelines
         self.generate_thread = None
@@ -1075,22 +1062,22 @@ class MainWindow(QMainWindow):
         self.update_progress(0)
         self.init_thread = None
 
-    def set_mode(self, mode):
-        self.mode = mode
-        if self.mode == 'txt2img':
+    def set_type(self, type):
+        self.type = type
+        if self.type == 'txt2img':
             self.button_group.button(0).setChecked(True)
-        elif self.mode == 'img2img':
+        elif self.type == 'img2img':
             self.button_group.button(1).setChecked(True)
 
     def on_mode_changed(self, button_id, checked):
         if not checked:
             return
         if button_id == 0:
-            self.mode = 'txt2img'
+            self.type = 'txt2img'
             self.img_strength.setVisible(False)
             self.image_viewer.set_both_images_visible(False)
         elif button_id == 1:
-            self.mode = 'img2img'
+            self.type = 'img2img'
             self.img_strength.setVisible(True)
             self.image_viewer.set_both_images_visible(True)
 
@@ -1107,28 +1094,25 @@ class MainWindow(QMainWindow):
         if not self.manual_seed_check_box.isChecked():
             self.randomize_seed()
 
-        self.settings.setValue('mode', self.mode)
-        self.settings.setValue('scheduler', self.scheduler_combo_box.currentText())
-        self.settings.setValue('prompt', self.prompt_edit.toPlainText())
-        self.settings.setValue('negative_prompt', self.negative_prompt_edit.toPlainText())
-        self.settings.setValue('manual_seed', self.manual_seed_check_box.isChecked())
-        self.settings.setValue('seed', self.seed_lineedit.text())
-        self.settings.setValue('num_images_per_prompt', self.num_images_spin_box.value())
-        self.settings.setValue('num_inference_steps', self.num_steps_spin_box.value())
-        self.settings.setValue('guidance_scale', self.guidance_scale_spin_box.value())
-        self.settings.setValue('width', self.width_spin_box.value())
-        self.settings.setValue('height', self.height_spin_box.value())
-        self.settings.setValue('source_path', self.image_viewer.left_image_path())
-        self.settings.setValue('img_strength', self.img_strength.spin_box.value())
-        self.settings.setValue('gfpgan_enabled', self.gfpgan_strength.check_box.isChecked())
-        self.settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
+        settings.setValue('type', self.type)
+        settings.setValue('scheduler', self.scheduler_combo_box.currentText())
+        settings.setValue('prompt', self.prompt_edit.toPlainText())
+        settings.setValue('negative_prompt', self.negative_prompt_edit.toPlainText())
+        settings.setValue('manual_seed', self.manual_seed_check_box.isChecked())
+        settings.setValue('seed', self.seed_lineedit.text())
+        settings.setValue('num_images_per_prompt', self.num_images_spin_box.value())
+        settings.setValue('num_inference_steps', self.num_steps_spin_box.value())
+        settings.setValue('guidance_scale', self.guidance_scale_spin_box.value())
+        settings.setValue('width', self.width_spin_box.value())
+        settings.setValue('height', self.height_spin_box.value())
+        settings.setValue('source_path', self.image_viewer.left_image_path())
+        settings.setValue('img_strength', self.img_strength.spin_box.value())
+        settings.setValue('gfpgan_enabled', self.gfpgan_strength.check_box.isChecked())
+        settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
 
         global request_cancel
         request_cancel = False
-        self.generate_thread = GenerateThread(
-            settings = self.settings,
-            parent = self
-        )
+        self.generate_thread = GenerateThread(self)
         self.generate_thread.update_progress.connect(self.update_progress)
         self.generate_thread.image_complete.connect(self.image_complete)
         self.generate_thread.task_complete.connect(self.generate_complete)
@@ -1182,7 +1166,7 @@ class MainWindow(QMainWindow):
     def on_send_to_img2img(self, image_metadata):
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.path)
-            self.set_mode('img2img')
+            self.set_type('img2img')
     
     def on_use_prompt(self, image_metadata):
         if image_metadata is not None:
@@ -1198,7 +1182,7 @@ class MainWindow(QMainWindow):
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.source_path)
             self.img_strength.spin_box.setValue(image_metadata.img_strength)
-            self.set_mode('img2img')
+            self.set_type('img2img')
  
     def on_use_all(self, image_metadata):
         if image_metadata is not None:
@@ -1211,7 +1195,7 @@ class MainWindow(QMainWindow):
             self.width_spin_box.setValue(image_metadata.width)
             self.height_spin_box.setValue(image_metadata.height)
             self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
-            if image_metadata.mode == 'img2img':
+            if image_metadata.type == 'img2img':
                 self.image_viewer.set_left_image(image_metadata.source_path)
                 self.img_strength.spin_box.setValue(image_metadata.img_strength)
             if image_metadata.gfpgan_enabled:
@@ -1219,7 +1203,7 @@ class MainWindow(QMainWindow):
                 self.gfpgan_strength.spin_box.setValue(image_metadata.gfpgan_strength)
             else:
                 self.gfpgan_strength.check_box.setChecked(False)
-            self.set_mode(image_metadata.mode)
+            self.set_type(image_metadata.type)
 
     def on_delete(self, image_metadata):
         if image_metadata is not None:
@@ -1264,6 +1248,28 @@ class MainWindow(QMainWindow):
 class Application(QApplication):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+        # Settings
+        global settings
+        settings = QSettings('settings.ini', QSettings.IniFormat)
+        set_default_setting('safety_checker', True)
+        set_default_setting('type', 'txt2img')
+        set_default_setting('scheduler', 'k_euler_a')
+        set_default_setting('model', 'stabilityai/stable-diffusion-2-1-base')
+        set_default_setting('prompt', '')
+        set_default_setting('negative_prompt', '')
+        set_default_setting('manual_seed', False)
+        set_default_setting('seed', 1)
+        set_default_setting('num_images_per_prompt', 1)
+        set_default_setting('num_inference_steps', 30)
+        set_default_setting('guidance_scale', 7.5)
+        set_default_setting('width', 512)
+        set_default_setting('height', 512)
+        set_default_setting('source_path', '')
+        set_default_setting('img_strength', 0.5)
+        set_default_setting('gfpgan_enabled', False)
+        set_default_setting('gfpgan_strength', 0.8)
+
         self.setWindowIcon(QIcon('data/app_icon.png'))
         self.setApplicationName(APP_NAME)
         self.setStyleSheet('''
