@@ -33,7 +33,6 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Pipeline cancellation
 - Latent Upscaling
 - Keyboard shortcuts
 - Models (hard-coded in source)

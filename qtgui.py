@@ -20,7 +20,7 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        StableDiffusionImg2ImgPipeline, StableDiffusionPipeline,
                        UniPCMultistepScheduler)
 from PIL import Image, PngImagePlugin
-from PySide6.QtCore import QSettings, QSize, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QThread, Signal
 from PySide6.QtGui import (QAction, QFontMetrics, QIcon, QImage, QPalette,
                            QPixmap)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
@@ -65,6 +65,8 @@ schedulers: dict[str, SchedulerMixin] = {
     'uni_pc': UniPCMultistepScheduler,
 }
 gfpgan: GFPGANer = None
+next_image_id: int = 0
+request_cancel: bool = False
 
 def set_default_setting(settings, key, value):
     if not settings.contains(key):
@@ -626,6 +628,8 @@ class InitThread(QThread):
             self.run_()
         except Exception as e:
             traceback.print_exc()        
+
+        self.task_complete.emit()
  
     def run_(self):
         warnings.filterwarnings('ignore')
@@ -654,17 +658,17 @@ class InitThread(QThread):
 
         warnings.resetwarnings()
 
-        self.task_complete.emit()
+class CancelThreadException(Exception):
+    pass
 
 class GenerateThread(QThread):
     update_progress = Signal(int)
     image_complete = Signal(str)
-    task_complete = Signal(int)
+    task_complete = Signal()
 
-    def __init__(self, next_image_id, settings, parent=None):
+    def __init__(self, settings, parent=None):
         super().__init__(parent)
 
-        self.next_image_id = next_image_id
         self.mode = settings.value('mode')
         self.metadata = ImageMetadata()
         self.metadata.load_from_settings(settings)
@@ -673,8 +677,12 @@ class GenerateThread(QThread):
     def run(self):
         try:
             self.run_()
+        except CancelThreadException:
+            pass
         except Exception as e:
-            traceback.print_exc()        
+            traceback.print_exc()
+
+        self.task_complete.emit()
  
     def run_(self):
         # mode
@@ -751,8 +759,9 @@ class GenerateThread(QThread):
             self.update_progress.emit(progress_amount)
 
             # Output
-            output_file = '{:05d}.png'.format(self.next_image_id)
-            self.next_image_id = self.next_image_id + 1
+            global next_image_id
+            output_file = '{:05d}.png'.format(next_image_id)
+            next_image_id = next_image_id + 1
             output_path = os.path.join(IMAGES_PATH, output_file)
 
             png_info = PngImagePlugin.PngInfo()
@@ -761,9 +770,11 @@ class GenerateThread(QThread):
 
             self.image_complete.emit(output_file)
 
-        self.task_complete.emit(self.next_image_id)
-
     def generate_callback(self, step: int, timestep: int, latents: torch.FloatTensor):
+        global request_cancel
+        if request_cancel:
+            request_cancel = False
+            raise CancelThreadException()
         steps = self.compute_total_steps()
         progress_amount = (step+1) * 100 / steps
         self.update_progress.emit(progress_amount)
@@ -841,8 +852,19 @@ class MainWindow(QMainWindow):
         self.negative_prompt_edit.setPlainText(self.settings.value('negative_prompt'))
 
         self.generate_button = QPushButton('Generate')
+        self.generate_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.generate_button.setEnabled(False)
         self.generate_button.clicked.connect(self.on_generate_clicked)
+
+        cancel_button = QPushButton()
+        cancel_button.setIcon(QIcon('data/cancel_icon.png'))
+        cancel_button.setToolTip('Cancel')
+        cancel_button.clicked.connect(self.on_cancel_clicked)
+
+        generate_hlayout = QHBoxLayout()
+        generate_hlayout.setContentsMargins(0, 0, 0, 0)
+        generate_hlayout.addWidget(self.generate_button)
+        generate_hlayout.addWidget(cancel_button)
 
         controls_frame = QFrame()
         controls_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
@@ -951,7 +973,7 @@ class MainWindow(QMainWindow):
         config_layout.setContentsMargins(0, 0, 0, 0) 
         config_layout.addWidget(self.prompt_edit)
         config_layout.addWidget(self.negative_prompt_edit)
-        config_layout.addWidget(self.generate_button)
+        config_layout.addLayout(generate_hlayout)
         config_layout.addWidget(controls_frame)
         config_layout.addLayout(seed_vlayout)
         config_layout.addWidget(self.img_strength)
@@ -1001,6 +1023,9 @@ class MainWindow(QMainWindow):
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
 
         hlayout = QHBoxLayout()
         hlayout.setContentsMargins(8, 2, 8, 8)
@@ -1026,25 +1051,29 @@ class MainWindow(QMainWindow):
         if len(image_files) > 0:
             self.image_viewer.set_right_image(image_files[-1])
 
-        self.next_image_id = 0
+        global next_image_id
+        next_image_id = 0
         for image_file in image_files:
             match = re.match(r'(\d+)\.png', image_file)
             if match:
-                self.next_image_id = max(self.next_image_id, int(match.group(1)))
+                next_image_id = max(next_image_id, int(match.group(1)))
             self.thumbnail_viewer.add_thumbnail(image_file)
         self.thumbnail_viewer.setCurrentRow(0)
-        self.next_image_id = self.next_image_id + 1
+        next_image_id = next_image_id + 1
 
         # Apply settings that impact other controls
         self.set_mode(self.settings.value('mode'))
 
         # Initialize pipelines
+        self.generate_thread = None
         self.init_thread = InitThread(self)
         self.init_thread.task_complete.connect(self.init_complete)
         self.init_thread.start()
 
     def init_complete(self):
         self.generate_button.setEnabled(True)
+        self.update_progress(0)
+        self.init_thread = None
 
     def set_mode(self, mode):
         self.mode = mode
@@ -1065,7 +1094,16 @@ class MainWindow(QMainWindow):
             self.img_strength.setVisible(True)
             self.image_viewer.set_both_images_visible(True)
 
+    def on_cancel_clicked(self):
+        global request_cancel
+        request_cancel = True
+
     def on_generate_clicked(self):
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(0)
+        self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
+        self.generate_button.setEnabled(False)
+
         if not self.manual_seed_check_box.isChecked():
             self.randomize_seed()
 
@@ -1085,10 +1123,9 @@ class MainWindow(QMainWindow):
         self.settings.setValue('gfpgan_enabled', self.gfpgan_strength.check_box.isChecked())
         self.settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
 
-        self.generate_button.setEnabled(False)
-
+        global request_cancel
+        request_cancel = False
         self.generate_thread = GenerateThread(
-            next_image_id = self.next_image_id,
             settings = self.settings,
             parent = self
         )
@@ -1098,6 +1135,9 @@ class MainWindow(QMainWindow):
         self.generate_thread.start()
     
     def update_progress(self, progress_amount):
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: blue; }')
         self.progress_bar.setValue(progress_amount)
         if sys.platform == 'darwin':
             sharedApplication = NSApplication.sharedApplication()
@@ -1112,10 +1152,10 @@ class MainWindow(QMainWindow):
         self.thumbnail_viewer.setCurrentRow(0)
         self.image_viewer.set_right_image(output_file)
 
-    def generate_complete(self, next_image_id):
-        self.next_image_id = next_image_id
+    def generate_complete(self):
         self.generate_button.setEnabled(True)
         self.update_progress(0)
+        self.generate_thread = None
 
     def randomize_seed(self):
         seed = random.randint(0, 0x7fff_ffff_ffff_ffff)
@@ -1198,30 +1238,60 @@ class MainWindow(QMainWindow):
                 item = self.thumbnail_viewer.currentItem()
                 self.thumbnail_viewer.takeItem(self.thumbnail_viewer.row(item))
 
+    def hide_if_thread_running(self):
+        if self.init_thread:
+            self.init_thread.finished.connect(self.quit_after_thread_finished)
+            self.hide()
+            return True
+        elif self.generate_thread:
+            global request_cancel
+            request_cancel = True
+            self.generate_thread.finished.connect(self.quit_after_thread_finished)
+            self.hide()
+            return True
+        else:
+            return False
+
+    def quit_after_thread_finished(self):
+        QApplication.instance().quit()
+
+    def closeEvent(self, event):
+        if self.hide_if_thread_running():
+            event.ignore()
+        else:
+            event.accept()
+
+class Application(QApplication):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setWindowIcon(QIcon('data/app_icon.png'))
+        self.setApplicationName(APP_NAME)
+        self.setStyleSheet('''
+        QToolButton {
+            background-color: rgba(50, 50, 50, 255);
+        }
+        QToolButton:hover {
+            background-color: darkgrey;
+        }
+        QToolButton:checked {
+            background-color: darkblue;
+        }
+        QToolButton:pressed {
+            background-color: darkblue;
+        }
+        ''')
+        self.main_window = MainWindow()
+        self.main_window.show()
+
+    def event(self, event):
+        if event.type() == QEvent.Quit:
+            if self.main_window.hide_if_thread_running():
+                return False
+        return super().event(event)
+    
 def main():
     os.makedirs(IMAGES_PATH, exist_ok=True)
-    app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon('data/app_icon.png'))
-    app.setApplicationName(APP_NAME)
-    app.setStyleSheet('''
-    QToolButton {
-        background-color: rgba(50, 50, 50, 255);
-    }
-    QToolButton:hover {
-        background-color: darkgrey;
-    }
-    QToolButton:checked {
-        background-color: darkblue;
-    }
-    QToolButton:pressed {
-        background-color: darkblue;
-    }
-    QProgressBar:chunk {
-        background-color: blue;
-    }
-    ''')
-    main_window = MainWindow()
-    main_window.show()
+    app = Application(sys.argv)
     sys.exit(app.exec())
 
 if __name__ == '__main__':
