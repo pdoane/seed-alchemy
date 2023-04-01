@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QCheckBox, QComboBox, QDoubleSpinBox, QFrame,
                                QGridLayout, QHBoxLayout, QLabel, QLineEdit,
                                QListWidget, QListWidgetItem, QMainWindow,
-                               QMenu, QMessageBox, QPlainTextEdit,
+                               QMenu, QMenuBar, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QScrollArea,
                                QSizePolicy, QSlider, QSpinBox, QSplitter,
                                QStyle, QStyleOptionSlider, QToolBar,
@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
 
 if sys.platform == 'darwin':
     from AppKit import NSApplication
+    from Foundation import NSBundle
 
 warnings.filterwarnings('ignore')
 from gfpgan import GFPGANer
@@ -181,7 +182,9 @@ class ImageMetadata:
         png_info.add_text('sd-metadata', json.dumps(sd_metadata))
 
 
-class PlaceholderTextEdit(QPlainTextEdit):
+class PromptTextEdit(QPlainTextEdit):
+    return_pressed = Signal()
+
     def __init__(self, desired_lines, placeholder_text, parent=None):
         super().__init__(parent)
 
@@ -198,6 +201,19 @@ class PlaceholderTextEdit(QPlainTextEdit):
         self.setFixedHeight(line_height * desired_lines + margins.top() + margins.bottom() + 2 * frame_width + 2 * document_margins)
         self.setPlaceholderText(placeholder_text)
         self.setTabChangesFocus(True)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key in (Qt.Key_Enter, Qt.Key_Return):
+            self.clearFocus()
+            self.return_pressed.emit()
+        elif key == Qt.Key_Escape:
+            self.clearFocus()
+        else:
+            super().keyPressEvent(event)
+
+        if key in (Qt.Key_Left, Qt.Key_Right):
+            event.accept()
 
 class ThumbnailViewer(QListWidget):
     def __init__(self, parent=None):
@@ -796,8 +812,65 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.setFocusPolicy(Qt.ClickFocus)
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
+
+        # Menubar
+        menu_bar = QMenuBar(self)
+
+        image_menu = QMenu("Image", menu_bar)
+
+        action_generate_image = QAction("Generate Image", self)
+        action_generate_image.setShortcut(Qt.CTRL | Qt.Key_Return)
+        action_cancel_generation = QAction("Cancel Generation", self)
+        action_cancel_generation.setShortcut(Qt.SHIFT | Qt.Key_X)
+        action_send_to_img2img = QAction("Send to Image to Image", self)
+        action_use_prompt = QAction("Use Prompt", self)
+        action_use_prompt.setShortcut(Qt.Key_P)
+        action_use_seed = QAction("Use Seed", self)
+        action_use_seed.setShortcut(Qt.Key_S)
+        action_use_initial_image = QAction("Use Initial Image", self)
+        action_use_all = QAction("Use All", self)
+        action_use_all.setShortcut(Qt.Key_A)
+        action_metadata = QAction("Metadata", self)
+        action_metadata.setShortcut(Qt.Key_I)
+        action_delete_image = QAction("Delete Image", self)
+        action_delete_image.setShortcut(Qt.Key_Delete)
+        action_previous_image = QAction("Previous Image", self)
+        action_previous_image.setShortcut(Qt.Key_Left)
+        action_next_image = QAction("Next Image", self)
+        action_next_image.setShortcut(Qt.Key_Right)
+
+        image_menu.addAction(action_generate_image)
+        image_menu.addAction(action_cancel_generation)
+        image_menu.addSeparator()
+        image_menu.addAction(action_send_to_img2img)
+        image_menu.addAction(action_use_prompt)
+        image_menu.addAction(action_use_seed)
+        image_menu.addAction(action_use_initial_image)
+        image_menu.addAction(action_use_all)
+        image_menu.addAction(action_metadata)
+        image_menu.addSeparator()
+        image_menu.addAction(action_delete_image)
+        image_menu.addSeparator()
+
+        action_generate_image.triggered.connect(self.on_generate_image)
+        action_cancel_generation.triggered.connect(self.on_cancel_generation)
+        action_send_to_img2img.triggered.connect(lambda: self.on_send_to_img2img(self.image_viewer.metadata))
+        action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
+        action_use_seed.triggered.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
+        action_use_initial_image.triggered.connect(lambda: self.on_use_initial_image(self.image_viewer.metadata))
+        action_use_all.triggered.connect(lambda: self.on_use_all(self.image_viewer.metadata))
+        action_metadata.triggered.connect(lambda: self.image_viewer.metadata_button.toggle())
+        action_delete_image.triggered.connect(lambda: self.on_delete(self.image_viewer.metadata))
+
+        # Add the menu to the menu bar
+        menu_bar.addMenu(image_menu)
+
+        # Set the menu bar to the main window
+        self.setMenuBar(menu_bar)
 
         # Modes
         mode_toolbar = QToolBar()
@@ -833,20 +906,22 @@ class MainWindow(QMainWindow):
         config_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         config_frame.setContentsMargins(0, 0, 0, 0)
 
-        self.prompt_edit = PlaceholderTextEdit(8, 'Prompt')
+        self.prompt_edit = PromptTextEdit(8, 'Prompt')
         self.prompt_edit.setPlainText(settings.value('prompt'))
-        self.negative_prompt_edit = PlaceholderTextEdit(3, 'Negative Prompt')
+        self.prompt_edit.return_pressed.connect(self.on_generate_image)
+        self.negative_prompt_edit = PromptTextEdit(3, 'Negative Prompt')
         self.negative_prompt_edit.setPlainText(settings.value('negative_prompt'))
+        self.negative_prompt_edit.return_pressed.connect(self.on_generate_image)
 
         self.generate_button = QPushButton('Generate')
         self.generate_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.generate_button.setEnabled(False)
-        self.generate_button.clicked.connect(self.on_generate_clicked)
+        self.generate_button.clicked.connect(self.on_generate_image)
 
         cancel_button = QPushButton()
         cancel_button.setIcon(QIcon('data/cancel_icon.png'))
         cancel_button.setToolTip('Cancel')
-        cancel_button.clicked.connect(self.on_cancel_clicked)
+        cancel_button.clicked.connect(self.on_cancel_generation)
 
         generate_hlayout = QHBoxLayout()
         generate_hlayout.setContentsMargins(0, 0, 0, 0)
@@ -1081,11 +1156,11 @@ class MainWindow(QMainWindow):
             self.img_strength.setVisible(True)
             self.image_viewer.set_both_images_visible(True)
 
-    def on_cancel_clicked(self):
+    def on_cancel_generation(self):
         global request_cancel
         request_cancel = True
 
-    def on_generate_clicked(self):
+    def on_generate_image(self):
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(0)
         self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
@@ -1222,6 +1297,16 @@ class MainWindow(QMainWindow):
                 item = self.thumbnail_viewer.currentItem()
                 self.thumbnail_viewer.takeItem(self.thumbnail_viewer.row(item))
 
+    def on_previous_image(self):
+        next_row = self.thumbnail_viewer.currentRow() - 1
+        if next_row >= 0:
+            self.thumbnail_viewer.setCurrentRow(next_row)
+
+    def on_next_image(self):
+        next_row = self.thumbnail_viewer.currentRow() + 1
+        if next_row < self.thumbnail_viewer.count():
+            self.thumbnail_viewer.setCurrentRow(next_row)
+        
     def hide_if_thread_running(self):
         if self.init_thread:
             self.init_thread.finished.connect(self.quit_after_thread_finished)
@@ -1244,6 +1329,15 @@ class MainWindow(QMainWindow):
             event.ignore()
         else:
             event.accept()
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_Left:
+            self.on_previous_image()
+        elif key == Qt.Key_Right:
+            self.on_next_image()
+        else:
+            super().keyPressEvent(event)
 
 class Application(QApplication):
     def __init__(self, *args, **kwargs):
@@ -1297,6 +1391,12 @@ class Application(QApplication):
     
 def main():
     os.makedirs(IMAGES_PATH, exist_ok=True)
+
+    if sys.platform == 'darwin':
+        bundle = NSBundle.mainBundle()
+        info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+        info_dict['CFBundleName'] = APP_NAME
+
     app = Application(sys.argv)
     sys.exit(app.exec())
 

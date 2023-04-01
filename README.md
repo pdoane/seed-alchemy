@@ -33,7 +33,6 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Keyboard shortcuts
 - Image collections
 - Thumbnail Cache
 - In Progress Display
@@ -41,5 +40,4 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 - Model manager UI
 - Local models
 - Long Prompt Weighting
-- Respond to local filesystem changes
 - Latent Upscaling (revisit later, issues to resolve in diffusers library)
