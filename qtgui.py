@@ -45,7 +45,8 @@ warnings.resetwarnings()
 # -------------------------------------------------------------------------------------------------
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
-IMAGES_PATH = 'images/outputs'
+IMAGES_PATH = 'images'
+THUMBNAILS_PATH = 'thumbnails'
 
 settings: QSettings = None
 pipes: dict[str, DiffusionPipeline] = {}
@@ -65,8 +66,6 @@ schedulers: dict[str, SchedulerMixin] = {
     'uni_pc': UniPCMultistepScheduler,
 }
 gfpgan: GFPGANer = None
-next_image_id: int = 0
-request_cancel: bool = False
 
 def set_default_setting(key, value):
     if not settings.contains(key):
@@ -125,7 +124,7 @@ class ImageMetadata:
         if self.gfpgan_enabled:
             self.gfpgan_strength = float(settings.value('gfpgan_strength'))
     
-    def load_from_png_info(self, image_info):
+    def load_from_image_info(self, image_info):
         if 'sd-metadata' in image_info:
             sd_metadata = json.loads(image_info['sd-metadata'])
             self.model = sd_metadata.get('model_weights', 'stabilityai/stable-diffusion-2-1-base')
@@ -256,19 +255,24 @@ class ThumbnailViewer(QListWidget):
         rect.setHeight(self.iconSize().height())
         return rect
 
-    def add_thumbnail(self, path):
-        full_path = os.path.join(IMAGES_PATH, path)
-        image = Image.open(full_path)
-        metadata = ImageMetadata()
-        metadata.path = path
-        metadata.load_from_png_info(image.info)
-        pixmap = QPixmap.fromImage(to_qimage(image))
-        scaled_pixmap = pixmap.scaled(self.max_thumbnail_size, self.max_thumbnail_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        icon = QIcon(scaled_pixmap)
-        item = QListWidgetItem()
-        item.setIcon(icon)
-        item.setData(Qt.UserRole, metadata)
-        self.insertItem(0, item)
+    def add_thumbnail(self, rel_path):
+        thumbnail_path = os.path.join(THUMBNAILS_PATH, rel_path)
+        if not os.path.exists(thumbnail_path):
+            image_path = os.path.join(IMAGES_PATH, rel_path)
+            with Image.open(image_path) as image:
+                width, height = image.size
+                width = width // 2
+                height = height // 2
+                scaled_image = image.resize((width, height))
+                scaled_image.save(thumbnail_path, 'WEBP')
+
+        with Image.open(thumbnail_path) as image:
+            pixmap = QPixmap.fromImage(to_qimage(image))
+            icon = QIcon(pixmap)
+            item = QListWidgetItem()
+            item.setIcon(icon)
+            item.setData(Qt.UserRole, rel_path)
+            self.insertItem(0, item)
 
     def update_icon_size(self):
         style = QApplication.instance().style()
@@ -347,7 +351,7 @@ class ImageMetadataFrame(QFrame):
         vlayout.addStretch()
 
     def update(self, metadata):
-        self.path.value.setText(os.path.join(IMAGES_PATH, metadata.path))
+        self.path.value.setText(metadata.path)
         self.type.value.setText(metadata.type)
         self.scheduler.value.setText(metadata.scheduler)
         self.model.value.setText(metadata.model)
@@ -360,7 +364,7 @@ class ImageMetadataFrame(QFrame):
         self.height.value.setText(str(metadata.height))
         if metadata.type == 'img2img':
             self.source_path.frame.setVisible(True)
-            self.source_path.value.setText(os.path.join(IMAGES_PATH, metadata.source_path))
+            self.source_path.value.setText(metadata.source_path)
             self.img_strength.frame.setVisible(True)
             self.img_strength.value.setText(str(metadata.img_strength))
         else:
@@ -564,15 +568,15 @@ class ImageViewer(QWidget):
 
     def set_right_image(self, path):
         full_path = os.path.join(IMAGES_PATH, path)
-        image = Image.open(full_path)
-        self.metadata = ImageMetadata()
-        self.metadata.path = path
-        self.metadata.load_from_png_info(image.info)
+        with Image.open(full_path) as image:
+            self.metadata = ImageMetadata()
+            self.metadata.path = path
+            self.metadata.load_from_image_info(image.info)
 
-        self.right_image_path_ = path
-        self.right_image = to_qimage(image)
+            self.right_image_path_ = path
+            self.right_image = to_qimage(image)
+
         self.metadata_frame.update(self.metadata)
-
         self.update_images()
 
     def on_metadata_button_changed(self, state):
@@ -632,7 +636,7 @@ class FloatSliderSpinBox(QWidget):
         self.spin_box.setValue(decimal_value)
 
     def on_spin_box_changed(self, value):
-        slider_value = int(value * 100)
+        slider_value = round(value * 100)
         self.slider.setValue(slider_value)
 
 class InitThread(QThread):
@@ -690,6 +694,7 @@ class GenerateThread(QThread):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self.cancel = False
         self.type = settings.value('type')
         self.metadata = ImageMetadata()
         self.metadata.load_from_settings()
@@ -709,8 +714,8 @@ class GenerateThread(QThread):
         # type
         pipe = pipes[self.type]
         if self.type == 'img2img':
-            image_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
-            f = open(image_path, 'rb')
+            full_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
+            f = open(full_path, 'rb')
             source_image = Image.open(f).convert('RGB')
             source_image = source_image.resize((self.metadata.width, self.metadata.height))
             f.close()
@@ -780,21 +785,27 @@ class GenerateThread(QThread):
             self.update_progress.emit(progress_amount)
 
             # Output
-            global next_image_id
-            output_file = '{:05d}.png'.format(next_image_id)
+            collection_path = settings.value('collection')
+            image_files = sorted([file for file in os.listdir(os.path.join(IMAGES_PATH, collection_path)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
+
+            next_image_id = 0
+            for image_file in image_files:
+                match = re.match(r'(\d+)\.png', image_file)
+                if match:
+                    next_image_id = max(next_image_id, int(match.group(1)))
             next_image_id = next_image_id + 1
-            output_path = os.path.join(IMAGES_PATH, output_file)
+
+            output_path = os.path.join(collection_path, '{:05d}.png'.format(next_image_id))
+            full_path = os.path.join(IMAGES_PATH, output_path)
 
             png_info = PngImagePlugin.PngInfo()
             self.metadata.save_to_png_info(png_info)
-            image.save(output_path, pnginfo=png_info)
+            image.save(full_path, pnginfo=png_info)
 
-            self.image_complete.emit(output_file)
+            self.image_complete.emit(output_path)
 
     def generate_callback(self, step: int, timestep: int, latents: torch.FloatTensor):
-        global request_cancel
-        if request_cancel:
-            request_cancel = False
+        if self.cancel:
             raise CancelThreadException()
         steps = self.compute_total_steps()
         progress_amount = (step+1) * 100 / steps
@@ -1051,9 +1062,11 @@ class MainWindow(QMainWindow):
         self.image_viewer.use_all_button.pressed.connect(lambda: self.on_use_all(self.image_viewer.metadata))
         self.image_viewer.delete_button.pressed.connect(lambda: self.on_delete(self.image_viewer.metadata))
 
-        #  Thumbnail viewer
+        #  Thumbnails
         thumbnail_frame = QFrame()
         thumbnail_frame.setContentsMargins(0, 0, 0, 0)
+
+        self.collection_combobox = QComboBox()
 
         self.thumbnail_viewer = ThumbnailViewer()
         self.thumbnail_viewer.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
@@ -1071,6 +1084,7 @@ class MainWindow(QMainWindow):
 
         thumbnail_layout = QVBoxLayout(thumbnail_frame)
         thumbnail_layout.setContentsMargins(0, 0, 0, 0)
+        thumbnail_layout.addWidget(self.collection_combobox)
         thumbnail_layout.addWidget(scroll_area)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1104,29 +1118,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_NAME)
         self.setGeometry(100, 100, 1200, 600)
 
-        # Gather images
-        if settings.value('source_path') != '':
-            self.image_viewer.set_left_image(settings.value('source_path'))
+        # Gather collections
+        collections = sorted([entry for entry in os.listdir(IMAGES_PATH) if os.path.isdir(os.path.join(IMAGES_PATH, entry))])
+        if not collections:
+            os.makedirs(os.path.join(IMAGES_PATH, 'outputs'))
+            collections = ['outputs']
 
-        image_files = sorted([file for file in os.listdir(IMAGES_PATH) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
-
-        if len(image_files) > 0:
-            self.image_viewer.set_right_image(image_files[-1])
-
-        global next_image_id
-        next_image_id = 0
-        for image_file in image_files:
-            match = re.match(r'(\d+)\.png', image_file)
-            if match:
-                next_image_id = max(next_image_id, int(match.group(1)))
-            self.thumbnail_viewer.add_thumbnail(image_file)
-        self.thumbnail_viewer.setCurrentRow(0)
-        next_image_id = next_image_id + 1
+        self.collection_combobox.addItems(collections)
+        self.collection_combobox.setCurrentText(settings.value('collection'))
+        self.collection_combobox.currentIndexChanged.connect(self.on_collection_changed)
+        self.on_collection_changed()
 
         # Apply settings that impact other controls
+        if settings.value('source_path') != '':
+            self.image_viewer.set_left_image(settings.value('source_path'))
         self.set_type(settings.value('type'))
 
-        # Initialize pipelines
+        # Initialize
+        self.active_thread_count = 0
         self.generate_thread = None
         self.init_thread = InitThread(self)
         self.init_thread.task_complete.connect(self.init_complete)
@@ -1157,8 +1166,8 @@ class MainWindow(QMainWindow):
             self.image_viewer.set_both_images_visible(True)
 
     def on_cancel_generation(self):
-        global request_cancel
-        request_cancel = True
+        if self.generate_thread:
+            self.generate_thread.cancel = True
 
     def on_generate_image(self):
         self.progress_bar.setMinimum(0)
@@ -1169,6 +1178,7 @@ class MainWindow(QMainWindow):
         if not self.manual_seed_check_box.isChecked():
             self.randomize_seed()
 
+        settings.setValue('collection', self.collection_combobox.currentText())
         settings.setValue('type', self.type)
         settings.setValue('scheduler', self.scheduler_combo_box.currentText())
         settings.setValue('prompt', self.prompt_edit.toPlainText())
@@ -1185,8 +1195,6 @@ class MainWindow(QMainWindow):
         settings.setValue('gfpgan_enabled', self.gfpgan_strength.check_box.isChecked())
         settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
 
-        global request_cancel
-        request_cancel = False
         self.generate_thread = GenerateThread(self)
         self.generate_thread.update_progress.connect(self.update_progress)
         self.generate_thread.image_complete.connect(self.image_complete)
@@ -1206,10 +1214,10 @@ class MainWindow(QMainWindow):
             else:
                 dockTile.setBadgeLabel_(None)
 
-    def image_complete(self, output_file):
-        self.thumbnail_viewer.add_thumbnail(output_file)
+    def image_complete(self, output_path):
+        self.thumbnail_viewer.add_thumbnail(output_path)
         self.thumbnail_viewer.setCurrentRow(0)
-        self.image_viewer.set_right_image(output_file)
+        self.image_viewer.set_right_image(output_path)
 
     def generate_complete(self):
         self.generate_button.setEnabled(True)
@@ -1229,13 +1237,19 @@ class MainWindow(QMainWindow):
     def on_thumbnail_selection_change(self):
         selected_items = self.thumbnail_viewer.selectedItems()
         for item in selected_items:
-            image_metadata = item.data(Qt.UserRole)
-            self.image_viewer.set_right_image(image_metadata.path)
+            rel_path = item.data(Qt.UserRole)
+            self.image_viewer.set_right_image(rel_path)
 
     def get_thumbnail_metadata(self):
         item = self.thumbnail_viewer.currentItem()
         if item is not None:
-            return item.data(Qt.UserRole)
+            rel_path = item.data(Qt.UserRole)
+            full_path = os.path.join(IMAGES_PATH, rel_path)
+            with Image.open(full_path) as image:
+                metadata = ImageMetadata()
+                metadata.path = rel_path
+                metadata.load_from_image_info(image.info)
+                return metadata
         return None
     
     def on_send_to_img2img(self, image_metadata):
@@ -1291,8 +1305,10 @@ class MainWindow(QMainWindow):
 
             result = message_box.exec()
             if result == QMessageBox.Yes:
-                image_path = os.path.join(IMAGES_PATH, image_metadata.path)
-                os.remove(image_path)
+                full_path = os.path.join(IMAGES_PATH, image_metadata.path)
+                os.remove(full_path)
+                full_path = os.path.join(THUMBNAILS_PATH, image_metadata.path)
+                os.remove(full_path)
 
                 item = self.thumbnail_viewer.currentItem()
                 self.thumbnail_viewer.takeItem(self.thumbnail_viewer.row(item))
@@ -1306,23 +1322,39 @@ class MainWindow(QMainWindow):
         next_row = self.thumbnail_viewer.currentRow() + 1
         if next_row < self.thumbnail_viewer.count():
             self.thumbnail_viewer.setCurrentRow(next_row)
-        
+
+    def on_collection_changed(self):
+        collection_path = self.collection_combobox.currentText()
+        self.thumbnail_viewer.clear()
+
+        os.makedirs(os.path.join(THUMBNAILS_PATH, collection_path), exist_ok=True)
+        image_files = sorted([file for file in os.listdir(os.path.join(IMAGES_PATH, collection_path)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
+
+        for image_file in image_files:
+            image_path = os.path.join(collection_path, image_file)
+            self.thumbnail_viewer.add_thumbnail(image_path)
+
+        self.thumbnail_viewer.setCurrentRow(0)
+
     def hide_if_thread_running(self):
         if self.init_thread:
-            self.init_thread.finished.connect(self.quit_after_thread_finished)
-            self.hide()
-            return True
-        elif self.generate_thread:
-            global request_cancel
-            request_cancel = True
-            self.generate_thread.finished.connect(self.quit_after_thread_finished)
+            self.active_thread_count = self.active_thread_count + 1
+            self.init_thread.finished.connect(self.thread_finished)
+        if self.generate_thread:
+            self.active_thread_count = self.active_thread_count + 1
+            self.generate_thread.cancel = True
+            self.generate_thread.finished.connect(self.thread_finished)
+
+        if self.active_thread_count > 0:
             self.hide()
             return True
         else:
             return False
 
-    def quit_after_thread_finished(self):
-        QApplication.instance().quit()
+    def thread_finished(self):
+        self.active_thread_count = self.active_thread_count - 1
+        if self.active_thread_count == 0:
+            QApplication.instance().quit()
 
     def closeEvent(self, event):
         if self.hide_if_thread_running():
@@ -1347,6 +1379,7 @@ class Application(QApplication):
         global settings
         settings = QSettings('settings.ini', QSettings.IniFormat)
         set_default_setting('safety_checker', True)
+        set_default_setting('collection', 'outputs')
         set_default_setting('type', 'txt2img')
         set_default_setting('scheduler', 'k_euler_a')
         set_default_setting('model', 'stabilityai/stable-diffusion-2-1-base')
@@ -1391,6 +1424,7 @@ class Application(QApplication):
     
 def main():
     os.makedirs(IMAGES_PATH, exist_ok=True)
+    os.makedirs(THUMBNAILS_PATH, exist_ok=True)
 
     if sys.platform == 'darwin':
         bundle = NSBundle.mainBundle()

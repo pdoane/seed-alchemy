@@ -2,5 +2,6 @@
 .DS_Store
 gfpgan
 images
+thumbnails
 settings.ini
 data/GFPGANv1.4.pth
