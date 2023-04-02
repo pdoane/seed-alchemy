@@ -887,6 +887,10 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.init_thread = None
+        self.generate_thread = None
+        self.active_thread_count = 0
+
         self.setFocusPolicy(Qt.ClickFocus)
 
         central_widget = QWidget()
@@ -981,6 +985,17 @@ class MainWindow(QMainWindow):
         config_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         config_frame.setContentsMargins(0, 0, 0, 0)
 
+        self.model_combo_box = QComboBox()
+        settings.beginGroup('Models')
+        for key in settings.childKeys():
+            value = settings.value(key)
+            index = self.model_combo_box.addItem(key, value)
+        settings.endGroup()
+        index = self.model_combo_box.findData(settings.value('model'))
+        if index != -1:
+            self.model_combo_box.setCurrentIndex(index)
+        self.model_combo_box.currentIndexChanged.connect(self.on_model_combo_box_changed)
+
         self.prompt_edit = PromptTextEdit(8, 'Prompt')
         self.prompt_edit.setPlainText(settings.value('prompt'))
         self.prompt_edit.return_pressed.connect(self.on_generate_image)
@@ -990,7 +1005,6 @@ class MainWindow(QMainWindow):
 
         self.generate_button = QPushButton('Generate')
         self.generate_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.generate_button.setEnabled(False)
         self.generate_button.clicked.connect(self.on_generate_image)
 
         cancel_button = QPushButton()
@@ -1108,6 +1122,7 @@ class MainWindow(QMainWindow):
 
         config_layout = QVBoxLayout(config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0) 
+        config_layout.addWidget(self.model_combo_box)
         config_layout.addWidget(self.prompt_edit)
         config_layout.addWidget(self.negative_prompt_edit)
         config_layout.addLayout(generate_hlayout)
@@ -1196,16 +1211,19 @@ class MainWindow(QMainWindow):
             self.image_viewer.set_left_image(settings.value('source_path'))
         self.set_type(settings.value('type'))
 
-        # Initialize
+        self.init_model()
+
+    def init_model(self):
+        self.generate_button.setEnabled(False)
+        self.model_combo_box.setEnabled(False)            
         self.update_progress(0, 0)
-        self.active_thread_count = 0
-        self.generate_thread = None
         self.init_thread = InitThread(self)
         self.init_thread.task_complete.connect(self.init_complete)
         self.init_thread.start()
 
     def init_complete(self):
         self.generate_button.setEnabled(True)
+        self.model_combo_box.setEnabled(True)
         self.update_progress(None)
         self.init_thread = None
 
@@ -1228,6 +1246,11 @@ class MainWindow(QMainWindow):
             self.img_strength.setVisible(True)
             self.image_viewer.set_both_images_visible(True)
 
+    def on_model_combo_box_changed(self, index):
+        model = self.sender().itemData(index)
+        settings.setValue('model', model)
+        self.init_model()
+
     def on_cancel_generation(self):
         if self.generate_thread:
             self.generate_thread.cancel = True
@@ -1235,6 +1258,7 @@ class MainWindow(QMainWindow):
     def on_generate_image(self):
         self.update_progress(0, 0)
         self.generate_button.setEnabled(False)
+        self.model_combo_box.setEnabled(False)
 
         if not self.manual_seed_check_box.isChecked():
             self.randomize_seed()
@@ -1294,6 +1318,7 @@ class MainWindow(QMainWindow):
 
     def generate_complete(self):
         self.generate_button.setEnabled(True)
+        self.model_combo_box.setEnabled(True)
         self.update_progress(None)
         self.image_viewer.set_preview_image(None)
         self.generate_thread = None
@@ -1470,6 +1495,9 @@ class Application(QApplication):
         set_default_setting('img_strength', 0.5)
         set_default_setting('gfpgan_enabled', False)
         set_default_setting('gfpgan_strength', 0.8)
+        settings.beginGroup('Models')
+        set_default_setting('Stable Diffusion v2-1-base', 'stabilityai/stable-diffusion-2-1-base')
+        settings.endGroup()
 
         self.setWindowIcon(QIcon('data/app_icon.png'))
         self.setApplicationName(APP_NAME)

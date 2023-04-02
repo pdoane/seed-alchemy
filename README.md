@@ -19,8 +19,9 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 5. Install dependencies.
     ```sh
     curl -L -o data/GFPGANv1.4.pth https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth
-    pip install accelerate
     pip install diffusers
+    pip install accelerate
+    pip install safetensors
     pip install PySide6
     pip install numpy
     pip install torch
@@ -35,10 +36,10 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Source image: Unset on Delete, improve display when empty, find in thumbnails
 - Delete moves files to trash
+- Program Settings UI
+- Source image: Unset on Delete, improve display when empty, find in thumbnails
 - Additional pipelines (e.g. depth2img, ControlNet)
-- Model manager UI
 - Local models
 - Long Prompt Weighting
 - Latent Upscaling (revisit later, issues to resolve in diffusers library)
