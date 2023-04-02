@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QToolButton, QVBoxLayout, QWidget)
 
 if sys.platform == 'darwin':
-    from AppKit import NSApplication
+    from AppKit import NSURL, NSApplication, NSWorkspace
     from Foundation import NSBundle
 
 warnings.filterwarnings('ignore')
@@ -1405,7 +1405,13 @@ class MainWindow(QMainWindow):
             result = message_box.exec()
             if result == QMessageBox.Yes:
                 full_path = os.path.join(IMAGES_PATH, image_metadata.path)
-                os.remove(full_path)
+                if sys.platform == 'darwin':
+                    # Move file to trash
+                    file_url = NSURL.fileURLWithPath_(full_path)
+                    NSWorkspace.sharedWorkspace().recycleURLs_completionHandler_([file_url], None)
+                else:
+                    os.remove(full_path)
+
                 full_path = os.path.join(THUMBNAILS_PATH, image_metadata.path)
                 os.remove(full_path)
 
