@@ -67,11 +67,11 @@ schedulers: dict[str, SchedulerMixin] = {
 }
 gfpgan: GFPGANer = None
 
-def set_default_setting(key, value):
+def set_default_setting(key: str, value):
     if not settings.contains(key):
         settings.setValue(key, value)
 
-def bool_setting(key):
+def bool_setting(key: str):
     value = settings.value(key)
     if value is not None:
         if isinstance(value, bool):
@@ -80,10 +80,40 @@ def bool_setting(key):
             return value.lower() == 'true'
     return False
 
-def to_qimage(pil_image):
+def pil_to_qimage(pil_image: Image.Image):
     data = pil_image.convert('RGBA').tobytes('raw', 'RGBA')
     qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
     return qimage
+
+def latents_to_pil(latents: torch.FloatTensor):
+    # Code from InvokeAI
+    # https://github.com/invoke-ai/InvokeAI/blob/a1cd4834d127641a865438e668c5c7f050e83587/invokeai/backend/generator/base.py#L502
+
+    # originally adapted from code by @erucipe and @keturn here:
+    # https://discuss.huggingface.co/t/decoding-latents-to-rgb-without-upscaling/23204/7
+
+    # these updated numbers for v1.5 are from @torridgristle
+    v1_5_latent_rgb_factors = torch.tensor(
+        [
+            #    R        G        B
+            [ 0.3444,  0.1385,  0.0670],  # L1
+            [ 0.1247,  0.4027,  0.1494],  # L2
+            [-0.3192,  0.2513,  0.2103],  # L3
+            [-0.1307, -0.1874, -0.7445],  # L4
+        ],
+        dtype=latents.dtype,
+        device=latents.device,
+    )
+
+    latent_image = latents[0].permute(1, 2, 0) @ v1_5_latent_rgb_factors
+    latents_ubyte = (
+        ((latent_image + 1) / 2)
+        .clamp(0, 1)  # change scale from -1..1 to 0..1
+        .mul(0xFF)  # to 0..255
+        .byte()
+    ).cpu()
+
+    return Image.fromarray(latents_ubyte.numpy())
 
 class ImageMetadata:
     def __init__(self):
@@ -267,7 +297,7 @@ class ThumbnailViewer(QListWidget):
                 scaled_image.save(thumbnail_path, 'WEBP')
 
         with Image.open(thumbnail_path) as image:
-            pixmap = QPixmap.fromImage(to_qimage(image))
+            pixmap = QPixmap.fromImage(pil_to_qimage(image))
             icon = QIcon(pixmap)
             item = QListWidgetItem()
             item.setIcon(icon)
@@ -384,12 +414,14 @@ class ImageViewer(QWidget):
         self.padding = 5
         self.minimum_image_size = 100
         self.both_images_visible = False
+        self.show_preview = True
 
         self.left_image_path_ = ''
         self.right_image_path_ = ''
 
         self.left_image = None
         self.right_image = None
+        self.preview_image = None
 
         self.left_label = QLabel(self)
         self.right_label = QLabel(self)
@@ -443,6 +475,16 @@ class ImageViewer(QWidget):
         self.metadata_button.setToolTipDuration(0)
         self.metadata_button.toggled.connect(self.on_metadata_button_changed)
 
+        self.preview_button = QToolButton()
+        self.preview_button.setIcon(QIcon('data/preview_icon.png'))
+        self.preview_button.setIconSize(icon_size)
+        self.preview_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.preview_button.setCheckable(True)
+        self.preview_button.setChecked(True)
+        self.preview_button.setToolTip('Toggle Preview')
+        self.preview_button.setToolTipDuration(0)
+        self.preview_button.toggled.connect(self.on_preview_button_changed)
+
         self.delete_button = QToolButton()
         self.delete_button.setIcon(QIcon('data/delete_icon.png'))
         self.delete_button.setIconSize(icon_size)
@@ -462,6 +504,7 @@ class ImageViewer(QWidget):
         right_controls_layout.addWidget(self.use_all_button)
         right_controls_layout.addSpacing(8)
         right_controls_layout.addWidget(self.metadata_button)
+        right_controls_layout.addWidget(self.preview_button)
         right_controls_layout.addSpacing(8)
         right_controls_layout.addWidget(self.delete_button)
         right_controls_layout.addStretch()
@@ -477,35 +520,40 @@ class ImageViewer(QWidget):
         widget_width = self.width()
         widget_height = self.height()
         controls_height = 24
-        image_width = self.right_image.width() if self.right_image is not None else 1
-        image_height = self.right_image.height() if self.right_image is not None else 1
+
+        right_image = self.preview_image if self.preview_image is not None and self.show_preview else self.right_image
+
+        left_image_width = self.left_image.width() if self.left_image is not None else 1
+        left_image_height = self.left_image.height() if self.left_image is not None else 1
+        right_image_width = right_image.width() if right_image is not None else 1
+        right_image_height = right_image.height() if right_image is not None else 1
 
         if self.both_images_visible:
             available_height = widget_height - controls_height - 4 * self.padding
             available_width = widget_width - 3 * self.padding
 
-            right_height = min(available_height, image_height)
-            right_width = int(image_width * (right_height / image_height))
+            right_height = min(available_height, right_image_height)
+            right_width = int(right_image_width * (right_height / right_image_height))
 
             remaining_width = available_width - right_width
-            left_width = min(remaining_width, image_width)
-            left_height = int(image_height * (left_width / image_width))
+            left_width = min(remaining_width, left_image_width)
+            left_height = int(left_image_height * (left_width / left_image_width))
 
             if left_height > available_height:
                 left_height = available_height
-                left_width = int(image_width * (left_height / image_height))
+                left_width = int(left_image_width * (left_height / left_image_height))
 
             if left_height < self.minimum_image_size:
                 left_height = self.minimum_image_size
-                left_width = int(image_width * (left_height / image_height))
+                left_width = int(left_image_width * (left_height / left_image_height))
                 right_width = available_width - left_width
-                right_height = int(image_height * (right_width / image_width))
+                right_height = int(right_image_height * (right_width / right_image_width))
                 if right_height > available_height:
                     right_height = available_height
-                    right_width = int(image_width * (right_height / image_height))
+                    right_width = int(right_image_width * (right_height / right_image_height))
                 if right_height < self.minimum_image_size:
                     right_height = self.minimum_image_size
-                    right_width = int(image_width * (right_height / image_height))
+                    right_width = int(right_image_width * (right_height / right_image_height))
 
             if self.left_image is not None:
                 left_pixmap = QPixmap.fromImage(self.left_image).scaled(left_width, left_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -513,8 +561,8 @@ class ImageViewer(QWidget):
             else:
                 self.left_label.setText('Choose a source image')
 
-            if self.right_image is not None:
-                right_pixmap = QPixmap.fromImage(self.right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            if right_image is not None:
+                right_pixmap = QPixmap.fromImage(right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.right_label.setPixmap(right_pixmap)
 
             left_x = (widget_width - left_width - right_width - self.padding) // 2
@@ -531,11 +579,11 @@ class ImageViewer(QWidget):
             available_height = widget_height - controls_height - 4 * self.padding
             available_width = widget_width - 2 * self.padding
 
-            right_height = min(available_height, image_height)
-            right_width = int(image_width * (right_height / image_height))
+            right_height = min(available_height, right_image_height)
+            right_width = int(right_image_width * (right_height / right_image_height))
 
-            if self.right_image is not None:
-                right_pixmap = QPixmap.fromImage(self.right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            if right_image is not None:
+                right_pixmap = QPixmap.fromImage(right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.right_label.setPixmap(right_pixmap)
 
             right_x = (widget_width - right_width) // 2
@@ -574,13 +622,24 @@ class ImageViewer(QWidget):
             self.metadata.load_from_image_info(image.info)
 
             self.right_image_path_ = path
-            self.right_image = to_qimage(image)
+            self.right_image = pil_to_qimage(image)
 
         self.metadata_frame.update(self.metadata)
         self.update_images()
 
+    def set_preview_image(self, preview_image):
+        if preview_image is not None:
+            self.preview_image = pil_to_qimage(preview_image)
+        else:
+            self.preview_image = None
+        self.update_images()
+
     def on_metadata_button_changed(self, state):
         self.metadata_frame.setVisible(state)
+
+    def on_preview_button_changed(self, state):
+        self.show_preview = state
+        self.update_images()
 
 class FloatSliderSpinBox(QWidget):
     def __init__(self, name, initial_value, checkable=False, parent=None):
@@ -687,7 +746,8 @@ class CancelThreadException(Exception):
     pass
 
 class GenerateThread(QThread):
-    update_progress = Signal(int)
+    task_progress = Signal(int)
+    image_preview = Signal(Image.Image)
     image_complete = Signal(str)
     task_complete = Signal()
 
@@ -782,7 +842,7 @@ class GenerateThread(QThread):
 
             progress_amount = (step+1) * 100 / steps
             step = step + 1
-            self.update_progress.emit(progress_amount)
+            self.task_progress.emit(progress_amount)
 
             # Output
             collection_path = settings.value('collection')
@@ -809,7 +869,11 @@ class GenerateThread(QThread):
             raise CancelThreadException()
         steps = self.compute_total_steps()
         progress_amount = (step+1) * 100 / steps
-        self.update_progress.emit(progress_amount)
+        self.task_progress.emit(progress_amount)
+
+        pil_image = latents_to_pil(latents)
+        pil_image = pil_image.resize((pil_image.size[0] * 8, pil_image.size[1] * 8), Image.NEAREST)
+        self.image_preview.emit(pil_image)
 
     def compute_total_steps(self):
         if self.type == 'img2img':
@@ -1193,11 +1257,12 @@ class MainWindow(QMainWindow):
         settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
 
         self.generate_thread = GenerateThread(self)
-        self.generate_thread.update_progress.connect(self.update_progress)
+        self.generate_thread.task_progress.connect(self.update_progress)
+        self.generate_thread.image_preview.connect(self.image_preview)
         self.generate_thread.image_complete.connect(self.image_complete)
         self.generate_thread.task_complete.connect(self.generate_complete)
         self.generate_thread.start()
-    
+
     def update_progress(self, progress_amount, maximum_amount=100):
         self.progress_bar.setMaximum(maximum_amount)
         if maximum_amount == 0:
@@ -1219,6 +1284,9 @@ class MainWindow(QMainWindow):
             else:
                 dockTile.setBadgeLabel_(None)
 
+    def image_preview(self, preview_image):
+        self.image_viewer.set_preview_image(preview_image)
+    
     def image_complete(self, output_path):
         self.thumbnail_viewer.add_thumbnail(output_path)
         self.thumbnail_viewer.setCurrentRow(0)
@@ -1227,6 +1295,7 @@ class MainWindow(QMainWindow):
     def generate_complete(self):
         self.generate_button.setEnabled(True)
         self.update_progress(None)
+        self.image_viewer.set_preview_image(None)
         self.generate_thread = None
 
     def randomize_seed(self):

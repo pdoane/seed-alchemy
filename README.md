@@ -35,7 +35,8 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- In Progress Display
+- Source image: Unset on Delete, improve display when empty, find in thumbnails
+- Delete moves files to trash
 - Additional pipelines (e.g. depth2img, ControlNet)
 - Model manager UI
 - Local models
