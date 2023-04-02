@@ -1100,8 +1100,6 @@ class MainWindow(QMainWindow):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(0)
-        self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
 
         hlayout = QHBoxLayout()
         hlayout.setContentsMargins(8, 2, 8, 8)
@@ -1135,6 +1133,7 @@ class MainWindow(QMainWindow):
         self.set_type(settings.value('type'))
 
         # Initialize
+        self.update_progress(0, 0)
         self.active_thread_count = 0
         self.generate_thread = None
         self.init_thread = InitThread(self)
@@ -1143,7 +1142,7 @@ class MainWindow(QMainWindow):
 
     def init_complete(self):
         self.generate_button.setEnabled(True)
-        self.update_progress(0)
+        self.update_progress(None)
         self.init_thread = None
 
     def set_type(self, type):
@@ -1170,9 +1169,7 @@ class MainWindow(QMainWindow):
             self.generate_thread.cancel = True
 
     def on_generate_image(self):
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(0)
-        self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
+        self.update_progress(0, 0)
         self.generate_button.setEnabled(False)
 
         if not self.manual_seed_check_box.isChecked():
@@ -1201,15 +1198,23 @@ class MainWindow(QMainWindow):
         self.generate_thread.task_complete.connect(self.generate_complete)
         self.generate_thread.start()
     
-    def update_progress(self, progress_amount):
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)
-        self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: blue; }')
-        self.progress_bar.setValue(progress_amount)
+    def update_progress(self, progress_amount, maximum_amount=100):
+        self.progress_bar.setMaximum(maximum_amount)
+        if maximum_amount == 0:
+            self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
+        else:
+            self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: blue; }')
+        if progress_amount is not None:
+            self.progress_bar.setValue(progress_amount)
+        else:
+            self.progress_bar.setValue(0)
+
         if sys.platform == 'darwin':
             sharedApplication = NSApplication.sharedApplication()
             dockTile = sharedApplication.dockTile()
-            if progress_amount > 0:
+            if maximum_amount == 0:
+                dockTile.setBadgeLabel_('...')
+            elif progress_amount is not None:
                 dockTile.setBadgeLabel_('{:d}%'.format(progress_amount))
             else:
                 dockTile.setBadgeLabel_(None)
@@ -1221,7 +1226,7 @@ class MainWindow(QMainWindow):
 
     def generate_complete(self):
         self.generate_button.setEnabled(True)
-        self.update_progress(0)
+        self.update_progress(None)
         self.generate_thread = None
 
     def randomize_seed(self):
