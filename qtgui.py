@@ -159,7 +159,7 @@ class ImageMetadata:
     def load_from_image_info(self, image_info):
         if 'sd-metadata' in image_info:
             sd_metadata = json.loads(image_info['sd-metadata'])
-            self.model = sd_metadata.get('model_weights', 'stabilityai/stable-diffusion-2-1-base')
+            self.model = sd_metadata.get('model_weights', 'stable-diffusion-2-1-base')
             if 'image' in sd_metadata:
                 image_data = sd_metadata['image']
                 self.type = image_data.get('type', 'txt2img')
@@ -184,7 +184,7 @@ class ImageMetadata:
     def save_to_png_info(self, png_info):
         sd_metadata = {
             'model': 'stable diffusion',
-            'model_weights': self.model,
+            'model_weights': os.path.basename(self.model),
             'model_hash': '',    # TODO
             'app_id': APP_NAME,
             'APP_VERSION': APP_VERSION,
@@ -864,10 +864,11 @@ class InitThread(QThread):
 
         dtype = torch.float32
         device = 'mps'
+        model = os.path.expanduser(settings.value('model'))
         if bool_setting('safety_checker'):
-            base_pipe = StableDiffusionPipeline.from_pretrained(settings.value('model'), torch_dtype=dtype)
+            base_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=dtype)
         else:
-            base_pipe = StableDiffusionPipeline.from_pretrained(settings.value('model'), safety_checker=None, torch_dtype=dtype, requires_safety_checker=False)
+            base_pipe = StableDiffusionPipeline.from_pretrained(model, safety_checker=None, torch_dtype=dtype, requires_safety_checker=False)
 
         global pipes
         pipes['txt2img'] = base_pipe

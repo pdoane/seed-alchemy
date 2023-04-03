@@ -38,6 +38,5 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 - Source image: Unset on Delete, improve display when empty, find in thumbnails
 - Additional pipelines (e.g. depth2img, ControlNet)
-- Local models
 - Long Prompt Weighting
 - Latent Upscaling (revisit later, issues to resolve in diffusers library)
