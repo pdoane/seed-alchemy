@@ -37,7 +37,8 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Source image: Unset on Delete, improve display when empty, find in thumbnails
 - Additional pipelines (e.g. depth2img, ControlNet)
+- Improve selection display in thumbnail viewer
+- Show image in Delete Image dialog
 - Long Prompt Weighting
 - Latent Upscaling (revisit later, issues to resolve in diffusers library)

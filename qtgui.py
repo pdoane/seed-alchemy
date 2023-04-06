@@ -278,36 +278,12 @@ class PromptTextEdit(QPlainTextEdit):
 
         self.setExtraSelections(extra_selections)
 
-class ThumbnailViewer(QListWidget):
+class ThumbnailListWidget(QListWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.action_send_to_img2img = QAction(QIcon('data/share_icon.png'), 'Send to Image to Image')
-        self.action_use_prompt = QAction(QIcon('data/use_prompt_icon.png'), 'Use Prompt')
-        self.action_use_seed = QAction(QIcon('data/use_seed_icon.png'), 'Use Seed')
-        self.action_use_all = QAction(QIcon('data/use_all_icon.png'), 'Use All')
-        self.action_use_initial_image = QAction(QIcon('data/use_initial_image_icon.png'), 'Use Initial Image')
-        self.action_delete = QAction(QIcon('data/delete_icon.png'), 'Delete Image')
-
-        self.setViewMode(QListWidget.IconMode)
-        self.setResizeMode(QListWidget.Adjust)
-        self.setSpacing(10)
-        self.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_context_menu)
         self.min_thumbnail_size = 100
         self.max_thumbnail_size = 250
-        self.margin = 0
-
-        self.menu = QMenu()
-        self.menu.addAction(self.action_send_to_img2img)
-        self.menu.addSeparator()
-        self.menu.addAction(self.action_use_prompt)
-        self.menu.addAction(self.action_use_seed)
-        self.menu.addAction(self.action_use_all)
-        self.menu.addAction(self.action_use_initial_image)
-        self.menu.addSeparator()
-        self.menu.addAction(self.action_delete)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -319,7 +295,105 @@ class ThumbnailViewer(QListWidget):
         rect.setHeight(self.iconSize().height())
         return rect
 
-    def add_thumbnail(self, rel_path):
+    def update_icon_size(self):
+        style = QApplication.instance().style()
+        scrollbar_width = style.pixelMetric(QStyle.PM_ScrollBarExtent, QStyleOptionSlider())
+        available_width = self.width() - scrollbar_width
+        num_columns = int((available_width) / (self.min_thumbnail_size))
+        num_columns = max(1, num_columns)
+        new_icon_size = int((available_width - num_columns) / num_columns)
+        new_icon_size = max(self.min_thumbnail_size, min(new_icon_size, self.max_thumbnail_size))
+
+        self.setIconSize(QSize(new_icon_size, new_icon_size))
+        self.setGridSize(QSize(new_icon_size, new_icon_size))
+
+class ThumbnailViewer(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.action_send_to_img2img = QAction(QIcon('data/share_icon.png'), 'Send to Image to Image')
+        self.action_use_prompt = QAction(QIcon('data/use_prompt_icon.png'), 'Use Prompt')
+        self.action_use_seed = QAction(QIcon('data/use_seed_icon.png'), 'Use Seed')
+        self.action_use_all = QAction(QIcon('data/use_all_icon.png'), 'Use All')
+        self.action_use_initial_image = QAction(QIcon('data/use_initial_image_icon.png'), 'Use Initial Image')
+        self.action_delete = QAction(QIcon('data/delete_icon.png'), 'Delete Image')
+
+        self.collection_combobox = QComboBox()
+
+        self.list_widget = ThumbnailListWidget()
+        self.list_widget.setViewMode(QListWidget.IconMode)
+        self.list_widget.setResizeMode(QListWidget.Adjust)
+        self.list_widget.setSpacing(10)
+        self.list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        scroll_area.setWidget(self.list_widget)
+
+        thumbnail_layout = QVBoxLayout(self)
+        thumbnail_layout.setContentsMargins(0, 0, 0, 0)
+        thumbnail_layout.addWidget(self.collection_combobox)
+        thumbnail_layout.addWidget(scroll_area)
+
+        self.menu = QMenu()
+        self.menu.addAction(self.action_send_to_img2img)
+        self.menu.addSeparator()
+        self.menu.addAction(self.action_use_prompt)
+        self.menu.addAction(self.action_use_seed)
+        self.menu.addAction(self.action_use_all)
+        self.menu.addAction(self.action_use_initial_image)
+        self.menu.addSeparator()
+        self.menu.addAction(self.action_delete)
+
+        # Gather collections
+        collections = sorted([entry for entry in os.listdir(IMAGES_PATH) if os.path.isdir(os.path.join(IMAGES_PATH, entry))])
+        if not collections:
+            os.makedirs(os.path.join(IMAGES_PATH, 'outputs'))
+            collections = ['outputs']
+
+        self.collection_combobox.addItems(collections)
+        self.collection_combobox.setCurrentText(settings.value('collection'))
+        self.collection_combobox.currentIndexChanged.connect(self.update_collection)
+        self.update_collection()
+
+    def collection(self):
+        return self.collection_combobox.currentText()
+
+    def update_collection(self):
+        collection = self.collection()
+
+        os.makedirs(os.path.join(THUMBNAILS_PATH, collection), exist_ok=True)
+        image_files = sorted([file for file in os.listdir(os.path.join(IMAGES_PATH, collection)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
+
+        self.list_widget.clear()
+        for image_file in image_files:
+            image_path = os.path.join(collection, image_file)
+            self.add_image(image_path)
+
+        self.list_widget.setCurrentRow(0)
+
+    def select_image(self, rel_path):
+        collection = os.path.dirname(rel_path)
+        collection_path = os.path.join(IMAGES_PATH, rel_path)
+        if os.path.exists(collection_path):
+            if self.collection() != collection:
+                self.collection_combobox.setCurrentText(collection)
+                self.update_collection()
+
+            for index in range(self.list_widget.count()):
+                item = self.list_widget.item(index)
+                if item.data(Qt.UserRole) == rel_path:
+                    self.list_widget.setCurrentItem(item)
+                    break
+
+    def add_image(self, rel_path):
+        collection = os.path.dirname(rel_path)
+        if self.collection() != collection:
+            return
+
         thumbnail_path = os.path.join(THUMBNAILS_PATH, rel_path)
         if not os.path.exists(thumbnail_path):
             image_path = os.path.join(IMAGES_PATH, rel_path)
@@ -336,19 +410,36 @@ class ThumbnailViewer(QListWidget):
             item = QListWidgetItem()
             item.setIcon(icon)
             item.setData(Qt.UserRole, rel_path)
-            self.insertItem(0, item)
+            self.list_widget.insertItem(0, item)
 
-    def update_icon_size(self):
-        style = QApplication.instance().style()
-        scrollbar_width = style.pixelMetric(QStyle.PM_ScrollBarExtent, QStyleOptionSlider())
-        available_width = self.width() - scrollbar_width
-        num_columns = int((available_width) / (self.min_thumbnail_size))
-        num_columns = max(1, num_columns)
-        new_icon_size = int((available_width - num_columns) / num_columns)
-        new_icon_size = max(self.min_thumbnail_size, min(new_icon_size, self.max_thumbnail_size))
+    def remove_image(self, rel_path):
+        for index in range(self.list_widget.count()):
+            item = self.list_widget.item(index)
+            if item.data(Qt.UserRole) == rel_path:
+                self.list_widget.takeItem(index)
+                break
 
-        self.setIconSize(QSize(new_icon_size, new_icon_size))
-        self.setGridSize(QSize(new_icon_size, new_icon_size))
+    def previous_image(self):
+        next_row = self.list_widget.currentRow() - 1
+        if next_row >= 0:
+            self.list_widget.setCurrentRow(next_row)
+
+    def next_image(self):
+        next_row = self.list_widget.currentRow() + 1
+        if next_row < self.list_widget.count():
+            self.list_widget.setCurrentRow(next_row)
+
+    def get_current_metadata(self):
+        item = self.list_widget.currentItem()
+        if item is not None:
+            rel_path = item.data(Qt.UserRole)
+            full_path = os.path.join(IMAGES_PATH, rel_path)
+            with Image.open(full_path) as image:
+                metadata = ImageMetadata()
+                metadata.path = rel_path
+                metadata.load_from_image_info(image.info)
+                return metadata
+        return None
 
     def show_context_menu(self, point):
         self.menu.exec(self.mapToGlobal(point))
@@ -459,11 +550,19 @@ class ImageViewer(QWidget):
 
         self.left_label = QLabel(self)
         self.right_label = QLabel(self)
+        self.left_controls_frame = QFrame(self)
         self.right_controls_frame = QFrame(self)
         self.metadata_frame = ImageMetadataFrame(self)
         self.metadata_frame.setVisible(False)
 
         icon_size = QSize(24, 24)
+
+        self.locate_source_button = QToolButton()
+        self.locate_source_button.setIcon(QIcon('data/locate_icon.png'))
+        self.locate_source_button.setIconSize(icon_size)
+        self.locate_source_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        self.locate_source_button.setToolTip('Locate Source Image')
+        self.locate_source_button.setToolTipDuration(0)
 
         self.send_to_img2img_button = QToolButton()
         self.send_to_img2img_button.setIcon(QIcon('data/share_icon.png'))
@@ -526,6 +625,13 @@ class ImageViewer(QWidget):
         self.delete_button.setToolTip('Delete')
         self.delete_button.setToolTipDuration(0)
 
+        left_controls_layout = QHBoxLayout(self.left_controls_frame)
+        left_controls_layout.setContentsMargins(0, 0, 0, 0)
+        left_controls_layout.setSpacing(0)
+        left_controls_layout.addStretch()
+        left_controls_layout.addWidget(self.locate_source_button)
+        left_controls_layout.addStretch()
+
         right_controls_layout = QHBoxLayout(self.right_controls_frame)
         right_controls_layout.setContentsMargins(0, 0, 0, 0)
         right_controls_layout.setSpacing(0)
@@ -557,10 +663,10 @@ class ImageViewer(QWidget):
 
         right_image = self.preview_image if self.preview_image is not None and self.show_preview else self.right_image
 
-        left_image_width = self.left_image.width() if self.left_image is not None else 1
-        left_image_height = self.left_image.height() if self.left_image is not None else 1
         right_image_width = right_image.width() if right_image is not None else 1
         right_image_height = right_image.height() if right_image is not None else 1
+        left_image_width = self.left_image.width() if self.left_image is not None else right_image_width
+        left_image_height = self.left_image.height() if self.left_image is not None else right_image_height
 
         if self.both_images_visible:
             available_height = widget_height - controls_height - 4 * self.padding
@@ -592,8 +698,12 @@ class ImageViewer(QWidget):
             if self.left_image is not None:
                 left_pixmap = QPixmap.fromImage(self.left_image).scaled(left_width, left_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 self.left_label.setPixmap(left_pixmap)
+                self.left_label.setStyleSheet('')  
             else:
-                self.left_label.setText('Choose a source image')
+                self.left_label.setText('Choose a Source Image')
+                self.left_label.setStyleSheet('border: 2px solid white;')
+                self.left_label.setWordWrap(True)
+                self.left_label.setAlignment(Qt.AlignCenter)
 
             if right_image is not None:
                 right_pixmap = QPixmap.fromImage(right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -604,7 +714,10 @@ class ImageViewer(QWidget):
             right_x = left_x + self.padding + left_width
             right_y = controls_height + 2 * self.padding + (available_height - right_height) // 2
 
+            self.left_controls_frame.setVisible(True)
             self.left_label.setVisible(True)
+
+            self.left_controls_frame.setGeometry(left_x, self.padding, left_width, controls_height)
             self.left_label.setGeometry(left_x, left_y, left_width, left_height)
             self.right_controls_frame.setGeometry(right_x, self.padding, right_width, controls_height)
             self.right_label.setGeometry(right_x, right_y, right_width, right_height)
@@ -623,7 +736,9 @@ class ImageViewer(QWidget):
             right_x = (widget_width - right_width) // 2
             right_y = controls_height + 2 * self.padding + (available_height - right_height) // 2
 
+            self.left_controls_frame.setVisible(False)
             self.left_label.setVisible(False)
+
             self.right_controls_frame.setGeometry(right_x, self.padding, right_width, controls_height)
             self.right_label.setGeometry(right_x, right_y, right_width, right_height)
             self.metadata_frame.setGeometry(right_x, right_y, right_width, right_height)
@@ -637,6 +752,11 @@ class ImageViewer(QWidget):
     
     def right_image_path(self):
         return self.right_image_path_
+
+    def clear_left_image(self):
+        self.left_image_path_ = ''
+        self.left_image = None
+        self.update_images()
 
     def set_left_image(self, path):
         fullpath = os.path.join(IMAGES_PATH, path)
@@ -1101,10 +1221,6 @@ class MainWindow(QMainWindow):
         action_metadata.setShortcut(Qt.Key_I)
         action_delete_image = QAction("Delete Image", self)
         action_delete_image.setShortcut(Qt.Key_Delete)
-        action_previous_image = QAction("Previous Image", self)
-        action_previous_image.setShortcut(Qt.Key_Left)
-        action_next_image = QAction("Next Image", self)
-        action_next_image.setShortcut(Qt.Key_Right)
 
         app_menu = QMenu("Application", self)
         menu_bar.addMenu(app_menu)
@@ -1325,6 +1441,7 @@ class MainWindow(QMainWindow):
 
         # Image viewer
         self.image_viewer = ImageViewer()
+        self.image_viewer.locate_source_button.pressed.connect(lambda: self.thumbnail_viewer.select_image(self.image_viewer.left_image_path()))
         self.image_viewer.send_to_img2img_button.pressed.connect(lambda: self.on_send_to_img2img(self.image_viewer.metadata))
         self.image_viewer.use_prompt_button.pressed.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
         self.image_viewer.use_seed_button.pressed.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
@@ -1332,34 +1449,19 @@ class MainWindow(QMainWindow):
         self.image_viewer.use_all_button.pressed.connect(lambda: self.on_use_all(self.image_viewer.metadata))
         self.image_viewer.delete_button.pressed.connect(lambda: self.on_delete(self.image_viewer.metadata))
 
-        #  Thumbnails
-        thumbnail_frame = QFrame()
-        thumbnail_frame.setContentsMargins(0, 0, 0, 0)
-
-        self.collection_combobox = QComboBox()
-
+        # Thumbnail viewer
         self.thumbnail_viewer = ThumbnailViewer()
-        self.thumbnail_viewer.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
-        self.thumbnail_viewer.action_send_to_img2img.triggered.connect(lambda: self.on_send_to_img2img(self.get_thumbnail_metadata()))
-        self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.get_thumbnail_metadata()))
-        self.thumbnail_viewer.action_use_seed.triggered.connect(lambda: self.on_use_seed(self.get_thumbnail_metadata()))
-        self.thumbnail_viewer.action_use_initial_image.triggered.connect(lambda: self.on_use_initial_image(self.get_thumbnail_metadata()))
-        self.thumbnail_viewer.action_use_all.triggered.connect(lambda: self.on_use_all(self.get_thumbnail_metadata()))
-        self.thumbnail_viewer.action_delete.triggered.connect(lambda: self.on_delete(self.get_thumbnail_metadata()))
-
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        scroll_area.setWidget(self.thumbnail_viewer)
-
-        thumbnail_layout = QVBoxLayout(thumbnail_frame)
-        thumbnail_layout.setContentsMargins(0, 0, 0, 0)
-        thumbnail_layout.addWidget(self.collection_combobox)
-        thumbnail_layout.addWidget(scroll_area)
+        self.thumbnail_viewer.list_widget.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
+        self.thumbnail_viewer.action_send_to_img2img.triggered.connect(lambda: self.on_send_to_img2img(self.thumbnail_viewer.get_current_metadata()))
+        self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.thumbnail_viewer.get_current_metadata()))
+        self.thumbnail_viewer.action_use_seed.triggered.connect(lambda: self.on_use_seed(self.thumbnail_viewer.get_current_metadata()))
+        self.thumbnail_viewer.action_use_initial_image.triggered.connect(lambda: self.on_use_initial_image(self.thumbnail_viewer.get_current_metadata()))
+        self.thumbnail_viewer.action_use_all.triggered.connect(lambda: self.on_use_all(self.thumbnail_viewer.get_current_metadata()))
+        self.thumbnail_viewer.action_delete.triggered.connect(lambda: self.on_delete(self.thumbnail_viewer.get_current_metadata()))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.image_viewer)
-        splitter.addWidget(thumbnail_frame)
+        splitter.addWidget(self.thumbnail_viewer)
         splitter.setStretchFactor(0, 1)  # left widget
         splitter.setStretchFactor(1, 0)  # right widget
 
@@ -1386,27 +1488,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(APP_NAME)
         self.setGeometry(100, 100, 1200, 600)
 
-        # Gather collections
-        collections = sorted([entry for entry in os.listdir(IMAGES_PATH) if os.path.isdir(os.path.join(IMAGES_PATH, entry))])
-        if not collections:
-            os.makedirs(os.path.join(IMAGES_PATH, 'outputs'))
-            collections = ['outputs']
-
-        self.collection_combobox.addItems(collections)
-        self.collection_combobox.setCurrentText(settings.value('collection'))
-        self.collection_combobox.currentIndexChanged.connect(self.on_collection_changed)
-        self.on_collection_changed()
-
         # Apply settings that impact other controls
         if settings.value('source_path') != '':
             self.image_viewer.set_left_image(settings.value('source_path'))
+        self.on_thumbnail_selection_change()
         self.set_type(settings.value('type'))
 
         self.init_model()
 
     def init_model(self):
         self.generate_button.setEnabled(False)
-        self.model_combo_box.setEnabled(False)            
+        self.model_combo_box.setEnabled(False)
         self.update_progress(0, 0)
         self.init_thread = InitThread(self)
         self.init_thread.task_complete.connect(self.init_complete)
@@ -1462,7 +1554,7 @@ class MainWindow(QMainWindow):
         if not self.manual_seed_check_box.isChecked():
             self.randomize_seed()
 
-        settings.setValue('collection', self.collection_combobox.currentText())
+        settings.setValue('collection', self.thumbnail_viewer.collection())
         settings.setValue('type', self.type)
         settings.setValue('scheduler', self.scheduler_combo_box.currentText())
         settings.setValue('prompt', self.prompt_edit.toPlainText())
@@ -1509,10 +1601,10 @@ class MainWindow(QMainWindow):
 
     def image_preview(self, preview_image):
         self.image_viewer.set_preview_image(preview_image)
-    
+
     def image_complete(self, output_path):
-        self.thumbnail_viewer.add_thumbnail(output_path)
-        self.thumbnail_viewer.setCurrentRow(0)
+        self.thumbnail_viewer.add_image(output_path)
+        self.thumbnail_viewer.list_widget.setCurrentRow(0)
         self.image_viewer.set_right_image(output_path)
 
     def generate_complete(self):
@@ -1533,23 +1625,11 @@ class MainWindow(QMainWindow):
         self.randomize_seed()
 
     def on_thumbnail_selection_change(self):
-        selected_items = self.thumbnail_viewer.selectedItems()
+        selected_items = self.thumbnail_viewer.list_widget.selectedItems()
         for item in selected_items:
             rel_path = item.data(Qt.UserRole)
             self.image_viewer.set_right_image(rel_path)
 
-    def get_thumbnail_metadata(self):
-        item = self.thumbnail_viewer.currentItem()
-        if item is not None:
-            rel_path = item.data(Qt.UserRole)
-            full_path = os.path.join(IMAGES_PATH, rel_path)
-            with Image.open(full_path) as image:
-                metadata = ImageMetadata()
-                metadata.path = rel_path
-                metadata.load_from_image_info(image.info)
-                return metadata
-        return None
-    
     def on_send_to_img2img(self, image_metadata):
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.path)
@@ -1614,31 +1694,10 @@ class MainWindow(QMainWindow):
                 full_path = os.path.join(THUMBNAILS_PATH, image_metadata.path)
                 os.remove(full_path)
 
-                item = self.thumbnail_viewer.currentItem()
-                self.thumbnail_viewer.takeItem(self.thumbnail_viewer.row(item))
+                self.thumbnail_viewer.remove_image(image_metadata.path)
 
-    def on_previous_image(self):
-        next_row = self.thumbnail_viewer.currentRow() - 1
-        if next_row >= 0:
-            self.thumbnail_viewer.setCurrentRow(next_row)
-
-    def on_next_image(self):
-        next_row = self.thumbnail_viewer.currentRow() + 1
-        if next_row < self.thumbnail_viewer.count():
-            self.thumbnail_viewer.setCurrentRow(next_row)
-
-    def on_collection_changed(self):
-        collection_path = self.collection_combobox.currentText()
-        self.thumbnail_viewer.clear()
-
-        os.makedirs(os.path.join(THUMBNAILS_PATH, collection_path), exist_ok=True)
-        image_files = sorted([file for file in os.listdir(os.path.join(IMAGES_PATH, collection_path)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
-
-        for image_file in image_files:
-            image_path = os.path.join(collection_path, image_file)
-            self.thumbnail_viewer.add_thumbnail(image_path)
-
-        self.thumbnail_viewer.setCurrentRow(0)
+                if self.image_viewer.left_image_path() == image_metadata.path:
+                    self.image_viewer.clear_left_image()
 
     def hide_if_thread_running(self):
         if self.init_thread:
@@ -1669,9 +1728,9 @@ class MainWindow(QMainWindow):
     def keyPressEvent(self, event):
         key = event.key()
         if key == Qt.Key_Left:
-            self.on_previous_image()
+            self.thumbnail_viewer.previous_image()
         elif key == Qt.Key_Right:
-            self.on_next_image()
+            self.thumbnail_viewer.next_image()
         else:
             super().keyPressEvent(event)
 
