@@ -28,6 +28,7 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
     pip install compel
     pip install gfpgan
     pip install pyobjc
+    pip install pyspellchecker
     ```
 6. Run the GUI
     ```sh

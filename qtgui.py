@@ -21,8 +21,8 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        UniPCMultistepScheduler)
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QThread, Signal
-from PySide6.QtGui import (QAction, QFontMetrics, QIcon, QImage, QPalette,
-                           QPixmap)
+from PySide6.QtGui import (QAction, QColor, QFontMetrics, QIcon, QImage,
+                           QPalette, QPixmap, QTextCharFormat, QTextCursor)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFrame, QGridLayout, QGroupBox,
@@ -32,8 +32,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QProgressBar, QPushButton, QScrollArea,
                                QSizePolicy, QSlider, QSpinBox, QSplitter,
                                QStyle, QStyleOptionSlider, QTableWidget,
-                               QTableWidgetItem, QToolBar, QToolButton,
-                               QVBoxLayout, QWidget)
+                               QTableWidgetItem, QTextEdit, QToolBar,
+                               QToolButton, QVBoxLayout, QWidget)
+from spellchecker import SpellChecker
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSApplication, NSWorkspace
@@ -218,6 +219,8 @@ class PromptTextEdit(QPlainTextEdit):
 
     def __init__(self, desired_lines, placeholder_text, parent=None):
         super().__init__(parent)
+        self.spell_checker = SpellChecker()
+        self.word_pattern = re.compile(r'\b\w+\b')
 
         font = self.font()
         font.setPointSize(14)
@@ -242,9 +245,38 @@ class PromptTextEdit(QPlainTextEdit):
             self.clearFocus()
         else:
             super().keyPressEvent(event)
+            self.highlight_misspelled_words()
 
         if key in (Qt.Key_Left, Qt.Key_Right):
             event.accept()
+
+    def setPlainText(self, str):
+        super().setPlainText(str)
+        self.highlight_misspelled_words()
+
+    def highlight_misspelled_words(self):
+        text = self.toPlainText()
+        words = self.word_pattern.finditer(text)
+
+        extra_selections = []
+        for match in words:
+            word = match.group()
+            if not self.spell_checker.known([word]):
+                format = QTextCharFormat()
+                format.setUnderlineColor(QColor(Qt.red))
+                format.setUnderlineStyle(QTextCharFormat.SingleUnderline)
+
+                index = text.index(word)
+                cursor = QTextCursor(self.document())
+                cursor.setPosition(index, QTextCursor.MoveAnchor)
+                cursor.setPosition(index + len(word), QTextCursor.KeepAnchor)
+
+                extra_selection = QTextEdit.ExtraSelection()
+                extra_selection.cursor = cursor
+                extra_selection.format = format
+                extra_selections.append(extra_selection)
+
+        self.setExtraSelections(extra_selections)
 
 class ThumbnailViewer(QListWidget):
     def __init__(self, parent=None):
