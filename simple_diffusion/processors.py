@@ -50,12 +50,12 @@ def ade_palette():
             [184, 255, 0], [0, 133, 255], [255, 214, 0], [25, 194, 194],
             [102, 255, 0], [92, 0, 255]]
 
-class PreprocessorBase(ABC):
+class ProcessorBase(ABC):
     @abstractmethod
     def __call__(self, image: Image.Image) -> Image.Image:
         pass
 
-class CannyPreprocessor(PreprocessorBase):
+class CannyProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
 
@@ -69,7 +69,7 @@ class CannyPreprocessor(PreprocessorBase):
         image = Image.fromarray(image)
         return image
 
-class DepthPreprocessor(PreprocessorBase):
+class DepthProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.depth_estimator = None
@@ -84,7 +84,7 @@ class DepthPreprocessor(PreprocessorBase):
         image = Image.fromarray(image)
         return image
 
-class NormalPreprocessor(PreprocessorBase):
+class NormalProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.depth_estimator = None
@@ -120,7 +120,7 @@ class NormalPreprocessor(PreprocessorBase):
         image = Image.fromarray(image)
         return image
 
-class HedPreprocessor(PreprocessorBase):
+class HedProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.hed = None
@@ -131,7 +131,7 @@ class HedPreprocessor(PreprocessorBase):
         image = self.hed(image)
         return image
 
-class MlsdPreprocessor(PreprocessorBase):
+class MlsdProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.mlsd = None
@@ -142,7 +142,7 @@ class MlsdPreprocessor(PreprocessorBase):
         image = self.mlsd(image)
         return image
 
-class OpenposePreprocessor(PreprocessorBase):
+class OpenposeProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.openpose = None
@@ -153,7 +153,7 @@ class OpenposePreprocessor(PreprocessorBase):
         image = self.openpose(image)
         return image
 
-class ScribblePreprocessor(PreprocessorBase):
+class ScribbleProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.hed = None
@@ -164,7 +164,7 @@ class ScribblePreprocessor(PreprocessorBase):
         image = self.hed(image, scribble=True)
         return image
 
-class SegPreprocessor(PreprocessorBase):
+class SegProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.image_processor = None

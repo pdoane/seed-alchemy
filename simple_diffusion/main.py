@@ -38,16 +38,18 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     from gfpgan import GFPGANer
 
-from configuration import *
+import configuration
+from configuration import Img2ImgCondition, ControlNetCondition
 from image_metadata import ImageMetadata
 from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
                        PipelineCache, Txt2ImgPipeline)
+from processors import ProcessorBase
 from utils import Timer
 
 # -------------------------------------------------------------------------------------------------
 
-generate_preprocessor: PreprocessorBase = None
-preview_preprocessor: PreprocessorBase = None
+generate_preprocessor: ProcessorBase = None
+preview_preprocessor: ProcessorBase = None
 pipeline_cache: PipelineCache = PipelineCache()
 gfpgan: GFPGANer = None
 
@@ -239,9 +241,9 @@ class ThumbnailViewer(QWidget):
         self.menu.addAction(self.action_delete)
 
         # Gather collections
-        collections = sorted([entry for entry in os.listdir(IMAGES_PATH) if os.path.isdir(os.path.join(IMAGES_PATH, entry))])
+        collections = sorted([entry for entry in os.listdir(configuration.IMAGES_PATH) if os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))])
         if not collections:
-            os.makedirs(os.path.join(IMAGES_PATH, 'outputs'))
+            os.makedirs(os.path.join(configuration.IMAGES_PATH, 'outputs'))
             collections = ['outputs']
 
         self.collection_combobox.addItems(collections)
@@ -255,8 +257,8 @@ class ThumbnailViewer(QWidget):
     def update_collection(self):
         collection = self.collection()
 
-        os.makedirs(os.path.join(THUMBNAILS_PATH, collection), exist_ok=True)
-        image_files = sorted([file for file in os.listdir(os.path.join(IMAGES_PATH, collection)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
+        os.makedirs(os.path.join(configuration.THUMBNAILS_PATH, collection), exist_ok=True)
+        image_files = sorted([file for file in os.listdir(os.path.join(configuration.IMAGES_PATH, collection)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
 
         self.list_widget.clear()
         for image_file in image_files:
@@ -267,7 +269,7 @@ class ThumbnailViewer(QWidget):
 
     def select_image(self, rel_path):
         collection = os.path.dirname(rel_path)
-        collection_path = os.path.join(IMAGES_PATH, rel_path)
+        collection_path = os.path.join(configuration.IMAGES_PATH, rel_path)
         if os.path.exists(collection_path):
             if self.collection() != collection:
                 self.collection_combobox.setCurrentText(collection)
@@ -284,9 +286,9 @@ class ThumbnailViewer(QWidget):
         if self.collection() != collection:
             return
 
-        thumbnail_path = os.path.join(THUMBNAILS_PATH, rel_path)
+        thumbnail_path = os.path.join(configuration.THUMBNAILS_PATH, rel_path)
         if not os.path.exists(thumbnail_path):
-            image_path = os.path.join(IMAGES_PATH, rel_path)
+            image_path = os.path.join(configuration.IMAGES_PATH, rel_path)
             with Image.open(image_path) as image:
                 width, height = image.size
                 width = width // 2
@@ -323,7 +325,7 @@ class ThumbnailViewer(QWidget):
         item = self.list_widget.currentItem()
         if item is not None:
             rel_path = item.data(Qt.UserRole)
-            full_path = os.path.join(IMAGES_PATH, rel_path)
+            full_path = os.path.join(configuration.IMAGES_PATH, rel_path)
             with Image.open(full_path) as image:
                 metadata = ImageMetadata()
                 metadata.path = rel_path
@@ -418,7 +420,7 @@ class ImageMetadataFrame(QFrame):
         if metadata.type == 'img2img':
             self.condition.value.setText(metadata.condition)
 
-            condition = conditions[metadata.condition]
+            condition = configuration.conditions[metadata.condition]
             if isinstance(condition, ControlNetCondition):
                 self.control_net_preprocess.frame.setVisible(True)
                 self.control_net_model.frame.setVisible(True)
@@ -674,7 +676,7 @@ class ImageViewer(QWidget):
         self.update_images()
 
     def set_left_image(self, path):
-        fullpath = os.path.join(IMAGES_PATH, path)
+        fullpath = os.path.join(configuration.IMAGES_PATH, path)
         if os.path.exists(fullpath):
             self.left_image_path_ = path
             self.left_image = QImage(fullpath)
@@ -684,7 +686,7 @@ class ImageViewer(QWidget):
         self.update_images()
 
     def set_right_image(self, path):
-        full_path = os.path.join(IMAGES_PATH, path)
+        full_path = os.path.join(configuration.IMAGES_PATH, path)
         with Image.open(full_path) as image:
             self.metadata = ImageMetadata()
             self.metadata.path = path
@@ -774,7 +776,7 @@ class AboutDialog(QDialog):
 
         layout = QVBoxLayout()
 
-        app_info_label = QLabel(f"{APP_NAME}\nVersion {APP_VERSION}")
+        app_info_label = QLabel(f"{configuration.APP_NAME}\nVersion {configuration.APP_VERSION}")
         app_info_label.setAlignment(Qt.AlignCenter)
 
         ok_button = QPushButton("OK")
@@ -973,13 +975,13 @@ class GenerateThread(QThread):
 
         # Source image
         if self.type == 'img2img':
-            full_path = os.path.join(IMAGES_PATH, self.req.image_metadata.source_path)
+            full_path = os.path.join(configuration.IMAGES_PATH, self.req.image_metadata.source_path)
             with Image.open(full_path) as image:
                 image = image.convert('RGB')
                 image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
                 self.req.source_image = image.copy()
 
-            condition = conditions[self.req.image_metadata.condition]
+            condition = configuration.conditions[self.req.image_metadata.condition]
             if isinstance(condition, ControlNetCondition) and self.req.image_metadata.control_net_preprocess:
                 if not isinstance(generate_preprocessor, condition.preprocessor):
                     generate_preprocessor = condition.preprocessor()
@@ -988,7 +990,7 @@ class GenerateThread(QThread):
                     generate_preprocessor = None
 
         # scheduler
-        pipe.scheduler = schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
+        pipe.scheduler = configuration.schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
 
         # generator
         self.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
@@ -1032,7 +1034,7 @@ class GenerateThread(QThread):
 
             # Output
             collection_path = settings.value('collection')
-            image_files = sorted([file for file in os.listdir(os.path.join(IMAGES_PATH, collection_path)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
+            image_files = sorted([file for file in os.listdir(os.path.join(configuration.IMAGES_PATH, collection_path)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
 
             next_image_id = 0
             for image_file in image_files:
@@ -1042,7 +1044,7 @@ class GenerateThread(QThread):
             next_image_id = next_image_id + 1
 
             output_path = os.path.join(collection_path, '{:05d}.png'.format(next_image_id))
-            full_path = os.path.join(IMAGES_PATH, output_path)
+            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
 
             png_info = PngImagePlugin.PngInfo()
             self.req.image_metadata.save_to_png_info(png_info)
@@ -1067,7 +1069,7 @@ class GenerateThread(QThread):
     def compute_total_steps(self):
         steps = self.req.image_metadata.num_inference_steps
         if self.type == 'img2img':
-            condition = conditions[self.req.image_metadata.condition]
+            condition = configuration.conditions[self.req.image_metadata.condition]
             if isinstance(condition, Img2ImgCondition):
                 steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img_strength)
 
@@ -1259,7 +1261,7 @@ class MainWindow(QMainWindow):
         scheduler_label = QLabel('Scheduler')
         scheduler_label.setAlignment(Qt.AlignCenter)
         self.scheduler_combo_box = QComboBox()
-        self.scheduler_combo_box.addItems(schedulers.keys())
+        self.scheduler_combo_box.addItems(configuration.schedulers.keys())
         self.scheduler_combo_box.setFixedWidth(120)
         self.scheduler_combo_box.setCurrentText(settings.value('scheduler'))
 
@@ -1314,7 +1316,7 @@ class MainWindow(QMainWindow):
         conditions_label = QLabel('Condition')
         conditions_label.setAlignment(Qt.AlignCenter)
         self.condition_combo_box = QComboBox()
-        self.condition_combo_box.addItems(conditions.keys())
+        self.condition_combo_box.addItems(configuration.conditions.keys())
         self.condition_combo_box.setCurrentText(settings.value('condition'))
         self.condition_combo_box.currentIndexChanged.connect(self.on_condition_combobox_value_changed)
 
@@ -1328,7 +1330,7 @@ class MainWindow(QMainWindow):
         self.control_net_preprocess_check_box = QCheckBox('Preprocess')
         self.control_net_preprocess_check_box.setChecked(bool_setting('control_net_preprocess'))
         self.control_net_preview_preprocessor_button = QPushButton('Preview')
-        self.control_net_preview_preprocessor_button.clicked.connect(self.on_control_net_preview_processor_button_clicked)
+        self.control_net_preview_preprocessor_button.clicked.connect(self.on_control_net_preview_preprocessor_button_clicked)
 
         control_net_model_label = QLabel('Model')
         control_net_model_label.setAlignment(Qt.AlignCenter)
@@ -1415,7 +1417,7 @@ class MainWindow(QMainWindow):
         vlayout.addWidget(self.progress_bar)
         vlayout.addLayout(hlayout)
 
-        self.setWindowTitle(APP_NAME)
+        self.setWindowTitle(configuration.APP_NAME)
         self.setGeometry(100, 100, 1200, 600)
 
         # Apply settings that impact other controls
@@ -1456,7 +1458,7 @@ class MainWindow(QMainWindow):
 
     def on_condition_combobox_value_changed(self, index):
         condition_name = self.condition_combo_box.itemText(index)
-        condition = conditions[condition_name]
+        condition = configuration.conditions[condition_name]
         if isinstance(condition, Img2ImgCondition):
             pass
         elif isinstance(condition, ControlNetCondition):
@@ -1467,19 +1469,19 @@ class MainWindow(QMainWindow):
 
         self.update_control_visibility()
 
-    def on_control_net_preview_processor_button_clicked(self):
+    def on_control_net_preview_preprocessor_button_clicked(self):
         source_path = self.image_viewer.left_image_path()
         width = self.width_spin_box.value()
         height = self.height_spin_box.value()
 
-        full_path = os.path.join(IMAGES_PATH, source_path)
+        full_path = os.path.join(configuration.IMAGES_PATH, source_path)
         with Image.open(full_path) as image:
             image = image.convert('RGB')
             image = image.resize((width, height))
             source_image = image.copy()
 
         condition_name = self.condition_combo_box.currentText()
-        condition = conditions[condition_name]
+        condition = configuration.conditions[condition_name]
         if isinstance(condition, ControlNetCondition):
             global preview_preprocessor
             if not isinstance(preview_preprocessor, condition.preprocessor):
@@ -1488,7 +1490,7 @@ class MainWindow(QMainWindow):
             if bool_setting('reduce_memory'):
                 preview_preprocessor = None
             output_path = 'preprocessed.png'
-            full_path = os.path.join(IMAGES_PATH, output_path)
+            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
             source_image.save(full_path)
             self.image_viewer.set_right_image(output_path)
 
@@ -1500,7 +1502,7 @@ class MainWindow(QMainWindow):
             self.image_viewer.set_both_images_visible(False)
         elif self.type == 'img2img':
             condition_name = self.condition_combo_box.currentText()
-            condition = conditions[condition_name]
+            condition = configuration.conditions[condition_name]
             self.condition_frame.setVisible(True)
             if isinstance(condition, Img2ImgCondition):
                 self.img_strength.setVisible(True)
@@ -1515,7 +1517,7 @@ class MainWindow(QMainWindow):
             self.randomize_seed()
 
         condition_name = self.condition_combo_box.currentText()
-        condition = conditions[condition_name]
+        condition = configuration.conditions[condition_name]
 
         settings.setValue('collection', self.thumbnail_viewer.collection())
         settings.setValue('type', self.type)
@@ -1635,7 +1637,7 @@ class MainWindow(QMainWindow):
             if image_metadata.type == 'img2img':
                 self.image_viewer.set_left_image(image_metadata.source_path)
                 self.condition_combo_box.setCurrentText(image_metadata.condition)
-                condition = conditions[image_metadata.condition]
+                condition = configuration.conditions[image_metadata.condition]
                 if isinstance(condition, Img2ImgCondition):
                     self.img_strength.spin_box.setValue(image_metadata.img_strength)
                 if isinstance(condition, ControlNetCondition):
@@ -1659,7 +1661,7 @@ class MainWindow(QMainWindow):
 
             result = message_box.exec()
             if result == QMessageBox.Yes:
-                full_path = os.path.join(IMAGES_PATH, image_metadata.path)
+                full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
                 if sys.platform == 'darwin':
                     # Move file to trash
                     file_url = NSURL.fileURLWithPath_(full_path)
@@ -1667,7 +1669,7 @@ class MainWindow(QMainWindow):
                 else:
                     os.remove(full_path)
 
-                full_path = os.path.join(THUMBNAILS_PATH, image_metadata.path)
+                full_path = os.path.join(configuration.THUMBNAILS_PATH, image_metadata.path)
                 os.remove(full_path)
 
                 self.thumbnail_viewer.remove_image(image_metadata.path)
@@ -1718,7 +1720,7 @@ class Application(QApplication):
         set_default_setting('collection', 'outputs')
         set_default_setting('type', 'txt2img')
         set_default_setting('scheduler', 'k_euler_a')
-        set_default_setting('model', 'stabilityai/stable-diffusion-2-1-base')
+        set_default_setting('model', 'runwayml/stable-diffusion-v1-5')
         set_default_setting('prompt', '')
         set_default_setting('negative_prompt', '')
         set_default_setting('manual_seed', False)
@@ -1738,11 +1740,11 @@ class Application(QApplication):
         set_default_setting('gfpgan_strength', 0.8)
         set_default_setting('reduce_memory', True)
         settings.beginGroup('Models')
-        set_default_setting('Stable Diffusion v2-1-base', 'stabilityai/stable-diffusion-2-1-base')
+        set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')
         settings.endGroup()
 
         self.setWindowIcon(QIcon(resource_path('app_icon.png')))
-        self.setApplicationName(APP_NAME)
+        self.setApplicationName(configuration.APP_NAME)
         self.setStyleSheet('''
         QToolButton {
             background-color: rgba(50, 50, 50, 255);
@@ -1767,13 +1769,13 @@ class Application(QApplication):
         return super().event(event)
 
 def main():
-    os.makedirs(IMAGES_PATH, exist_ok=True)
-    os.makedirs(THUMBNAILS_PATH, exist_ok=True)
+    os.makedirs(configuration.IMAGES_PATH, exist_ok=True)
+    os.makedirs(configuration.THUMBNAILS_PATH, exist_ok=True)
 
     if sys.platform == 'darwin':
         bundle = NSBundle.mainBundle()
         info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
-        info_dict['CFBundleName'] = APP_NAME
+        info_dict['CFBundleName'] = configuration.APP_NAME
 
     app = Application(sys.argv)
     sys.exit(app.exec())

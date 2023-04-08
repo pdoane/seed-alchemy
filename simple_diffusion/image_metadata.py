@@ -1,7 +1,9 @@
 import json
 import os
 
-from configuration import *
+import configuration
+from configuration import ControlNetCondition
+
 
 class ImageMetadata:
     def __init__(self):
@@ -46,7 +48,7 @@ class ImageMetadata:
         self.img_strength = 0.0
         if self.type == 'img2img':
             self.condition = settings.value('condition', 'Image')
-            condition = conditions[self.condition]
+            condition = configuration.conditions[self.condition]
             if isinstance(condition, ControlNetCondition):
                 self.control_net_preprocess = settings.value('control_net_preprocess', type=bool)
                 self.control_net_model = settings.value('control_net_model')
@@ -82,7 +84,7 @@ class ImageMetadata:
                 self.img_strength = 0.0
                 if self.type == 'img2img':
                     self.condition = image_data.get('condition', 'Image')
-                    condition = conditions[self.condition]
+                    condition = configuration.conditions[self.condition]
                     if isinstance(condition, ControlNetCondition):
                         self.control_net_preprocess = image_data.get('control_net_preprocess', False)
                         self.control_net_model = image_data.get('control_net_model', '')
@@ -99,8 +101,8 @@ class ImageMetadata:
             'model': 'stable diffusion',
             'model_weights': os.path.basename(self.model),
             'model_hash': '',    # TODO
-            'app_id': APP_NAME,
-            'APP_VERSION': APP_VERSION,
+            'app_id': configuration.APP_NAME,
+            'APP_VERSION': configuration.APP_VERSION,
             'image': {
                 'prompt': self.prompt,
                 'negative_prompt': self.negative_prompt,
@@ -116,7 +118,7 @@ class ImageMetadata:
         }
         if self.type == 'img2img':
             sd_metadata['image']['condition'] = self.condition
-            condition = conditions[self.condition]
+            condition = configuration.conditions[self.condition]
             if isinstance(condition, ControlNetCondition):
                 sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess
                 sd_metadata['image']['control_net_model'] = self.control_net_model

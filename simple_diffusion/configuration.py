@@ -4,12 +4,10 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        EulerAncestralDiscreteScheduler, EulerDiscreteScheduler,
                        HeunDiscreteScheduler, LMSDiscreteScheduler,
                        PNDMScheduler, SchedulerMixin, UniPCMultistepScheduler)
-
-from preprocessors import (CannyPreprocessor, DepthPreprocessor,
-                           HedPreprocessor, MlsdPreprocessor,
-                           NormalPreprocessor, OpenposePreprocessor,
-                           PreprocessorBase, ScribblePreprocessor,
-                           SegPreprocessor)
+from processors import (CannyProcessor, DepthProcessor, HedProcessor,
+                        MlsdProcessor, NormalProcessor,
+                        OpenposeProcessor, ProcessorBase,
+                        ScribbleProcessor, SegProcessor)
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
@@ -22,38 +20,38 @@ class Img2ImgCondition:
 
 @dataclass
 class ControlNetCondition:
-    preprocessor: PreprocessorBase
+    preprocessor: ProcessorBase
     models: dict[str, str]
 
 conditions = {
     'Image': Img2ImgCondition(),
-    'Canny': ControlNetCondition(CannyPreprocessor, {
+    'Canny': ControlNetCondition(CannyProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-canny',
         'SD 2.1': 'thibaud/controlnet-sd21-canny-diffusers'
     }),
-    'Depth': ControlNetCondition(DepthPreprocessor, {
+    'Depth': ControlNetCondition(DepthProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-depth',
         'SD 2.1': 'thibaud/controlnet-sd21-depth-diffusers'
     }),
-    'Normal': ControlNetCondition(NormalPreprocessor, {
+    'Normal': ControlNetCondition(NormalProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-normal',
     }),
-    'HED': ControlNetCondition(HedPreprocessor, {
+    'HED': ControlNetCondition(HedProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-hed',
         'SD 2.1': 'thibaud/controlnet-sd21-hed-diffusers'
     }),
-    'M-LSD': ControlNetCondition(MlsdPreprocessor, {
+    'M-LSD': ControlNetCondition(MlsdProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-mlsd',
     }),
-    'Openpose': ControlNetCondition(OpenposePreprocessor, {
+    'Openpose': ControlNetCondition(OpenposeProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-openpose',
         'SD 2.1': 'thibaud/controlnet-sd21-openpose-diffusers'
     }),
-    'Scribble': ControlNetCondition(ScribblePreprocessor, {
+    'Scribble': ControlNetCondition(ScribbleProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-scribble',
         'SD 2.1': 'thibaud/controlnet-sd21-scribble-diffusers'
     }),
-    'Segmentation': ControlNetCondition(SegPreprocessor, {
+    'Segmentation': ControlNetCondition(SegProcessor, {
         'SD 1.5': 'lllyasviel/sd-controlnet-seg',
     }),
 }
