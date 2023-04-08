@@ -9,14 +9,16 @@ import re
 import sys
 import traceback
 import warnings
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 from compel import Compel
-from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
-                       DiffusionPipeline, EulerAncestralDiscreteScheduler,
+from diffusers import (ControlNetModel, DDIMScheduler, DDPMScheduler,
+                       DEISMultistepScheduler, EulerAncestralDiscreteScheduler,
                        EulerDiscreteScheduler, HeunDiscreteScheduler,
                        LMSDiscreteScheduler, PNDMScheduler, SchedulerMixin,
+                       StableDiffusionControlNetPipeline,
                        StableDiffusionImg2ImgPipeline, StableDiffusionPipeline,
                        UniPCMultistepScheduler)
 from PIL import Image, PngImagePlugin
@@ -36,6 +38,11 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QToolButton, QVBoxLayout, QWidget)
 from spellchecker import SpellChecker
 
+from preprocessors import (CannyPreprocessor, DepthPreprocessor,
+                           HedPreprocessor, MlsdPreprocessor,
+                           NormalPreprocessor, OpenposePreprocessor,
+                           ScribblePreprocessor, SegPreprocessor)
+
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSApplication, NSWorkspace
     from Foundation import NSBundle
@@ -51,8 +58,56 @@ APP_VERSION = 0.1
 IMAGES_PATH = 'images'
 THUMBNAILS_PATH = 'thumbnails'
 
+model_name: str = None
+control_net_model_name: str = None
+sd_pipe: StableDiffusionPipeline = None
+control_net_model: ControlNetModel = None
+control_net_pipe: StableDiffusionControlNetPipeline = None
+gfpgan: GFPGANer = None
+
 settings: QSettings = None
-pipes: dict[str, DiffusionPipeline] = {}
+
+@dataclass
+class Img2ImgCondition:
+    pass
+
+@dataclass
+class ControlNetCondition:
+    preprocessor: type
+    models: dict[str, str]
+
+conditions = {
+    'Image': Img2ImgCondition(),
+    'Canny': ControlNetCondition(CannyPreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-canny',
+        'SD 2.1': 'thibaud/controlnet-sd21-canny-diffusers'
+    }),
+    'Depth': ControlNetCondition(DepthPreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-depth',
+        'SD 2.1': 'thibaud/controlnet-sd21-depth-diffusers'
+    }),
+    'Normal': ControlNetCondition(NormalPreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-normal',
+    }),
+    'HED': ControlNetCondition(HedPreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-hed',
+        'SD 2.1': 'thibaud/controlnet-sd21-hed-diffusers'
+    }),
+    'M-LSD': ControlNetCondition(MlsdPreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-mlsd',
+    }),
+    'Openpose': ControlNetCondition(OpenposePreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-openpose',
+        'SD 2.1': 'thibaud/controlnet-sd21-openpose-diffusers'
+    }),
+    'Scribble': ControlNetCondition(ScribblePreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-scribble',
+        'SD 2.1': 'thibaud/controlnet-sd21-scribble-diffusers'
+    }),
+    'Segmentation': ControlNetCondition(SegPreprocessor, {
+        'SD 1.5': 'lllyasviel/sd-controlnet-seg',
+    }),
+}
 schedulers: dict[str, SchedulerMixin] = {
     'ddim': DDIMScheduler,
     'ddpm': DDPMScheduler,
@@ -68,7 +123,6 @@ schedulers: dict[str, SchedulerMixin] = {
     'pndm': PNDMScheduler,
     'uni_pc': UniPCMultistepScheduler,
 }
-gfpgan: GFPGANer = None
 
 def set_default_setting(key: str, value):
     if not settings.contains(key):
@@ -131,6 +185,10 @@ class ImageMetadata:
         self.guidance_scale = 7.5
         self.width = 512
         self.height = 512
+        self.condition = 'Image'
+        self.control_net_preprocess = False
+        self.control_net_model = ''
+        self.control_net_scale = 1.0
         self.source_path = ''
         self.img_strength = 0.0
         self.gfpgan_enabled = False
@@ -147,9 +205,19 @@ class ImageMetadata:
         self.guidance_scale = float(settings.value('guidance_scale'))
         self.width = int(settings.value('width'))
         self.height = int(settings.value('height'))
+        self.condition = 'Image'
+        self.control_net_preprocess = False
+        self.control_net_model = ''
+        self.control_net_scale = 1.0
         self.source_path = ''
         self.img_strength = 0.0
         if self.type == 'img2img':
+            self.condition = settings.value('condition', 'Image')
+            condition = conditions[self.condition]
+            if isinstance(condition, ControlNetCondition):
+                self.control_net_preprocess = bool_setting('control_net_preprocess')
+                self.control_net_model = settings.value('control_net_model')
+                self.control_net_scale = settings.value('control_net_scale')
             self.source_path = settings.value('source_path')
             self.img_strength = float(settings.value('img_strength'))
         self.gfpgan_enabled = bool_setting('gfpgan_enabled')
@@ -172,9 +240,19 @@ class ImageMetadata:
                 self.guidance_scale = float(image_data.get('cfg_scale', 7.5))
                 self.width = int(image_data.get('width', 512))
                 self.height = int(image_data.get('height', 512))
+                self.condition = ''
+                self.control_net_preprocess = False
+                self.control_net_model = ''
+                self.control_net_scale = 1.0
                 self.source_path = ''
                 self.img_strength = 0.0
                 if self.type == 'img2img':
+                    self.condition = image_data.get('condition', 'Image')
+                    condition = conditions[self.condition]
+                    if isinstance(condition, ControlNetCondition):
+                        self.control_net_preprocess = image_data.get('control_net_preprocess', False)
+                        self.control_net_model = image_data.get('control_net_model', '')
+                        self.control_net_scale = image_data.get('control_net_scale', 1.0)
                     self.source_path = image_data.get('source_path', '')
                     self.img_strength = float(image_data.get('img_strength', 0.5))
                 self.gfpgan_enabled = 'gfpgan_strength' in image_data
@@ -202,6 +280,12 @@ class ImageMetadata:
             }
         }
         if self.type == 'img2img':
+            sd_metadata['image']['condition'] = self.condition
+            condition = conditions[self.condition]
+            if isinstance(condition, ControlNetCondition):
+                sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess
+                sd_metadata['image']['control_net_model'] = self.control_net_model
+                sd_metadata['image']['control_net_scale'] = self.control_net_scale
             sd_metadata['image']['source_path'] = self.source_path
             sd_metadata['image']['img_strength'] = self.img_strength
         if self.gfpgan_enabled:
@@ -484,6 +568,10 @@ class ImageMetadataFrame(QFrame):
         self.guidance_scale = MetadataRow('CFG Scale:')
         self.width = MetadataRow('Width:')
         self.height = MetadataRow('Height:')
+        self.condition = MetadataRow('Condition:')
+        self.control_net_preprocess = MetadataRow('Control Net Preprocess:')
+        self.control_net_model = MetadataRow('Control Net Model:')
+        self.control_net_scale = MetadataRow('Control Net Scale:')
         self.source_path = MetadataRow('Source Path:')
         self.img_strength = MetadataRow('Image Strength:')
         self.gfpgan_strength = MetadataRow('Face Restoration:')
@@ -500,6 +588,10 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.guidance_scale.frame)
         vlayout.addWidget(self.width.frame)
         vlayout.addWidget(self.height.frame)
+        vlayout.addWidget(self.condition.frame)
+        vlayout.addWidget(self.control_net_preprocess.frame)
+        vlayout.addWidget(self.control_net_model.frame)
+        vlayout.addWidget(self.control_net_scale.frame)
         vlayout.addWidget(self.source_path.frame)
         vlayout.addWidget(self.img_strength.frame)
         vlayout.addWidget(self.gfpgan_strength.frame)
@@ -518,11 +610,28 @@ class ImageMetadataFrame(QFrame):
         self.width.value.setText(str(metadata.width))
         self.height.value.setText(str(metadata.height))
         if metadata.type == 'img2img':
+            self.condition.value.setText(metadata.condition)
+
+            condition = conditions[metadata.condition]
+            if isinstance(condition, ControlNetCondition):
+                self.control_net_preprocess.frame.setVisible(True)
+                self.control_net_model.frame.setVisible(True)
+                self.control_net_scale.frame.setVisible(True)
+                self.control_net_preprocess.value.setText(str(metadata.control_net_preprocess))
+                self.control_net_model.value.setText(metadata.control_net_model)
+                self.control_net_scale.value.setText(str(metadata.control_net_scale))
+            else:
+                self.control_net_preprocess.frame.setVisible(False)
+                self.control_net_model.frame.setVisible(False)
+                self.control_net_scale.frame.setVisible(False)
             self.source_path.frame.setVisible(True)
-            self.source_path.value.setText(metadata.source_path)
             self.img_strength.frame.setVisible(True)
+            self.source_path.value.setText(metadata.source_path)
             self.img_strength.value.setText(str(metadata.img_strength))
         else:
+            self.control_net_preprocess.frame.setVisible(False)
+            self.control_net_model.frame.setVisible(False)
+            self.control_net_scale.frame.setVisible(False)
             self.source_path.frame.setVisible(False)
             self.img_strength.frame.setVisible(False)
         if metadata.gfpgan_enabled:
@@ -996,51 +1105,6 @@ class PreferencesDialog(QDialog):
         self.settings.endGroup()
 
         super().accept()
-        
-class InitThread(QThread):
-    task_complete = Signal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-    def run(self):
-        try:
-            self.run_()
-        except Exception as e:
-            traceback.print_exc()        
-
-        self.task_complete.emit()
- 
-    def run_(self):
-        warnings.filterwarnings('ignore')
-
-        dtype = torch.float32
-        device = 'mps'
-        model = os.path.expanduser(settings.value('model'))
-        if bool_setting('safety_checker'):
-            base_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=dtype)
-        else:
-            base_pipe = StableDiffusionPipeline.from_pretrained(model, safety_checker=None, torch_dtype=dtype, requires_safety_checker=False)
-
-        global pipes
-        pipes['txt2img'] = base_pipe
-        pipes['img2img'] = StableDiffusionImg2ImgPipeline(**base_pipe.components, requires_safety_checker=False)
-
-        for type in pipes:
-            pipe = pipes[type]
-            pipe.enable_attention_slicing()
-            pipes[type] = pipe.to(device)
-
-        global gfpgan
-        gfpgan = GFPGANer(
-            model_path='data/GFPGANv1.4.pth',
-            upscale=1,
-            arch='clean',
-            channel_multiplier=2,
-            bg_upsampler=None,
-        )
-
-        warnings.resetwarnings()
 
 class CancelThreadException(Exception):
     pass
@@ -1060,6 +1124,62 @@ class GenerateThread(QThread):
         self.metadata.load_from_settings()
         self.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
 
+        self.dtype = torch.float32
+        self.device = 'mps'
+
+    def load_sd_pipeline(self):
+        global sd_pipe
+        if sd_pipe is None:
+            print('Loading Stable Diffusion Pipeline', model_name)
+            warnings.filterwarnings('ignore')
+            model = os.path.expanduser(model_name)
+            if bool_setting('safety_checker'):
+                sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype)
+            else:
+                sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+            sd_pipe.to(self.device)
+            sd_pipe.enable_attention_slicing()
+            warnings.resetwarnings()
+        return sd_pipe
+    
+    def load_txt2img_pipeline(self):
+        return self.load_sd_pipeline()
+    
+    def load_img2img_pipeline(self):
+        return StableDiffusionImg2ImgPipeline(**self.load_sd_pipeline().components, requires_safety_checker=False)
+    
+    def load_control_net_model(self):
+        global control_net_model
+        if control_net_model is None:
+            print('Loading ControlNet Model', control_net_model_name)
+            warnings.filterwarnings('ignore')
+            control_net_model = ControlNetModel.from_pretrained(control_net_model_name, torch_dtype=self.dtype)
+            warnings.resetwarnings()
+        return control_net_model
+
+    def load_control_net_pipeline(self):
+        global control_net_pipe
+        if control_net_pipe is None:
+            controlnet = self.load_control_net_model()
+
+            print('Loading ControlNet Pipeline', model_name)
+            warnings.filterwarnings('ignore')
+            model = os.path.expanduser(model_name)
+            control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=controlnet, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+            control_net_pipe.to(self.device)
+            control_net_pipe.enable_attention_slicing()
+            warnings.resetwarnings()
+        return control_net_pipe
+    
+    def load_gfpgan(self):
+        global gfpgan
+        if gfpgan is None:
+            print('Loading GFPGAN')
+            warnings.filterwarnings('ignore')
+            gfpgan = GFPGANer(model_path='data/GFPGANv1.4.pth', upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
+            warnings.resetwarnings()
+        return gfpgan
+
     def run(self):
         try:
             self.run_()
@@ -1071,14 +1191,40 @@ class GenerateThread(QThread):
         self.task_complete.emit()
  
     def run_(self):
-        # type
-        pipe = pipes[self.type]
+        # flush pipeline on model changed
+        global model_name, control_net_model_name
+        global sd_pipe, control_net_model, control_net_pipe
+        if control_net_model_name is not None and control_net_model_name != self.metadata.control_net_model:
+            print('Flushing ControlNet Model', control_net_model_name)
+            control_net_model = None
+            control_net_pipe = None
+        if model_name is not None and model_name != self.metadata.model:
+            print('Flushing Diffusion Model', model_name)
+            sd_pipe = None
+            control_net_pipe = None
+        model_name = self.metadata.model
+        control_net_model_name = self.metadata.control_net_model
+
+        # load pipeline
+        if self.type == 'txt2img':
+            pipe = self.load_txt2img_pipeline()
+        elif self.type == 'img2img':
+            if control_net_model_name != '':
+                pipe = self.load_control_net_pipeline()
+            else:
+                pipe = self.load_img2img_pipeline()
+
+        # Source image
         if self.type == 'img2img':
             full_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
-            f = open(full_path, 'rb')
-            source_image = Image.open(f).convert('RGB')
-            source_image = source_image.resize((self.metadata.width, self.metadata.height))
-            f.close()
+            with open(full_path, 'rb') as f:
+                source_image = Image.open(f).convert('RGB')
+                source_image = source_image.resize((self.metadata.width, self.metadata.height))
+
+            condition = conditions[self.metadata.condition]
+            if isinstance(condition, ControlNetCondition) and self.metadata.control_net_preprocess:
+                preprocessor = condition.preprocessor()
+                source_image = preprocessor(source_image)
 
         # scheduler
         pipe.scheduler = schedulers[self.metadata.scheduler].from_config(pipe.scheduler.config)
@@ -1105,23 +1251,38 @@ class GenerateThread(QThread):
                 callback=self.generate_callback,
             ).images
         elif self.type == 'img2img':
-            images = pipe(
-                image=source_image,
-                strength=self.metadata.img_strength,
-                num_inference_steps=self.metadata.num_inference_steps,
-                guidance_scale=self.metadata.guidance_scale,
-                num_images_per_prompt=self.num_images_per_prompt,
-                generator=generator,
-                prompt_embeds=prompt_embeds,
-                negative_prompt_embeds=negative_prompt_embeds,
-                callback=self.generate_callback,
-            ).images
+            if control_net_model_name != '':
+                images = pipe(
+                    image=source_image,
+                    num_inference_steps=self.metadata.num_inference_steps,
+                    guidance_scale=self.metadata.guidance_scale,
+                    num_images_per_prompt=self.num_images_per_prompt,
+                    generator=generator,
+                    prompt_embeds=prompt_embeds,
+                    negative_prompt_embeds=negative_prompt_embeds,
+                    callback=self.generate_callback,
+                    controlnet_conditioning_scale=self.metadata.control_net_scale
+                ).images
+            else:
+                images = pipe(
+                    image=source_image,
+                    strength=self.metadata.img_strength,
+                    num_inference_steps=self.metadata.num_inference_steps,
+                    guidance_scale=self.metadata.guidance_scale,
+                    num_images_per_prompt=self.num_images_per_prompt,
+                    generator=generator,
+                    prompt_embeds=prompt_embeds,
+                    negative_prompt_embeds=negative_prompt_embeds,
+                    callback=self.generate_callback,
+                ).images
 
         steps = self.compute_total_steps()
         step = steps - self.num_images_per_prompt
         for image in images:
             # GFPGAN
             if self.metadata.gfpgan_strength > 0.0:
+                gfpgan = self.load_gfpgan()
+
                 bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
 
                 _, _, restored_img = gfpgan.enhance(
@@ -1176,10 +1337,12 @@ class GenerateThread(QThread):
         self.image_preview.emit(pil_image)
 
     def compute_total_steps(self):
+        steps = self.metadata.num_inference_steps
         if self.type == 'img2img':
-            steps = int(self.metadata.num_inference_steps * self.metadata.img_strength)
-        else:
-            steps = self.metadata.num_inference_steps
+            condition = conditions[self.metadata.condition]
+            if isinstance(condition, Img2ImgCondition):
+                steps = int(self.metadata.num_inference_steps * self.metadata.img_strength)
+
         steps = steps + self.num_images_per_prompt
         return steps
 
@@ -1187,7 +1350,6 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.init_thread = None
         self.generate_thread = None
         self.active_thread_count = 0
 
@@ -1301,12 +1463,11 @@ class MainWindow(QMainWindow):
         index = self.model_combo_box.findData(settings.value('model'))
         if index != -1:
             self.model_combo_box.setCurrentIndex(index)
-        self.model_combo_box.currentIndexChanged.connect(self.on_model_combo_box_changed)
 
         self.prompt_edit = PromptTextEdit(8, 'Prompt')
         self.prompt_edit.setPlainText(settings.value('prompt'))
         self.prompt_edit.return_pressed.connect(self.on_generate_image)
-        self.negative_prompt_edit = PromptTextEdit(3, 'Negative Prompt')
+        self.negative_prompt_edit = PromptTextEdit(5, 'Negative Prompt')
         self.negative_prompt_edit.setPlainText(settings.value('negative_prompt'))
         self.negative_prompt_edit.return_pressed.connect(self.on_generate_image)
 
@@ -1347,7 +1508,7 @@ class MainWindow(QMainWindow):
         self.guidance_scale_spin_box.setAlignment(Qt.AlignCenter)
         self.guidance_scale_spin_box.setFixedWidth(80)
         self.guidance_scale_spin_box.setSingleStep(0.5)
-        self.guidance_scale_spin_box.setMinimum(0.5)
+        self.guidance_scale_spin_box.setMinimum(1.0)
         self.guidance_scale_spin_box.setValue(float(settings.value('guidance_scale')))
         width_label = QLabel('Width')
         width_label.setAlignment(Qt.AlignCenter)
@@ -1421,8 +1582,47 @@ class MainWindow(QMainWindow):
         self.manual_seed_check_box.setChecked(manual_seed)
         self.manual_seed_check_box.stateChanged.connect(self.on_manual_seed_check_box_changed)
 
+        self.condition_frame = QFrame()
+        conditions_label = QLabel('Condition')
+        conditions_label.setAlignment(Qt.AlignCenter)
+        self.condition_combo_box = QComboBox()
+        self.condition_combo_box.addItems(conditions.keys())
+        self.condition_combo_box.setCurrentText(settings.value('condition'))
+        self.condition_combo_box.currentIndexChanged.connect(self.on_condition_combobox_value_changed)
+
+        condition_frame_layout = QVBoxLayout(self.condition_frame)
+        condition_frame_layout.setContentsMargins(0, 0, 0, 0)
+        condition_frame_layout.setSpacing(2)
+        condition_frame_layout.addWidget(conditions_label)
+        condition_frame_layout.addWidget(self.condition_combo_box)
+
+        self.control_net_frame = QFrame()
+        self.control_net_preprocess_check_box = QCheckBox('Preprocess')
+        self.control_net_preprocess_check_box.setChecked(bool_setting('control_net_preprocess'))
+        self.control_net_preview_preprocessor_button = QPushButton('Preview')
+        self.control_net_preview_preprocessor_button.clicked.connect(self.on_control_net_preview_processor_button_clicked)
+
+        control_net_model_label = QLabel('Model')
+        control_net_model_label.setAlignment(Qt.AlignCenter)
+        self.control_net_model_combo_box = QComboBox()
+
+        self.control_net_scale = FloatSliderSpinBox('ControlNet Scale', float(settings.value('control_net_scale')))
+
+        control_net_grid = QGridLayout()
+        control_net_grid.setContentsMargins(0, 0, 0, 0)
+        control_net_grid.setVerticalSpacing(2)
+        control_net_grid.addWidget(self.control_net_preprocess_check_box, 0, 0)
+        control_net_grid.setAlignment(self.control_net_preprocess_check_box, Qt.AlignCenter)
+        control_net_grid.addWidget(self.control_net_preview_preprocessor_button, 1, 0)
+        control_net_grid.addWidget(control_net_model_label, 0, 1)
+        control_net_grid.addWidget(self.control_net_model_combo_box, 1, 1)
+
+        control_net_layout = QVBoxLayout(self.control_net_frame)
+        control_net_layout.setContentsMargins(0, 0, 0, 0)
+        control_net_layout.addLayout(control_net_grid)
+        control_net_layout.addWidget(self.control_net_scale)
+
         self.img_strength = FloatSliderSpinBox('Image Strength', float(settings.value('img_strength')))
-        self.img_strength.setVisible(False)
 
         self.gfpgan_strength = FloatSliderSpinBox('Face Restoration', float(settings.value('gfpgan_strength')), checkable=True)
         self.gfpgan_strength.check_box.setChecked(bool_setting('gfpgan_enabled'))
@@ -1435,6 +1635,8 @@ class MainWindow(QMainWindow):
         config_layout.addLayout(generate_hlayout)
         config_layout.addWidget(controls_frame)
         config_layout.addLayout(seed_vlayout)
+        config_layout.addWidget(self.condition_frame)
+        config_layout.addWidget(self.control_net_frame)
         config_layout.addWidget(self.img_strength)
         config_layout.addWidget(self.gfpgan_strength)
         config_layout.addStretch()
@@ -1491,24 +1693,9 @@ class MainWindow(QMainWindow):
         # Apply settings that impact other controls
         if settings.value('source_path') != '':
             self.image_viewer.set_left_image(settings.value('source_path'))
-        self.on_thumbnail_selection_change()
         self.set_type(settings.value('type'))
-
-        self.init_model()
-
-    def init_model(self):
-        self.generate_button.setEnabled(False)
-        self.model_combo_box.setEnabled(False)
-        self.update_progress(0, 0)
-        self.init_thread = InitThread(self)
-        self.init_thread.task_complete.connect(self.init_complete)
-        self.init_thread.start()
-
-    def init_complete(self):
-        self.generate_button.setEnabled(True)
-        self.model_combo_box.setEnabled(True)
-        self.update_progress(None)
-        self.init_thread = None
+        self.on_thumbnail_selection_change()
+        self.on_condition_combobox_value_changed(self.condition_combo_box.currentIndex())
 
     def show_about_dialog(self):
         about_dialog = AboutDialog()
@@ -1530,32 +1717,76 @@ class MainWindow(QMainWindow):
             return
         if button_id == 0:
             self.type = 'txt2img'
-            self.img_strength.setVisible(False)
-            self.image_viewer.set_both_images_visible(False)
         elif button_id == 1:
             self.type = 'img2img'
-            self.img_strength.setVisible(True)
-            self.image_viewer.set_both_images_visible(True)
-
-    def on_model_combo_box_changed(self, index):
-        model = self.sender().itemData(index)
-        settings.setValue('model', model)
-        self.init_model()
+        
+        self.update_control_visibility()
 
     def on_cancel_generation(self):
         if self.generate_thread:
             self.generate_thread.cancel = True
 
-    def on_generate_image(self):
-        self.update_progress(0, 0)
-        self.generate_button.setEnabled(False)
-        self.model_combo_box.setEnabled(False)
+    def on_condition_combobox_value_changed(self, index):
+        condition_name = self.condition_combo_box.itemText(index)
+        condition = conditions[condition_name]
+        if isinstance(condition, Img2ImgCondition):
+            pass
+        elif isinstance(condition, ControlNetCondition):
+            self.control_net_model_combo_box.clear()
+            for key, value in condition.models.items():
+                self.control_net_model_combo_box.addItem(key, value)
+            self.control_net_model_combo_box.setCurrentText(settings.value('control_net_model'))
 
+        self.update_control_visibility()
+
+    def on_control_net_preview_processor_button_clicked(self):
+        source_path = self.image_viewer.left_image_path()
+        width = self.width_spin_box.value()
+        height = self.height_spin_box.value()
+
+        full_path = os.path.join(IMAGES_PATH, source_path)
+        with open(full_path, 'rb') as f:
+            source_image = Image.open(f).convert('RGB')
+            source_image = source_image.resize((width, height))
+
+        condition_name = self.condition_combo_box.currentText()
+        condition = conditions[condition_name]
+        if isinstance(condition, ControlNetCondition):
+            preprocessor = condition.preprocessor()
+            source_image = preprocessor(source_image)
+            output_path = 'preprocessed.png'
+            full_path = os.path.join(IMAGES_PATH, output_path)
+            source_image.save(full_path)
+            self.image_viewer.set_right_image(output_path)
+
+    def update_control_visibility(self):
+        if self.type == 'txt2img':
+            self.condition_frame.setVisible(False)
+            self.img_strength.setVisible(False)
+            self.control_net_frame.setVisible(False)
+            self.image_viewer.set_both_images_visible(False)
+        elif self.type == 'img2img':
+            condition_name = self.condition_combo_box.currentText()
+            condition = conditions[condition_name]
+            self.condition_frame.setVisible(True)
+            if isinstance(condition, Img2ImgCondition):
+                self.img_strength.setVisible(True)
+                self.control_net_frame.setVisible(False)
+            elif isinstance(condition, ControlNetCondition):
+                self.img_strength.setVisible(False)
+                self.control_net_frame.setVisible(True)
+            self.image_viewer.set_both_images_visible(True)
+
+    def on_generate_image(self):
         if not self.manual_seed_check_box.isChecked():
             self.randomize_seed()
 
+        condition_name = self.condition_combo_box.currentText()
+        condition = conditions[condition_name]
+
         settings.setValue('collection', self.thumbnail_viewer.collection())
         settings.setValue('type', self.type)
+        settings.setValue('model', self.model_combo_box.currentData())
         settings.setValue('scheduler', self.scheduler_combo_box.currentText())
         settings.setValue('prompt', self.prompt_edit.toPlainText())
         settings.setValue('negative_prompt', self.negative_prompt_edit.toPlainText())
@@ -1566,11 +1797,18 @@ class MainWindow(QMainWindow):
         settings.setValue('guidance_scale', self.guidance_scale_spin_box.value())
         settings.setValue('width', self.width_spin_box.value())
         settings.setValue('height', self.height_spin_box.value())
+        settings.setValue('condition', condition_name)
+        if isinstance(condition, ControlNetCondition):
+            settings.setValue('control_net_preprocess', self.control_net_preprocess_check_box.isChecked())
+            settings.setValue('control_net_model', self.control_net_model_combo_box.currentData())
+            settings.setValue('control_net_scale', self.control_net_scale.spin_box.value())
         settings.setValue('source_path', self.image_viewer.left_image_path())
         settings.setValue('img_strength', self.img_strength.spin_box.value())
         settings.setValue('gfpgan_enabled', self.gfpgan_strength.check_box.isChecked())
         settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
 
+        self.update_progress(0, 0)
+        self.generate_button.setEnabled(False)
         self.generate_thread = GenerateThread(self)
         self.generate_thread.task_progress.connect(self.update_progress)
         self.generate_thread.image_preview.connect(self.image_preview)
@@ -1609,7 +1847,6 @@ class MainWindow(QMainWindow):
 
     def generate_complete(self):
         self.generate_button.setEnabled(True)
-        self.model_combo_box.setEnabled(True)
         self.update_progress(None)
         self.image_viewer.set_preview_image(None)
         self.generate_thread = None
@@ -1664,7 +1901,13 @@ class MainWindow(QMainWindow):
             self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
             if image_metadata.type == 'img2img':
                 self.image_viewer.set_left_image(image_metadata.source_path)
-                self.img_strength.spin_box.setValue(image_metadata.img_strength)
+                self.condition_combo_box.setCurrentText(image_metadata.condition)
+                condition = conditions[image_metadata.condition]
+                if isinstance(condition, Img2ImgCondition):
+                    self.img_strength.spin_box.setValue(image_metadata.img_strength)
+                if isinstance(condition, ControlNetCondition):
+                    self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
+                    self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
             if image_metadata.gfpgan_enabled:
                 self.gfpgan_strength.check_box.setChecked(True)
                 self.gfpgan_strength.spin_box.setValue(image_metadata.gfpgan_strength)
@@ -1700,9 +1943,6 @@ class MainWindow(QMainWindow):
                     self.image_viewer.clear_left_image()
 
     def hide_if_thread_running(self):
-        if self.init_thread:
-            self.active_thread_count = self.active_thread_count + 1
-            self.init_thread.finished.connect(self.thread_finished)
         if self.generate_thread:
             self.active_thread_count = self.active_thread_count + 1
             self.generate_thread.cancel = True
@@ -1755,6 +1995,10 @@ class Application(QApplication):
         set_default_setting('guidance_scale', 7.5)
         set_default_setting('width', 512)
         set_default_setting('height', 512)
+        set_default_setting('condition', 'Image')
+        set_default_setting('control_net_preprocess', True)
+        set_default_setting('control_net_model', '')
+        set_default_setting('control_net_scale', 1.0)
         set_default_setting('source_path', '')
         set_default_setting('img_strength', 0.5)
         set_default_setting('gfpgan_enabled', False)

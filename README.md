@@ -19,16 +19,7 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 5. Install dependencies.
     ```sh
     curl -L -o data/GFPGANv1.4.pth https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth
-    pip install diffusers
-    pip install accelerate
-    pip install safetensors
-    pip install PySide6
-    pip install numpy
-    pip install torch
-    pip install compel
-    pip install gfpgan
-    pip install pyobjc
-    pip install pyspellchecker
+    pip install -r requirements.txt
     ```
 6. Run the GUI
     ```sh
@@ -37,8 +28,20 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 
 ### Roadmap
 
-- Additional pipelines (e.g. depth2img, ControlNet)
+- Move/Copy image to another collection
+- Import image to collection
+- Upscaler
 - Improve selection display in thumbnail viewer
+- Collapsing panels in controls section
+- Thumbnail paths by image hash 
 - Show image in Delete Image dialog
+- Metadata scrollbar
 - Long Prompt Weighting
-- Latent Upscaling (revisit later, issues to resolve in diffusers library)
+- Inpainting
+- Revisit design for application modes
+- ControlNet preprocessor arguments
+
+Pending next diffusers release:
+- Multi-ControlNet
+- ControlNet Guidance Start/End (community pipeline)
+- ControlNet Seperate Conditioning Image (community pipeline)
