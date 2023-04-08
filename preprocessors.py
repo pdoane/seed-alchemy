@@ -6,6 +6,7 @@ from PIL import Image
 from transformers import (AutoImageProcessor, UperNetForSemanticSegmentation,
                           pipeline)
 
+
 # From controlnet_utils
 def ade_palette():
     """ADE20K palette that maps each class to RGB values."""
@@ -48,15 +49,10 @@ def ade_palette():
             [184, 255, 0], [0, 133, 255], [255, 214, 0], [25, 194, 194],
             [102, 255, 0], [92, 0, 255]]
 
-depth_estimator: any = None
-normal_estimator: any = None
-hed: HEDdetector = None
-mlsd: MLSDdetector = None
-openpose: OpenposeDetector = None
-image_processor: AutoImageProcessor = None
-image_segmentor: UperNetForSemanticSegmentation = None
-
 class CannyPreprocessor:
+    def __init__(self) -> None:
+        pass
+
     def __call__(self, image: Image.Image) -> Image.Image:
         low_threshold = 100
         high_threshold = 100
@@ -68,11 +64,13 @@ class CannyPreprocessor:
         return image
 
 class DepthPreprocessor:
+    def __init__(self) -> None:
+        self.depth_estimator = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global depth_estimator
-        if depth_estimator is None:
-            depth_estimator = pipeline('depth-estimation', 'Intel/dpt-large')
-        image = depth_estimator(image)['depth']
+        if self.depth_estimator is None:
+            self.depth_estimator = pipeline('depth-estimation', 'Intel/dpt-large')
+        image = self.depth_estimator(image)['depth']
         image = np.array(image)
         image = image[:, :, None]
         image = np.concatenate([image, image, image], axis=2)
@@ -80,15 +78,17 @@ class DepthPreprocessor:
         return image
 
 class NormalPreprocessor:
+    def __init__(self) -> None:
+        self.depth_estimator = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global normal_estimator
-        if normal_estimator is None:
-            normal_estimator = pipeline('depth-estimation', 'Intel/dpt-hybrid-midas')
+        if self.depth_estimator is None:
+            self.depth_estimator = pipeline('depth-estimation', 'Intel/dpt-hybrid-midas')
 
         # predicted-depth image is smaller so resize at the end
         original_size = (image.width, image.height)
 
-        image = normal_estimator(image)['predicted_depth'][0]
+        image = self.depth_estimator(image)['predicted_depth'][0]
         image = image.numpy()
 
         image_depth = image.copy()
@@ -113,48 +113,59 @@ class NormalPreprocessor:
         return image
 
 class HedPreprocessor:
+    def __init__(self) -> None:
+        self.hed = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global hed
-        if hed is None:
-            hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
-        image = hed(image)
+        if self.hed is None:
+            self.hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
+        image = self.hed(image)
         return image
 
 class MlsdPreprocessor:
+    def __init__(self) -> None:
+        self.mlsd = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global mlsd
-        if mlsd is None:
-            mlsd = MLSDdetector.from_pretrained('lllyasviel/ControlNet')
-        image = mlsd(image)
+        if self.mlsd is None:
+            self.mlsd = MLSDdetector.from_pretrained('lllyasviel/ControlNet')
+        image = self.mlsd(image)
         return image
 
 class OpenposePreprocessor:
+    def __init__(self) -> None:
+        self.openpose = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global openpose
-        if openpose is None:
-            openpose = OpenposeDetector.from_pretrained('lllyasviel/ControlNet')
-        image = openpose(image)
+        if self.openpose is None:
+            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/ControlNet')
+        image = self.openpose(image)
         return image
 
 class ScribblePreprocessor:
+    def __init__(self) -> None:
+        self.hed = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global hed
-        if hed is None:
-            hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
-        image = hed(image, scribble=True)
+        if self.hed is None:
+            self.hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
+        image = self.hed(image, scribble=True)
         return image
 
 class SegPreprocessor:
+    def __init(self) -> None:
+        self.image_processor = None
+        self.image_segmentor = None
+
     def __call__(self, image: Image.Image) -> Image.Image:
-        global image_processor, image_segmentor
-        if image_processor is None:
-            image_processor = AutoImageProcessor.from_pretrained('openmmlab/upernet-convnext-small')
-        if image_segmentor is None:
-            image_segmentor = UperNetForSemanticSegmentation.from_pretrained('openmmlab/upernet-convnext-small')
-        pixel_values = image_processor(image, return_tensors='pt').pixel_values
+        if self.image_processor is None:
+            self.image_processor = AutoImageProcessor.from_pretrained('openmmlab/upernet-convnext-small')
+        if self.image_segmentor is None:
+            self.image_segmentor = UperNetForSemanticSegmentation.from_pretrained('openmmlab/upernet-convnext-small')
+        pixel_values = self.image_processor(image, return_tensors='pt').pixel_values
         with torch.no_grad():
-            outputs = image_segmentor(pixel_values)
-        seg = image_processor.post_process_semantic_segmentation(outputs, target_sizes=[image.size[::-1]])[0]
+            outputs = self.image_segmentor(pixel_values)
+        seg = self.image_processor.post_process_semantic_segmentation(outputs, target_sizes=[image.size[::-1]])[0]
         color_seg = np.zeros((seg.shape[0], seg.shape[1], 3), dtype=np.uint8)
         palette = np.array(ade_palette())
         for label, color in enumerate(palette):

@@ -48,10 +48,11 @@ if sys.platform == 'darwin':
     from AppKit import NSURL, NSApplication, NSWorkspace
     from Foundation import NSBundle
 
-warnings.filterwarnings('ignore')
-from gfpgan import GFPGANer
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    from gfpgan import GFPGANer
 
-warnings.resetwarnings()
+from utils import Timer
 
 # -------------------------------------------------------------------------------------------------
 APP_NAME = 'SimpleDiffusion'
@@ -65,6 +66,8 @@ sd_pipe: StableDiffusionPipeline = None
 control_net_model: ControlNetModel = None
 control_net_pipe: StableDiffusionControlNetPipeline = None
 gfpgan: GFPGANer = None
+generate_preprocessor = None
+preview_preprocessor = None
 
 settings: QSettings = None
 
@@ -987,10 +990,13 @@ class PreferencesDialog(QDialog):
         self.setWindowTitle("Preferences")
         self.settings = QSettings("settings.ini", QSettings.IniFormat)
 
-        restartLabel = QLabel("Changes to application settings require a restart.")
+        restartLabel = QLabel("Changes to application settings may require a restart.")
 
-        self.safety_checker = QCheckBox("Safety Checker")
-        self.safety_checker.setChecked(self.settings.value("safety_checker", False, type=bool))
+        self.reduce_memory = QCheckBox('Reduce Memory')
+        self.reduce_memory.setChecked(self.settings.value('reduce_memory', type=bool))
+
+        self.safety_checker = QCheckBox('Safety Checker')
+        self.safety_checker.setChecked(self.settings.value('safety_checker', type=bool))
 
         models_group = QGroupBox()
 
@@ -1021,6 +1027,7 @@ class PreferencesDialog(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(restartLabel)
         layout.addSpacing(8)
+        layout.addWidget(self.reduce_memory)
         layout.addWidget(self.safety_checker)
         layout.addWidget(models_group)
         layout.addWidget(button_box)
@@ -1092,7 +1099,8 @@ class PreferencesDialog(QDialog):
             self.table.setItem(row, 1, QTableWidgetItem(repo_id))
 
     def accept(self):
-        self.settings.setValue("safety_checker", self.safety_checker.isChecked())
+        self.settings.setValue('reduce_memory', self.reduce_memory.isChecked())
+        self.settings.setValue('safety_checker', self.safety_checker.isChecked())
 
         self.settings.beginGroup("Models")
         self.settings.remove("")
@@ -1132,15 +1140,15 @@ class GenerateThread(QThread):
         global sd_pipe
         if sd_pipe is None:
             print('Loading Stable Diffusion Pipeline', model_name)
-            warnings.filterwarnings('ignore')
-            model = os.path.expanduser(model_name)
-            if bool_setting('safety_checker'):
-                sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype)
-            else:
-                sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
-            sd_pipe.to(self.device)
-            sd_pipe.enable_attention_slicing()
-            warnings.resetwarnings()
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                model = os.path.expanduser(model_name)
+                if bool_setting('safety_checker'):
+                    sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype)
+                else:
+                    sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                sd_pipe.to(self.device)
+                sd_pipe.enable_attention_slicing()
         return sd_pipe
     
     def load_txt2img_pipeline(self):
@@ -1153,9 +1161,9 @@ class GenerateThread(QThread):
         global control_net_model
         if control_net_model is None:
             print('Loading ControlNet Model', control_net_model_name)
-            warnings.filterwarnings('ignore')
-            control_net_model = ControlNetModel.from_pretrained(control_net_model_name, torch_dtype=self.dtype)
-            warnings.resetwarnings()
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                control_net_model = ControlNetModel.from_pretrained(control_net_model_name, torch_dtype=self.dtype)
         return control_net_model
 
     def load_control_net_pipeline(self):
@@ -1164,22 +1172,21 @@ class GenerateThread(QThread):
             controlnet = self.load_control_net_model()
 
             print('Loading ControlNet Pipeline', model_name)
-            warnings.filterwarnings('ignore')
-            model = os.path.expanduser(model_name)
-            control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=controlnet, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
-            control_net_pipe.to(self.device)
-            control_net_pipe.enable_attention_slicing()
-            warnings.resetwarnings()
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                model = os.path.expanduser(model_name)
+                control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=controlnet, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                control_net_pipe.to(self.device)
+                control_net_pipe.enable_attention_slicing()
         return control_net_pipe
     
     def load_gfpgan(self):
         global gfpgan
         if gfpgan is None:
-            print('Loading GFPGAN')
-            warnings.filterwarnings('ignore')
-            gfpgan = GFPGANer(model_path='data/GFPGANv1.4.pth', upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
-            warnings.resetwarnings()
-        return gfpgan
+            print('Loading GFPGAN', model_name)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                gfpgan = GFPGANer(model_path='data/GFPGANv1.4.pth', upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
 
     def run(self):
         try:
@@ -1195,17 +1202,18 @@ class GenerateThread(QThread):
     def run_(self):
         # flush pipeline on model changed
         global model_name, control_net_model_name
-        global sd_pipe, control_net_model, control_net_pipe
+        global sd_pipe, control_net_model, control_net_pipe, generate_preprocessor, gfpgan
         gc_collect = False
         if control_net_model_name is not None and control_net_model_name != self.metadata.control_net_model:
             print('Flushing ControlNet Model', control_net_model_name)
-            del control_net_model
-            del control_net_pipe
+            control_net_model = None
+            control_net_pipe = None
+            generate_preprocessor = None
             gc_collect = True
         if model_name is not None and model_name != self.metadata.model:
             print('Flushing Diffusion Model', model_name)
-            del sd_pipe
-            del control_net_pipe
+            sd_pipe = None
+            control_net_pipe = None
             gc_collect = True
         model_name = self.metadata.model
         control_net_model_name = self.metadata.control_net_model
@@ -1232,8 +1240,11 @@ class GenerateThread(QThread):
 
             condition = conditions[self.metadata.condition]
             if isinstance(condition, ControlNetCondition) and self.metadata.control_net_preprocess:
-                preprocessor = condition.preprocessor()
-                source_image = preprocessor(source_image)
+                if not isinstance(generate_preprocessor, condition.preprocessor):
+                    generate_preprocessor = condition.preprocessor()
+                source_image = generate_preprocessor(source_image)
+                if bool_setting('reduce_memory'):
+                    generate_preprocessor = None
 
         # scheduler
         pipe.scheduler = schedulers[self.metadata.scheduler].from_config(pipe.scheduler.config)
@@ -1290,7 +1301,7 @@ class GenerateThread(QThread):
         for image in images:
             # GFPGAN
             if self.metadata.gfpgan_strength > 0.0:
-                gfpgan = self.load_gfpgan()
+                self.load_gfpgan()
 
                 bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
 
@@ -1333,6 +1344,9 @@ class GenerateThread(QThread):
             image.save(full_path, pnginfo=png_info)
 
             self.image_complete.emit(output_path)
+        
+        if bool_setting('reduce_memory'):
+            gfpgan = None
 
     def generate_callback(self, step: int, timestep: int, latents: torch.FloatTensor):
         if self.cancel:
@@ -1762,8 +1776,12 @@ class MainWindow(QMainWindow):
         condition_name = self.condition_combo_box.currentText()
         condition = conditions[condition_name]
         if isinstance(condition, ControlNetCondition):
-            preprocessor = condition.preprocessor()
-            source_image = preprocessor(source_image)
+            global preview_preprocessor
+            if not isinstance(preview_preprocessor, condition.preprocessor):
+                preview_preprocessor = condition.preprocessor()
+            source_image = preview_preprocessor(source_image)
+            if bool_setting('reduce_memory'):
+                preview_preprocessor = None
             output_path = 'preprocessed.png'
             full_path = os.path.join(IMAGES_PATH, output_path)
             source_image.save(full_path)
@@ -2013,6 +2031,7 @@ class Application(QApplication):
         set_default_setting('img_strength', 0.5)
         set_default_setting('gfpgan_enabled', False)
         set_default_setting('gfpgan_strength', 0.8)
+        set_default_setting('reduce_memory', True)
         settings.beginGroup('Models')
         set_default_setting('Stable Diffusion v2-1-base', 'stabilityai/stable-diffusion-2-1-base')
         settings.endGroup()
