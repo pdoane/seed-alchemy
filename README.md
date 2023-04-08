@@ -33,6 +33,7 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 - Upscaler
 - Improve selection display in thumbnail viewer
 - Collapsing panels in controls section
+- LoRA
 - Thumbnail paths by image hash 
 - Show image in Delete Image dialog
 - Metadata scrollbar
@@ -41,7 +42,15 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 - Revisit design for application modes
 - ControlNet preprocessor arguments
 
-Pending next diffusers release:
-- Multi-ControlNet
-- ControlNet Guidance Start/End (community pipeline)
-- ControlNet Seperate Conditioning Image (community pipeline)
+Evaluate:
+- InstructPix2Pix
+- Self-Attention Guidance
+- MultiDiffusion
+
+Future versions of dependencies:
+- diffusers
+  - Multi-ControlNet
+  - ControlNet Guidance Start/End (community pipeline)
+  - ControlNet Seperate Conditioning Image (community pipeline)
+- torch
+  - Retest float16 support

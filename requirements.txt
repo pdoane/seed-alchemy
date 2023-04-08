@@ -1,7 +1,7 @@
 diffusers==0.14.0
 accelerate==0.18.0
 safetensors==0.3.0
-controlnet-aux-0.0.1==0.0.1
+controlnet-aux==0.0.1
 PySide6==6.4.3
 numpy==1.23.5
 torch==2.0.0

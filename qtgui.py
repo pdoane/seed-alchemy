@@ -3,6 +3,7 @@ import os
 os.environ['DISABLE_TELEMETRY'] = '1'
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] ='1'
 
+import gc
 import json
 import random
 import re
@@ -1187,23 +1188,30 @@ class GenerateThread(QThread):
             pass
         except Exception as e:
             traceback.print_exc()
-
+        
         self.task_complete.emit()
+        gc.collect()
  
     def run_(self):
         # flush pipeline on model changed
         global model_name, control_net_model_name
         global sd_pipe, control_net_model, control_net_pipe
+        gc_collect = False
         if control_net_model_name is not None and control_net_model_name != self.metadata.control_net_model:
             print('Flushing ControlNet Model', control_net_model_name)
-            control_net_model = None
-            control_net_pipe = None
+            del control_net_model
+            del control_net_pipe
+            gc_collect = True
         if model_name is not None and model_name != self.metadata.model:
             print('Flushing Diffusion Model', model_name)
-            sd_pipe = None
-            control_net_pipe = None
+            del sd_pipe
+            del control_net_pipe
+            gc_collect = True
         model_name = self.metadata.model
         control_net_model_name = self.metadata.control_net_model
+
+        if gc_collect:
+            gc.collect()
 
         # load pipeline
         if self.type == 'txt2img':
@@ -1217,9 +1225,10 @@ class GenerateThread(QThread):
         # Source image
         if self.type == 'img2img':
             full_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
-            with open(full_path, 'rb') as f:
-                source_image = Image.open(f).convert('RGB')
-                source_image = source_image.resize((self.metadata.width, self.metadata.height))
+            with Image.open(full_path) as image:
+                image = image.convert('RGB')
+                image = image.resize((self.metadata.width, self.metadata.height))
+                source_image = image.copy()
 
             condition = conditions[self.metadata.condition]
             if isinstance(condition, ControlNetCondition) and self.metadata.control_net_preprocess:
@@ -1745,9 +1754,10 @@ class MainWindow(QMainWindow):
         height = self.height_spin_box.value()
 
         full_path = os.path.join(IMAGES_PATH, source_path)
-        with open(full_path, 'rb') as f:
-            source_image = Image.open(f).convert('RGB')
-            source_image = source_image.resize((width, height))
+        with Image.open(full_path) as image:
+            image = image.convert('RGB')
+            image = image.resize((width, height))
+            source_image = image.copy()
 
         condition_name = self.condition_combo_box.currentText()
         condition = conditions[condition_name]
