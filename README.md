@@ -2,7 +2,7 @@
 
 A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses less memory making it faster to run on a machine with low RAM (e.g. 16GB).  Developed and tested on macOS.  Other platforms could be supported with a small effort.
 
-![Screenshot](data/screenshot.webp)
+![Screenshot](docs/screenshot.webp)
 
 ### Installation
 
@@ -23,7 +23,7 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
     ```
 6. Run the GUI
     ```sh
-    python qtgui.py
+    python simple_diffusion/main.py
     ```
 
 ### Roadmap

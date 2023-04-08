@@ -53,6 +53,9 @@ gfpgan: GFPGANer = None
 
 settings: QSettings = None
 
+def resource_path(relative_path):
+    return os.path.join('simple_diffusion/resources', relative_path)
+
 def set_default_setting(key: str, value):
     if not settings.contains(key):
         settings.setValue(key, value)
@@ -198,12 +201,12 @@ class ThumbnailViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.action_send_to_img2img = QAction(QIcon('data/share_icon.png'), 'Send to Image to Image')
-        self.action_use_prompt = QAction(QIcon('data/use_prompt_icon.png'), 'Use Prompt')
-        self.action_use_seed = QAction(QIcon('data/use_seed_icon.png'), 'Use Seed')
-        self.action_use_all = QAction(QIcon('data/use_all_icon.png'), 'Use All')
-        self.action_use_initial_image = QAction(QIcon('data/use_initial_image_icon.png'), 'Use Initial Image')
-        self.action_delete = QAction(QIcon('data/delete_icon.png'), 'Delete Image')
+        self.action_send_to_img2img = QAction(QIcon(resource_path('share_icon.png')), 'Send to Image to Image')
+        self.action_use_prompt = QAction(QIcon(resource_path('use_prompt_icon.png')), 'Use Prompt')
+        self.action_use_seed = QAction(QIcon(resource_path('use_seed_icon.png')), 'Use Seed')
+        self.action_use_all = QAction(QIcon(resource_path('use_all_icon.png')), 'Use All')
+        self.action_use_initial_image = QAction(QIcon(resource_path('use_initial_image_icon.png')), 'Use Initial Image')
+        self.action_delete = QAction(QIcon(resource_path('delete_icon.png')), 'Delete Image')
 
         self.collection_combobox = QComboBox()
 
@@ -470,49 +473,49 @@ class ImageViewer(QWidget):
         icon_size = QSize(24, 24)
 
         self.locate_source_button = QToolButton()
-        self.locate_source_button.setIcon(QIcon('data/locate_icon.png'))
+        self.locate_source_button.setIcon(QIcon(resource_path('locate_icon.png')))
         self.locate_source_button.setIconSize(icon_size)
         self.locate_source_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.locate_source_button.setToolTip('Locate Source Image')
         self.locate_source_button.setToolTipDuration(0)
 
         self.send_to_img2img_button = QToolButton()
-        self.send_to_img2img_button.setIcon(QIcon('data/share_icon.png'))
+        self.send_to_img2img_button.setIcon(QIcon(resource_path('share_icon.png')))
         self.send_to_img2img_button.setIconSize(icon_size)
         self.send_to_img2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.send_to_img2img_button.setToolTip('Send to Image to Image')
         self.send_to_img2img_button.setToolTipDuration(0)
 
         self.use_prompt_button = QToolButton()
-        self.use_prompt_button.setIcon(QIcon('data/use_prompt_icon.png'))
+        self.use_prompt_button.setIcon(QIcon(resource_path('use_prompt_icon.png')))
         self.use_prompt_button.setIconSize(icon_size)
         self.use_prompt_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.use_prompt_button.setToolTip('Use Prompt')
         self.use_prompt_button.setToolTipDuration(0)
 
         self.use_seed_button = QToolButton()
-        self.use_seed_button.setIcon(QIcon('data/use_seed_icon.png'))
+        self.use_seed_button.setIcon(QIcon(resource_path('use_seed_icon.png')))
         self.use_seed_button.setIconSize(icon_size)
         self.use_seed_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.use_seed_button.setToolTip('Use Seed')
         self.use_seed_button.setToolTipDuration(0)
 
         self.use_initial_image_button = QToolButton()
-        self.use_initial_image_button.setIcon(QIcon('data/use_initial_image_icon.png'))
+        self.use_initial_image_button.setIcon(QIcon(resource_path('use_initial_image_icon.png')))
         self.use_initial_image_button.setIconSize(icon_size)
         self.use_initial_image_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.use_initial_image_button.setToolTip('Use Initial Image')
         self.use_initial_image_button.setToolTipDuration(0)
 
         self.use_all_button = QToolButton()
-        self.use_all_button.setIcon(QIcon('data/use_all_icon.png'))
+        self.use_all_button.setIcon(QIcon(resource_path('use_all_icon.png')))
         self.use_all_button.setIconSize(icon_size)
         self.use_all_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.use_all_button.setToolTip('Use All')
         self.use_all_button.setToolTipDuration(0)
 
         self.metadata_button = QToolButton()
-        self.metadata_button.setIcon(QIcon('data/metadata_icon.png'))
+        self.metadata_button.setIcon(QIcon(resource_path('metadata_icon.png')))
         self.metadata_button.setIconSize(icon_size)
         self.metadata_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.metadata_button.setCheckable(True)
@@ -521,7 +524,7 @@ class ImageViewer(QWidget):
         self.metadata_button.toggled.connect(self.on_metadata_button_changed)
 
         self.preview_button = QToolButton()
-        self.preview_button.setIcon(QIcon('data/preview_icon.png'))
+        self.preview_button.setIcon(QIcon(resource_path('preview_icon.png')))
         self.preview_button.setIconSize(icon_size)
         self.preview_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.preview_button.setCheckable(True)
@@ -531,7 +534,7 @@ class ImageViewer(QWidget):
         self.preview_button.toggled.connect(self.on_preview_button_changed)
 
         self.delete_button = QToolButton()
-        self.delete_button.setIcon(QIcon('data/delete_icon.png'))
+        self.delete_button.setIcon(QIcon(resource_path('delete_icon.png')))
         self.delete_button.setIconSize(icon_size)
         self.delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         self.delete_button.setToolTip('Delete')
@@ -1151,7 +1154,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.LeftToolBarArea, mode_toolbar)
 
         txt2img_button = QToolButton()
-        txt2img_button.setIcon(QIcon('data/txt2img_icon.png'))
+        txt2img_button.setIcon(QIcon(resource_path('txt2img_icon.png')))
         txt2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         txt2img_button.setCheckable(True)
         txt2img_button.setAutoExclusive(True)
@@ -1159,7 +1162,7 @@ class MainWindow(QMainWindow):
         txt2img_button.setToolTipDuration(0)
 
         img2img_button = QToolButton()
-        img2img_button.setIcon(QIcon('data/img2img_icon.png'))
+        img2img_button.setIcon(QIcon(resource_path('img2img_icon.png')))
         img2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
         img2img_button.setCheckable(True)
         img2img_button.setAutoExclusive(True)
@@ -1201,7 +1204,7 @@ class MainWindow(QMainWindow):
         self.generate_button.clicked.connect(self.on_generate_image)
 
         cancel_button = QPushButton()
-        cancel_button.setIcon(QIcon('data/cancel_icon.png'))
+        cancel_button.setIcon(QIcon(resource_path('cancel_icon.png')))
         cancel_button.setToolTip('Cancel')
         cancel_button.clicked.connect(self.on_cancel_generation)
 
@@ -1738,7 +1741,7 @@ class Application(QApplication):
         set_default_setting('Stable Diffusion v2-1-base', 'stabilityai/stable-diffusion-2-1-base')
         settings.endGroup()
 
-        self.setWindowIcon(QIcon('data/app_icon.png'))
+        self.setWindowIcon(QIcon(resource_path('app_icon.png')))
         self.setApplicationName(APP_NAME)
         self.setStyleSheet('''
         QToolButton {
