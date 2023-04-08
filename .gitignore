@@ -1,7 +1,6 @@
 .venv
 .DS_Store
-gfpgan
+.models
 images
 thumbnails
 settings.ini
-data/GFPGANv1.4.pth

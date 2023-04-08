@@ -8,9 +8,7 @@ import random
 import re
 import sys
 import traceback
-import warnings
 
-import numpy as np
 import torch
 from compel import Compel
 from PIL import Image, PngImagePlugin
@@ -34,16 +32,12 @@ if sys.platform == 'darwin':
     from AppKit import NSURL, NSApplication, NSWorkspace
     from Foundation import NSBundle
 
-with warnings.catch_warnings():
-    warnings.simplefilter('ignore')
-    from gfpgan import GFPGANer
-
 import configuration
 from configuration import Img2ImgCondition, ControlNetCondition
 from image_metadata import ImageMetadata
 from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
                        PipelineCache, Txt2ImgPipeline)
-from processors import ProcessorBase
+from processors import ProcessorBase, GFPGANProcessor
 from utils import Timer
 
 # -------------------------------------------------------------------------------------------------
@@ -51,8 +45,7 @@ from utils import Timer
 generate_preprocessor: ProcessorBase = None
 preview_preprocessor: ProcessorBase = None
 pipeline_cache: PipelineCache = PipelineCache()
-gfpgan: GFPGANer = None
-
+gfpgan: ProcessorBase = None
 settings: QSettings = None
 
 def resource_path(relative_path):
@@ -417,11 +410,11 @@ class ImageMetadataFrame(QFrame):
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
         self.width.value.setText(str(metadata.width))
         self.height.value.setText(str(metadata.height))
+        self.condition.value.setText(metadata.condition)
         if metadata.type == 'img2img':
-            self.condition.value.setText(metadata.condition)
-
             condition = configuration.conditions[metadata.condition]
             if isinstance(condition, ControlNetCondition):
+                self.img_strength.frame.setVisible(False)
                 self.control_net_preprocess.frame.setVisible(True)
                 self.control_net_model.frame.setVisible(True)
                 self.control_net_scale.frame.setVisible(True)
@@ -432,10 +425,10 @@ class ImageMetadataFrame(QFrame):
                 self.control_net_preprocess.frame.setVisible(False)
                 self.control_net_model.frame.setVisible(False)
                 self.control_net_scale.frame.setVisible(False)
+                self.img_strength.frame.setVisible(True)
+                self.img_strength.value.setText(str(metadata.img_strength))
             self.source_path.frame.setVisible(True)
-            self.img_strength.frame.setVisible(True)
             self.source_path.value.setText(metadata.source_path)
-            self.img_strength.value.setText(str(metadata.img_strength))
         else:
             self.control_net_preprocess.frame.setVisible(False)
             self.control_net_model.frame.setVisible(False)
@@ -938,14 +931,6 @@ class GenerateThread(QThread):
         self.req.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
         self.req.callback = self.generate_callback
     
-    def load_gfpgan(self):
-        global gfpgan
-        if gfpgan is None:
-            print('Loading GFPGAN')
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                gfpgan = GFPGANer(model_path='data/GFPGANv1.4.pth', upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
-
     def run(self):
         try:
             self.run_()
@@ -993,7 +978,7 @@ class GenerateThread(QThread):
         pipe.scheduler = configuration.schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
 
         # generator
-        self.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
+        self.req.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
 
         # prompt weighting
         compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder)
@@ -1008,25 +993,10 @@ class GenerateThread(QThread):
         for image in images:
             # GFPGAN
             if self.req.image_metadata.gfpgan_strength > 0.0:
-                self.load_gfpgan()
-
-                bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
-
-                _, _, restored_img = gfpgan.enhance(
-                    bgr_image_array,
-                    has_aligned=False,
-                    only_center_face=False,
-                    paste_back=True,
-                )
-
-                image2 = Image.fromarray(restored_img[..., ::-1])
-
-                if self.req.image_metadata.gfpgan_strength < 1.0:
-                    if image2.size != image.size:
-                        image = image.resize(image2.size)
-                    image = Image.blend(image, image2, self.req.image_metadata.gfpgan_strength)
-                else:
-                    image = image2
+                if gfpgan is None:
+                    gfpgan = GFPGANProcessor()
+                gfpgan.strength = self.req.image_metadata.gfpgan_strength
+                image = gfpgan(image)
 
             progress_amount = (step+1) * 100 / steps
             step = step + 1
@@ -1051,7 +1021,7 @@ class GenerateThread(QThread):
             image.save(full_path, pnginfo=png_info)
 
             self.image_complete.emit(output_path)
-        
+
         if bool_setting('reduce_memory'):
             gfpgan = None
 
@@ -1771,6 +1741,7 @@ class Application(QApplication):
 def main():
     os.makedirs(configuration.IMAGES_PATH, exist_ok=True)
     os.makedirs(configuration.THUMBNAILS_PATH, exist_ok=True)
+    os.makedirs(configuration.MODELS_PATH, exist_ok=True)    
 
     if sys.platform == 'darwin':
         bundle = NSBundle.mainBundle()

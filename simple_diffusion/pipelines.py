@@ -8,9 +8,8 @@ from typing import Callable
 import torch
 from diffusers import (ControlNetModel, StableDiffusionControlNetPipeline,
                        StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
-from PIL import Image
-
 from image_metadata import ImageMetadata
+from PIL import Image
 
 
 @dataclass

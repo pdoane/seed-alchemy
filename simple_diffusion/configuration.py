@@ -5,14 +5,14 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        HeunDiscreteScheduler, LMSDiscreteScheduler,
                        PNDMScheduler, SchedulerMixin, UniPCMultistepScheduler)
 from processors import (CannyProcessor, DepthProcessor, HedProcessor,
-                        MlsdProcessor, NormalProcessor,
-                        OpenposeProcessor, ProcessorBase,
-                        ScribbleProcessor, SegProcessor)
+                        MlsdProcessor, NormalProcessor, OpenposeProcessor,
+                        ProcessorBase, ScribbleProcessor, SegProcessor)
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
 IMAGES_PATH = 'images'
 THUMBNAILS_PATH = 'thumbnails'
+MODELS_PATH = '.models'
 
 @dataclass
 class Img2ImgCondition:

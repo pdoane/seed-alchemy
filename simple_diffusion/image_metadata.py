@@ -19,7 +19,7 @@ class ImageMetadata:
         self.guidance_scale = 7.5
         self.width = 512
         self.height = 512
-        self.condition = 'Image'
+        self.condition = 'Text'
         self.control_net_preprocess = False
         self.control_net_model = ''
         self.control_net_scale = 1.0
@@ -40,7 +40,7 @@ class ImageMetadata:
         self.guidance_scale = float(settings.value('guidance_scale'))
         self.width = int(settings.value('width'))
         self.height = int(settings.value('height'))
-        self.condition = 'Image'
+        self.condition = 'Text'
         self.control_net_preprocess = False
         self.control_net_model = ''
         self.control_net_scale = 1.0
@@ -76,14 +76,13 @@ class ImageMetadata:
                 self.guidance_scale = float(image_data.get('cfg_scale', 7.5))
                 self.width = int(image_data.get('width', 512))
                 self.height = int(image_data.get('height', 512))
-                self.condition = ''
+                self.condition = image_data.get('condition', 'Text')
                 self.control_net_preprocess = False
                 self.control_net_model = ''
                 self.control_net_scale = 1.0
                 self.source_path = ''
                 self.img_strength = 0.0
                 if self.type == 'img2img':
-                    self.condition = image_data.get('condition', 'Image')
                     condition = configuration.conditions[self.condition]
                     if isinstance(condition, ControlNetCondition):
                         self.control_net_preprocess = image_data.get('control_net_preprocess', False)
@@ -114,10 +113,10 @@ class ImageMetadata:
                 'type': self.type,
                 'safety_checker': self.safety_checker,
                 'sampler': self.scheduler,
+                'condition': self.condition,
             }
         }
         if self.type == 'img2img':
-            sd_metadata['image']['condition'] = self.condition
             condition = configuration.conditions[self.condition]
             if isinstance(condition, ControlNetCondition):
                 sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess

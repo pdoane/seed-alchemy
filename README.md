@@ -1,6 +1,6 @@
 # SimpleDiffusion
 
-A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses less memory making it faster to run on a machine with low RAM (e.g. 16GB).  Developed and tested on macOS.  Other platforms could be supported with a small effort.
+A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less memory making it faster to run on a machine with low RAM (e.g. 16GB).  Developed and tested on macOS.  Other platforms could be supported with a small effort.
 
 ![Screenshot](docs/screenshot.webp)
 
@@ -18,7 +18,6 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
     ```
 5. Install dependencies.
     ```sh
-    curl -L -o data/GFPGANv1.4.pth https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth
     pip install -r requirements.txt
     ```
 6. Run the GUI
@@ -26,8 +25,16 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
     python simple_diffusion/main.py
     ```
 
+### Features
+
+- Text to Image
+- Image to Image
+- ControlNet
+- GFPGAN face restoration
+
 ### Roadmap
 
+Near-term:
 - Move/Copy image to another collection
 - Import image to collection
 - Upscaler
@@ -38,8 +45,8 @@ A simple Python GUI for the `diffusers` library.  Inspired by InvokeAI, but uses
 - Show image in Delete Image dialog
 - Metadata scrollbar
 - Long Prompt Weighting
+- UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
 - Inpainting
-- Revisit design for application modes
 - ControlNet preprocessor arguments
 
 Evaluate:
@@ -47,7 +54,7 @@ Evaluate:
 - Self-Attention Guidance
 - MultiDiffusion
 
-Future versions of dependencies:
+Requires new versions of dependencies:
 - diffusers
   - Multi-ControlNet
   - ControlNet Guidance Start/End (community pipeline)

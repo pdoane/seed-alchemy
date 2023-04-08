@@ -1,12 +1,18 @@
+import os
+import traceback
+import warnings
 from abc import ABC, abstractmethod
 
+import configuration
 import cv2
 import numpy as np
 import torch
+import requests
 from controlnet_aux import HEDdetector, MLSDdetector, OpenposeDetector
 from PIL import Image
 from transformers import (AutoImageProcessor, UperNetForSemanticSegmentation,
                           pipeline)
+
 
 # From controlnet_utils
 def ade_palette():
@@ -185,4 +191,60 @@ class SegProcessor(ProcessorBase):
             color_seg[seg == label, :] = color
         color_seg = color_seg.astype(np.uint8)
         image = Image.fromarray(color_seg)
+        return image
+
+class GFPGANProcessor(ProcessorBase):
+    strength: float = 0.8
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.gfpgan = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.gfpgan is None:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                cwd = os.getcwd()
+                os.chdir(configuration.MODELS_PATH)
+                try:
+                    from gfpgan import GFPGANer
+
+                    model_path = 'GFPGANv1.4.pth'
+                    if not os.path.exists(model_path):
+                        url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+                        with requests.get(url, stream=True) as response:
+                            if response.status_code == 200:
+                                with open(model_path, 'wb') as f:
+                                    for chunk in response.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                            else:
+                                print(f'Failed to download the file, status code: {response.status_code}')
+
+                    self.gfpgan = GFPGANer(
+                        model_path=model_path,
+                        upscale=1,
+                        arch='clean',
+                        channel_multiplier=2,
+                        bg_upsampler=None)
+                except Exception:
+                    traceback.print_exc()
+                os.chdir(cwd)
+                bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
+
+        _, _, restored_img = self.gfpgan.enhance(
+            bgr_image_array,
+            has_aligned=False,
+            only_center_face=False,
+            paste_back=True,
+        )
+
+        image2 = Image.fromarray(restored_img[..., ::-1])
+
+        if self.strength < 1.0:
+            if image2.size != image.size:
+                image = image.resize(image2.size)
+            image = Image.blend(image, image2, self.strength)
+        else:
+            image = image2
+
         return image
