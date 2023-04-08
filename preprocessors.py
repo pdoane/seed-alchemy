@@ -1,3 +1,5 @@
+from abc import ABC, abstractmethod
+
 import cv2
 import numpy as np
 import torch
@@ -5,7 +7,6 @@ from controlnet_aux import HEDdetector, MLSDdetector, OpenposeDetector
 from PIL import Image
 from transformers import (AutoImageProcessor, UperNetForSemanticSegmentation,
                           pipeline)
-
 
 # From controlnet_utils
 def ade_palette():
@@ -49,9 +50,14 @@ def ade_palette():
             [184, 255, 0], [0, 133, 255], [255, 214, 0], [25, 194, 194],
             [102, 255, 0], [92, 0, 255]]
 
-class CannyPreprocessor:
-    def __init__(self) -> None:
+class PreprocessorBase(ABC):
+    @abstractmethod
+    def __call__(self, image: Image.Image) -> Image.Image:
         pass
+
+class CannyPreprocessor(PreprocessorBase):
+    def __init__(self) -> None:
+        super().__init__()
 
     def __call__(self, image: Image.Image) -> Image.Image:
         low_threshold = 100
@@ -63,8 +69,9 @@ class CannyPreprocessor:
         image = Image.fromarray(image)
         return image
 
-class DepthPreprocessor:
+class DepthPreprocessor(PreprocessorBase):
     def __init__(self) -> None:
+        super().__init__()
         self.depth_estimator = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -77,8 +84,9 @@ class DepthPreprocessor:
         image = Image.fromarray(image)
         return image
 
-class NormalPreprocessor:
+class NormalPreprocessor(PreprocessorBase):
     def __init__(self) -> None:
+        super().__init__()
         self.depth_estimator = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -112,8 +120,9 @@ class NormalPreprocessor:
         image = Image.fromarray(image)
         return image
 
-class HedPreprocessor:
+class HedPreprocessor(PreprocessorBase):
     def __init__(self) -> None:
+        super().__init__()
         self.hed = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -122,8 +131,9 @@ class HedPreprocessor:
         image = self.hed(image)
         return image
 
-class MlsdPreprocessor:
+class MlsdPreprocessor(PreprocessorBase):
     def __init__(self) -> None:
+        super().__init__()
         self.mlsd = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -132,8 +142,9 @@ class MlsdPreprocessor:
         image = self.mlsd(image)
         return image
 
-class OpenposePreprocessor:
+class OpenposePreprocessor(PreprocessorBase):
     def __init__(self) -> None:
+        super().__init__()
         self.openpose = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -142,8 +153,9 @@ class OpenposePreprocessor:
         image = self.openpose(image)
         return image
 
-class ScribblePreprocessor:
+class ScribblePreprocessor(PreprocessorBase):
     def __init__(self) -> None:
+        super().__init__()
         self.hed = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -152,8 +164,9 @@ class ScribblePreprocessor:
         image = self.hed(image, scribble=True)
         return image
 
-class SegPreprocessor:
-    def __init(self) -> None:
+class SegPreprocessor(PreprocessorBase):
+    def __init__(self) -> None:
+        super().__init__()
         self.image_processor = None
         self.image_segmentor = None
 

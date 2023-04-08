@@ -4,24 +4,15 @@ os.environ['DISABLE_TELEMETRY'] = '1'
 os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] ='1'
 
 import gc
-import json
 import random
 import re
 import sys
 import traceback
 import warnings
-from dataclasses import dataclass
 
 import numpy as np
 import torch
 from compel import Compel
-from diffusers import (ControlNetModel, DDIMScheduler, DDPMScheduler,
-                       DEISMultistepScheduler, EulerAncestralDiscreteScheduler,
-                       EulerDiscreteScheduler, HeunDiscreteScheduler,
-                       LMSDiscreteScheduler, PNDMScheduler, SchedulerMixin,
-                       StableDiffusionControlNetPipeline,
-                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline,
-                       UniPCMultistepScheduler)
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QThread, Signal
 from PySide6.QtGui import (QAction, QColor, QFontMetrics, QIcon, QImage,
@@ -39,11 +30,6 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QToolButton, QVBoxLayout, QWidget)
 from spellchecker import SpellChecker
 
-from preprocessors import (CannyPreprocessor, DepthPreprocessor,
-                           HedPreprocessor, MlsdPreprocessor,
-                           NormalPreprocessor, OpenposePreprocessor,
-                           ScribblePreprocessor, SegPreprocessor)
-
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSApplication, NSWorkspace
     from Foundation import NSBundle
@@ -52,81 +38,20 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     from gfpgan import GFPGANer
 
+from configuration import *
+from image_metadata import ImageMetadata
+from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
+                       PipelineCache, Txt2ImgPipeline)
 from utils import Timer
 
 # -------------------------------------------------------------------------------------------------
-APP_NAME = 'SimpleDiffusion'
-APP_VERSION = 0.1
-IMAGES_PATH = 'images'
-THUMBNAILS_PATH = 'thumbnails'
 
-model_name: str = None
-control_net_model_name: str = None
-sd_pipe: StableDiffusionPipeline = None
-control_net_model: ControlNetModel = None
-control_net_pipe: StableDiffusionControlNetPipeline = None
+generate_preprocessor: PreprocessorBase = None
+preview_preprocessor: PreprocessorBase = None
+pipeline_cache: PipelineCache = PipelineCache()
 gfpgan: GFPGANer = None
-generate_preprocessor = None
-preview_preprocessor = None
 
 settings: QSettings = None
-
-@dataclass
-class Img2ImgCondition:
-    pass
-
-@dataclass
-class ControlNetCondition:
-    preprocessor: type
-    models: dict[str, str]
-
-conditions = {
-    'Image': Img2ImgCondition(),
-    'Canny': ControlNetCondition(CannyPreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-canny',
-        'SD 2.1': 'thibaud/controlnet-sd21-canny-diffusers'
-    }),
-    'Depth': ControlNetCondition(DepthPreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-depth',
-        'SD 2.1': 'thibaud/controlnet-sd21-depth-diffusers'
-    }),
-    'Normal': ControlNetCondition(NormalPreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-normal',
-    }),
-    'HED': ControlNetCondition(HedPreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-hed',
-        'SD 2.1': 'thibaud/controlnet-sd21-hed-diffusers'
-    }),
-    'M-LSD': ControlNetCondition(MlsdPreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-mlsd',
-    }),
-    'Openpose': ControlNetCondition(OpenposePreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-openpose',
-        'SD 2.1': 'thibaud/controlnet-sd21-openpose-diffusers'
-    }),
-    'Scribble': ControlNetCondition(ScribblePreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-scribble',
-        'SD 2.1': 'thibaud/controlnet-sd21-scribble-diffusers'
-    }),
-    'Segmentation': ControlNetCondition(SegPreprocessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-seg',
-    }),
-}
-schedulers: dict[str, SchedulerMixin] = {
-    'ddim': DDIMScheduler,
-    'ddpm': DDPMScheduler,
-    'deis_multi': DEISMultistepScheduler,
-    # 'dpm_multi': DPMSolverMultistepScheduler,
-    # 'dpm': DPMSolverSinglestepScheduler,
-    # 'k_dpm_2': KDPM2DiscreteScheduler,
-    # 'k_dpm_2_a': KDPM2AncestralDiscreteScheduler,
-    'k_euler': EulerDiscreteScheduler,
-    'k_euler_a': EulerAncestralDiscreteScheduler,
-    'k_heun': HeunDiscreteScheduler,
-    'k_lms': LMSDiscreteScheduler,
-    'pndm': PNDMScheduler,
-    'uni_pc': UniPCMultistepScheduler,
-}
 
 def set_default_setting(key: str, value):
     if not settings.contains(key):
@@ -175,132 +100,6 @@ def latents_to_pil(latents: torch.FloatTensor):
     ).cpu()
 
     return Image.fromarray(latents_ubyte.numpy())
-
-class ImageMetadata:
-    def __init__(self):
-        self.type = 'txt2img'
-        self.model = 'stabilityai/stable-diffusion-2-1-base'
-        self.scheduler = 'k_euler_a'
-        self.path = ''
-        self.prompt = ''
-        self.negative_prompt = ''
-        self.seed = 1
-        self.num_inference_steps = 30
-        self.guidance_scale = 7.5
-        self.width = 512
-        self.height = 512
-        self.condition = 'Image'
-        self.control_net_preprocess = False
-        self.control_net_model = ''
-        self.control_net_scale = 1.0
-        self.source_path = ''
-        self.img_strength = 0.0
-        self.gfpgan_enabled = False
-        self.gfpgan_strength  = 0.0
-
-    def load_from_settings(self):
-        self.type = settings.value('type')
-        self.model = settings.value('model')
-        self.scheduler = settings.value('scheduler')
-        self.prompt = settings.value('prompt')
-        self.negative_prompt = settings.value('negative_prompt')
-        self.seed = int(settings.value('seed'))
-        self.num_inference_steps = int(settings.value('num_inference_steps'))
-        self.guidance_scale = float(settings.value('guidance_scale'))
-        self.width = int(settings.value('width'))
-        self.height = int(settings.value('height'))
-        self.condition = 'Image'
-        self.control_net_preprocess = False
-        self.control_net_model = ''
-        self.control_net_scale = 1.0
-        self.source_path = ''
-        self.img_strength = 0.0
-        if self.type == 'img2img':
-            self.condition = settings.value('condition', 'Image')
-            condition = conditions[self.condition]
-            if isinstance(condition, ControlNetCondition):
-                self.control_net_preprocess = bool_setting('control_net_preprocess')
-                self.control_net_model = settings.value('control_net_model')
-                self.control_net_scale = settings.value('control_net_scale')
-            self.source_path = settings.value('source_path')
-            self.img_strength = float(settings.value('img_strength'))
-        self.gfpgan_enabled = bool_setting('gfpgan_enabled')
-        self.gfpgan_strength = 0.0
-        if self.gfpgan_enabled:
-            self.gfpgan_strength = float(settings.value('gfpgan_strength'))
-    
-    def load_from_image_info(self, image_info):
-        if 'sd-metadata' in image_info:
-            sd_metadata = json.loads(image_info['sd-metadata'])
-            self.model = sd_metadata.get('model_weights', 'stable-diffusion-2-1-base')
-            if 'image' in sd_metadata:
-                image_data = sd_metadata['image']
-                self.type = image_data.get('type', 'txt2img')
-                self.scheduler = image_data.get('sampler', 'k_euler_a')
-                self.prompt = image_data.get('prompt', '')
-                self.negative_prompt = image_data.get('negative_prompt', '')
-                self.seed = int(image_data.get('seed', 5))
-                self.steps = int(image_data.get('steps', 30))
-                self.guidance_scale = float(image_data.get('cfg_scale', 7.5))
-                self.width = int(image_data.get('width', 512))
-                self.height = int(image_data.get('height', 512))
-                self.condition = ''
-                self.control_net_preprocess = False
-                self.control_net_model = ''
-                self.control_net_scale = 1.0
-                self.source_path = ''
-                self.img_strength = 0.0
-                if self.type == 'img2img':
-                    self.condition = image_data.get('condition', 'Image')
-                    condition = conditions[self.condition]
-                    if isinstance(condition, ControlNetCondition):
-                        self.control_net_preprocess = image_data.get('control_net_preprocess', False)
-                        self.control_net_model = image_data.get('control_net_model', '')
-                        self.control_net_scale = image_data.get('control_net_scale', 1.0)
-                    self.source_path = image_data.get('source_path', '')
-                    self.img_strength = float(image_data.get('img_strength', 0.5))
-                self.gfpgan_enabled = 'gfpgan_strength' in image_data
-                self.gfpgan_strength = 0.0
-                if self.gfpgan_enabled:
-                    self.gfpgan_strength = float(image_data.get('gfpgan_strength'))
-
-    def save_to_png_info(self, png_info):
-        sd_metadata = {
-            'model': 'stable diffusion',
-            'model_weights': os.path.basename(self.model),
-            'model_hash': '',    # TODO
-            'app_id': APP_NAME,
-            'APP_VERSION': APP_VERSION,
-            'image': {
-                'prompt': self.prompt,
-                'negative_prompt': self.negative_prompt,
-                'steps': str(self.num_inference_steps),
-                'cfg_scale': str(self.guidance_scale),
-                'height': str(self.height),
-                'width': str(self.width),
-                'seed': str(self.seed),
-                'type': self.type,
-                'sampler': self.scheduler,
-            }
-        }
-        if self.type == 'img2img':
-            sd_metadata['image']['condition'] = self.condition
-            condition = conditions[self.condition]
-            if isinstance(condition, ControlNetCondition):
-                sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess
-                sd_metadata['image']['control_net_model'] = self.control_net_model
-                sd_metadata['image']['control_net_scale'] = self.control_net_scale
-            sd_metadata['image']['source_path'] = self.source_path
-            sd_metadata['image']['img_strength'] = self.img_strength
-        if self.gfpgan_enabled:
-            sd_metadata['image']['gfpgan_strength'] = self.gfpgan_strength
-
-        png_info.add_text('Dream',
-            '"{:s} [{:s}]" -s {:d} -S {:d} -W {:d} -H {:d} -C {:f} -A {:s}'.format(
-                self.prompt, self.negative_prompt, self.num_inference_steps, self.seed, self.width, self.height, self.guidance_scale, self.scheduler
-            ))
-        png_info.add_text('sd-metadata', json.dumps(sd_metadata))
-
 
 class PromptTextEdit(QPlainTextEdit):
     return_pressed = Signal()
@@ -1129,61 +928,15 @@ class GenerateThread(QThread):
 
         self.cancel = False
         self.type = settings.value('type')
-        self.metadata = ImageMetadata()
-        self.metadata.load_from_settings()
-        self.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
-
-        self.dtype = torch.float32
-        self.device = 'mps'
-
-    def load_sd_pipeline(self):
-        global sd_pipe
-        if sd_pipe is None:
-            print('Loading Stable Diffusion Pipeline', model_name)
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                model = os.path.expanduser(model_name)
-                if bool_setting('safety_checker'):
-                    sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype)
-                else:
-                    sd_pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
-                sd_pipe.to(self.device)
-                sd_pipe.enable_attention_slicing()
-        return sd_pipe
-    
-    def load_txt2img_pipeline(self):
-        return self.load_sd_pipeline()
-    
-    def load_img2img_pipeline(self):
-        return StableDiffusionImg2ImgPipeline(**self.load_sd_pipeline().components, requires_safety_checker=False)
-    
-    def load_control_net_model(self):
-        global control_net_model
-        if control_net_model is None:
-            print('Loading ControlNet Model', control_net_model_name)
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                control_net_model = ControlNetModel.from_pretrained(control_net_model_name, torch_dtype=self.dtype)
-        return control_net_model
-
-    def load_control_net_pipeline(self):
-        global control_net_pipe
-        if control_net_pipe is None:
-            controlnet = self.load_control_net_model()
-
-            print('Loading ControlNet Pipeline', model_name)
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                model = os.path.expanduser(model_name)
-                control_net_pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=controlnet, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
-                control_net_pipe.to(self.device)
-                control_net_pipe.enable_attention_slicing()
-        return control_net_pipe
+        self.req = GenerateRequest()
+        self.req.image_metadata.load_from_settings(settings)
+        self.req.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
+        self.req.callback = self.generate_callback
     
     def load_gfpgan(self):
         global gfpgan
         if gfpgan is None:
-            print('Loading GFPGAN', model_name)
+            print('Loading GFPGAN')
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 gfpgan = GFPGANer(model_path='data/GFPGANv1.4.pth', upscale=1, arch='clean', channel_multiplier=2, bg_upsampler=None)
@@ -1200,107 +953,56 @@ class GenerateThread(QThread):
         gc.collect()
  
     def run_(self):
-        # flush pipeline on model changed
-        global model_name, control_net_model_name
-        global sd_pipe, control_net_model, control_net_pipe, generate_preprocessor, gfpgan
-        gc_collect = False
-        if control_net_model_name is not None and control_net_model_name != self.metadata.control_net_model:
-            print('Flushing ControlNet Model', control_net_model_name)
-            control_net_model = None
-            control_net_pipe = None
-            generate_preprocessor = None
-            gc_collect = True
-        if model_name is not None and model_name != self.metadata.model:
-            print('Flushing Diffusion Model', model_name)
-            sd_pipe = None
-            control_net_pipe = None
-            gc_collect = True
-        model_name = self.metadata.model
-        control_net_model_name = self.metadata.control_net_model
-
-        if gc_collect:
-            gc.collect()
+        global generate_preprocessor, gfpgan
 
         # load pipeline
         if self.type == 'txt2img':
-            pipe = self.load_txt2img_pipeline()
+            pipeline_type = Txt2ImgPipeline
         elif self.type == 'img2img':
-            if control_net_model_name != '':
-                pipe = self.load_control_net_pipeline()
+            if self.req.image_metadata.control_net_model != '':
+                pipeline_type = ControlNetPipeline
             else:
-                pipe = self.load_img2img_pipeline()
+                pipeline_type = Img2ImgPipeline
+
+        pipeline = pipeline_type(pipeline_cache, self.req.image_metadata)
+        pipeline_cache.pipeline = pipeline
+        pipe = pipeline.pipe
 
         # Source image
         if self.type == 'img2img':
-            full_path = os.path.join(IMAGES_PATH, self.metadata.source_path)
+            full_path = os.path.join(IMAGES_PATH, self.req.image_metadata.source_path)
             with Image.open(full_path) as image:
                 image = image.convert('RGB')
-                image = image.resize((self.metadata.width, self.metadata.height))
-                source_image = image.copy()
+                image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+                self.req.source_image = image.copy()
 
-            condition = conditions[self.metadata.condition]
-            if isinstance(condition, ControlNetCondition) and self.metadata.control_net_preprocess:
+            condition = conditions[self.req.image_metadata.condition]
+            if isinstance(condition, ControlNetCondition) and self.req.image_metadata.control_net_preprocess:
                 if not isinstance(generate_preprocessor, condition.preprocessor):
                     generate_preprocessor = condition.preprocessor()
-                source_image = generate_preprocessor(source_image)
+                self.req.source_image = generate_preprocessor(self.req.source_image)
                 if bool_setting('reduce_memory'):
                     generate_preprocessor = None
 
         # scheduler
-        pipe.scheduler = schedulers[self.metadata.scheduler].from_config(pipe.scheduler.config)
+        pipe.scheduler = schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
 
         # generator
-        generator = torch.Generator().manual_seed(self.metadata.seed)
+        self.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
 
         # prompt weighting
         compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder)
-        prompt_embeds = compel_proc(self.metadata.prompt)
-        negative_prompt_embeds = compel_proc(self.metadata.negative_prompt)
+        self.req.prompt_embeds = compel_proc(self.req.image_metadata.prompt)
+        self.req.negative_prompt_embeds = compel_proc(self.req.image_metadata.negative_prompt)
 
         # generate
-        if self.type == 'txt2img':
-            images = pipe(
-                width=self.metadata.width,
-                height=self.metadata.height,
-                num_inference_steps=self.metadata.num_inference_steps,
-                guidance_scale=self.metadata.guidance_scale,
-                num_images_per_prompt=self.num_images_per_prompt,
-                generator=generator,
-                prompt_embeds=prompt_embeds,
-                negative_prompt_embeds=negative_prompt_embeds,
-                callback=self.generate_callback,
-            ).images
-        elif self.type == 'img2img':
-            if control_net_model_name != '':
-                images = pipe(
-                    image=source_image,
-                    num_inference_steps=self.metadata.num_inference_steps,
-                    guidance_scale=self.metadata.guidance_scale,
-                    num_images_per_prompt=self.num_images_per_prompt,
-                    generator=generator,
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=negative_prompt_embeds,
-                    callback=self.generate_callback,
-                    controlnet_conditioning_scale=self.metadata.control_net_scale
-                ).images
-            else:
-                images = pipe(
-                    image=source_image,
-                    strength=self.metadata.img_strength,
-                    num_inference_steps=self.metadata.num_inference_steps,
-                    guidance_scale=self.metadata.guidance_scale,
-                    num_images_per_prompt=self.num_images_per_prompt,
-                    generator=generator,
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=negative_prompt_embeds,
-                    callback=self.generate_callback,
-                ).images
+        images = pipeline(self.req)
 
         steps = self.compute_total_steps()
-        step = steps - self.num_images_per_prompt
+        step = steps - self.req.num_images_per_prompt
         for image in images:
             # GFPGAN
-            if self.metadata.gfpgan_strength > 0.0:
+            if self.req.image_metadata.gfpgan_strength > 0.0:
                 self.load_gfpgan()
 
                 bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
@@ -1314,10 +1016,10 @@ class GenerateThread(QThread):
 
                 image2 = Image.fromarray(restored_img[..., ::-1])
 
-                if self.metadata.gfpgan_strength < 1.0:
+                if self.req.image_metadata.gfpgan_strength < 1.0:
                     if image2.size != image.size:
                         image = image.resize(image2.size)
-                    image = Image.blend(image, image2, self.metadata.gfpgan_strength)
+                    image = Image.blend(image, image2, self.req.image_metadata.gfpgan_strength)
                 else:
                     image = image2
 
@@ -1340,7 +1042,7 @@ class GenerateThread(QThread):
             full_path = os.path.join(IMAGES_PATH, output_path)
 
             png_info = PngImagePlugin.PngInfo()
-            self.metadata.save_to_png_info(png_info)
+            self.req.image_metadata.save_to_png_info(png_info)
             image.save(full_path, pnginfo=png_info)
 
             self.image_complete.emit(output_path)
@@ -1360,13 +1062,13 @@ class GenerateThread(QThread):
         self.image_preview.emit(pil_image)
 
     def compute_total_steps(self):
-        steps = self.metadata.num_inference_steps
+        steps = self.req.image_metadata.num_inference_steps
         if self.type == 'img2img':
-            condition = conditions[self.metadata.condition]
+            condition = conditions[self.req.image_metadata.condition]
             if isinstance(condition, Img2ImgCondition):
-                steps = int(self.metadata.num_inference_steps * self.metadata.img_strength)
+                steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img_strength)
 
-        steps = steps + self.num_images_per_prompt
+        steps = steps + self.req.num_images_per_prompt
         return steps
 
 class MainWindow(QMainWindow):
@@ -2060,7 +1762,7 @@ class Application(QApplication):
             if self.main_window.hide_if_thread_running():
                 return False
         return super().event(event)
-    
+
 def main():
     os.makedirs(IMAGES_PATH, exist_ok=True)
     os.makedirs(THUMBNAILS_PATH, exist_ok=True)
