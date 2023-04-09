@@ -30,17 +30,18 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 - Text to Image
 - Image to Image
 - ControlNet
-- GFPGAN face restoration
+- ESRGAN Upscaling
+- GFPGAN Face Restoration
 
 ### Roadmap
 
 Near-term:
 - Move/Copy image to another collection
 - Import image to collection
-- Upscaler
 - Improve selection display in thumbnail viewer
 - Collapsing panels in controls section
 - LoRA
+- Clip Interrogator
 - Thumbnail paths by image hash 
 - Show image in Delete Image dialog
 - Metadata scrollbar

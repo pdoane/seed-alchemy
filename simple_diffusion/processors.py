@@ -1,5 +1,4 @@
 import os
-import traceback
 import warnings
 from abc import ABC, abstractmethod
 
@@ -7,7 +6,7 @@ import configuration
 import cv2
 import numpy as np
 import torch
-import requests
+import utils
 from controlnet_aux import HEDdetector, MLSDdetector, OpenposeDetector
 from PIL import Image
 from transformers import (AutoImageProcessor, UperNetForSemanticSegmentation,
@@ -193,57 +192,173 @@ class SegProcessor(ProcessorBase):
         image = Image.fromarray(color_seg)
         return image
 
-class GFPGANProcessor(ProcessorBase):
-    strength: float = 0.8
+class ESRGANProcessor(ProcessorBase):
+    # Based on https://github.com/xinntao/Real-ESRGAN/blob/v0.3.0/inference_realesrgan.py
+
+    model_name: str = 'realesr-general-x4v3'
+    upscale_factor: int = 2
+    denoising_strength: float = 0.5
+    blend_strength: float = 1.0
+    tile_size: int = 512
+    tile_pad: int = 10
+    pre_pad: int = 0
+    float32: bool = True
 
     def __init__(self) -> None:
         super().__init__()
+        self.esrgan = None
+
+    def load(self):
+        with warnings.catch_warnings(), utils.ChangeDirectory(configuration.MODELS_PATH):
+            warnings.simplefilter('ignore')
+            from basicsr.archs.rrdbnet_arch import RRDBNet
+            from realesrgan.archs.srvgg_arch import SRVGGNetCompact
+            from realesrgan import RealESRGANer
+
+            if self.model_name == 'RealESRGAN_x4plus':  # x4 RRDBNet model
+                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+                netscale = 4
+                urls = ['https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth']
+            elif self.model_name == 'RealESRNet_x4plus':  # x4 RRDBNet model
+                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+                netscale = 4
+                urls = ['https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth']
+            elif self.model_name == 'RealESRGAN_x4plus_anime_6B':  # x4 RRDBNet model with 6 blocks
+                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=6, num_grow_ch=32, scale=4)
+                netscale = 4
+                urls = ['https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth']
+            elif self.model_name == 'RealESRGAN_x2plus':  # x2 RRDBNet model
+                model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=2)
+                netscale = 2
+                urls = ['https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth']
+            elif self.model_name == 'realesr-animevideov3':  # x4 VGG-style model (XS size)
+                model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=16, upscale=4, act_type='prelu')
+                netscale = 4
+                urls = ['https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth']
+            elif self.model_name == 'realesr-general-x4v3':  # x4 VGG-style model (S size)
+                model = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=32, upscale=4, act_type='prelu')
+                netscale = 4
+                urls = [
+                    'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-wdn-x4v3.pth',
+                    'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth'
+                ]
+
+            model_paths = []
+            for url in urls:
+                model_path = os.path.join('realesrgan', os.path.basename(url))
+                model_paths.append(model_path)
+                if not os.path.exists(model_path):
+                    utils.download_file(url, model_path)
+
+            dni_weight = None
+            if self.model_name == 'realesr-general-x4v3' and self.denoising_strength != 1:
+                dni_weight = [self.denoising_strength, 1 - self.denoising_strength]
+                model_path = model_paths
+            else:
+                model_path = model_paths[0]
+
+            self.esrgan = RealESRGANer(
+                scale=netscale,
+                model_path=model_path,
+                dni_weight=dni_weight,
+                model=model,
+                tile=self.tile_size,
+                tile_pad=self.tile_pad,
+                pre_pad=self.pre_pad,
+                half=not self.float32)
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.esrgan is None:
+            self.load()
+
+        bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
+
+        output, _ = self.esrgan.enhance(
+            bgr_image_array,
+            outscale = self.upscale_factor,
+        )
+
+        image2 = Image.fromarray(output[..., ::-1])
+
+        if self.blend_strength < 1.0:
+            if image2.size != image.size:
+                image = image.resize(image2.size)
+            image = Image.blend(image, image2, self.blend_strength)
+        else:
+            image = image2
+
+        return image
+
+class GFPGANProcessor(ProcessorBase):
+    # Based on https://github.com/xinntao/Real-ESRGAN/blob/v0.3.0/inference_realesrgan.py
+
+    model_name: str = 'GFPGANv1.4'
+    upscale_factor: int = 2
+    upscaled_image: Image.Image = None
+    blend_strength: float = 1.0
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.esrgan = None
         self.gfpgan = None
+
+    def load(self):
+        with warnings.catch_warnings(), utils.ChangeDirectory(configuration.MODELS_PATH):
+            warnings.simplefilter('ignore')
+            from gfpgan import GFPGANer
+
+            if self.model_name == 'GFPGANv1.2':
+                url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.2.pth'
+                arch = 'clean'
+            elif self.model_name == 'GFPGANv1.3':
+                url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.3.pth'
+                arch = 'clean'
+            elif self.model_name == 'GFPGANv1.4':
+                url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
+                arch = 'clean'
+            elif self.model_name == 'RestoreFormer':
+                url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/RestoreFormer.pth'
+                arch = 'RestoreFormer'
+
+            model_path = os.path.join('gfpgan', os.path.basename(url))
+            if not os.path.exists(model_path):
+                utils.download_file(url, model_path)
+
+            self.gfpgan = GFPGANer(
+                model_path=model_path,
+                upscale=self.upscale_factor,
+                arch=arch,
+                channel_multiplier=2,
+                bg_upsampler=self.esrgan)
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.gfpgan is None:
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                cwd = os.getcwd()
-                os.chdir(configuration.MODELS_PATH)
-                try:
-                    from gfpgan import GFPGANer
+            self.load()
 
-                    model_path = 'GFPGANv1.4.pth'
-                    if not os.path.exists(model_path):
-                        url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth'
-                        with requests.get(url, stream=True) as response:
-                            if response.status_code == 200:
-                                with open(model_path, 'wb') as f:
-                                    for chunk in response.iter_content(chunk_size=8192):
-                                        f.write(chunk)
-                            else:
-                                print(f'Failed to download the file, status code: {response.status_code}')
+        # Enhance faces on unscaled image
+        bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
 
-                    self.gfpgan = GFPGANer(
-                        model_path=model_path,
-                        upscale=1,
-                        arch='clean',
-                        channel_multiplier=2,
-                        bg_upsampler=None)
-                except Exception:
-                    traceback.print_exc()
-                os.chdir(cwd)
-                bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
-
-        _, _, restored_img = self.gfpgan.enhance(
+        _, _, output = self.gfpgan.enhance(
             bgr_image_array,
             has_aligned=False,
             only_center_face=False,
-            paste_back=True,
+            paste_back=False,
         )
 
-        image2 = Image.fromarray(restored_img[..., ::-1])
+        # Paste faces onto upscaled image
+        image = self.upscaled_image
+        bgr_image_array = np.array(image, dtype=np.uint8)[..., ::-1]
 
-        if self.strength < 1.0:
+        self.gfpgan.face_helper.get_inverse_affine(None)
+        output = self.gfpgan.face_helper.paste_faces_to_input_image(upsample_img=bgr_image_array)
+
+        image2 = Image.fromarray(output[..., ::-1])
+
+        # Blend with upscaled image
+        if self.blend_strength < 1.0:
             if image2.size != image.size:
                 image = image.resize(image2.size)
-            image = Image.blend(image, image2, self.strength)
+            image = Image.blend(image, image2, self.blend_strength)
         else:
             image = image2
 

@@ -33,11 +33,11 @@ if sys.platform == 'darwin':
     from Foundation import NSBundle
 
 import configuration
-from configuration import Img2ImgCondition, ControlNetCondition
+from configuration import ControlNetCondition, Img2ImgCondition
 from image_metadata import ImageMetadata
 from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
                        PipelineCache, Txt2ImgPipeline)
-from processors import ProcessorBase, GFPGANProcessor
+from processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
 from utils import Timer
 
 # -------------------------------------------------------------------------------------------------
@@ -45,7 +45,6 @@ from utils import Timer
 generate_preprocessor: ProcessorBase = None
 preview_preprocessor: ProcessorBase = None
 pipeline_cache: PipelineCache = PipelineCache()
-gfpgan: ProcessorBase = None
 settings: QSettings = None
 
 def resource_path(relative_path):
@@ -98,6 +97,15 @@ def latents_to_pil(latents: torch.FloatTensor):
     ).cpu()
 
     return Image.fromarray(latents_ubyte.numpy())
+
+def create_frame_separator():
+    separator = QFrame()
+    separator.setFrameShape(QFrame.HLine)
+    separator.setFrameShadow(QFrame.Sunken)
+    palette = separator.palette()
+    color = palette.color(QPalette.ColorRole.Mid)
+    separator.setStyleSheet(f"QFrame {{ border: 1px solid {color.name()}; }}")
+    return separator
 
 class PromptTextEdit(QPlainTextEdit):
     return_pressed = Signal()
@@ -375,7 +383,8 @@ class ImageMetadataFrame(QFrame):
         self.control_net_scale = MetadataRow('Control Net Scale:')
         self.source_path = MetadataRow('Source Path:')
         self.img_strength = MetadataRow('Image Strength:')
-        self.gfpgan_strength = MetadataRow('Face Restoration:')
+        self.upscale = MetadataRow('Upscaling:')
+        self.face = MetadataRow('Face Restoration:')
 
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
@@ -395,7 +404,8 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.control_net_scale.frame)
         vlayout.addWidget(self.source_path.frame)
         vlayout.addWidget(self.img_strength.frame)
-        vlayout.addWidget(self.gfpgan_strength.frame)
+        vlayout.addWidget(self.upscale.frame)
+        vlayout.addWidget(self.face.frame)
         vlayout.addStretch()
 
     def update(self, metadata):
@@ -412,7 +422,7 @@ class ImageMetadataFrame(QFrame):
         self.height.value.setText(str(metadata.height))
         self.condition.value.setText(metadata.condition)
         if metadata.type == 'img2img':
-            condition = configuration.conditions[metadata.condition]
+            condition = configuration.conditions.get(metadata.condition, None)
             if isinstance(condition, ControlNetCondition):
                 self.img_strength.frame.setVisible(False)
                 self.control_net_preprocess.frame.setVisible(True)
@@ -435,11 +445,22 @@ class ImageMetadataFrame(QFrame):
             self.control_net_scale.frame.setVisible(False)
             self.source_path.frame.setVisible(False)
             self.img_strength.frame.setVisible(False)
-        if metadata.gfpgan_enabled:
-            self.gfpgan_strength.frame.setVisible(True)
-            self.gfpgan_strength.value.setText(str(metadata.gfpgan_strength))
+        if metadata.upscale_enabled:
+            self.upscale.frame.setVisible(True)
+            self.upscale.value.setText('{:d}x, Denoising={:g}, Blend={:g}'.format(
+                metadata.upscale_factor,
+                metadata.upscale_denoising_strength,
+                metadata.upscale_blend_strength
+            ))
         else:
-            self.gfpgan_strength.frame.setVisible(False)
+            self.upscale.frame.setVisible(False)
+        if metadata.face_enabled:
+            self.face.frame.setVisible(True)
+            self.face.value.setText('Blend={:g}'.format(
+                metadata.face_blend_strength
+            ))
+        else:
+            self.face.frame.setVisible(False)
 
 class ImageViewer(QWidget):
     def __init__(self, parent=None):
@@ -571,12 +592,14 @@ class ImageViewer(QWidget):
         widget_height = self.height()
         controls_height = 24
 
+        right_scale_factor = 1 if self.preview_image else self.metadata.upscale_factor if self.right_image else 1
+        left_scale_factor = self.left_metadata.upscale_factor if self.left_image else 1
         right_image = self.preview_image if self.preview_image is not None and self.show_preview else self.right_image
 
-        right_image_width = right_image.width() if right_image is not None else 1
-        right_image_height = right_image.height() if right_image is not None else 1
-        left_image_width = self.left_image.width() if self.left_image is not None else right_image_width
-        left_image_height = self.left_image.height() if self.left_image is not None else right_image_height
+        right_image_width = right_image.width() / right_scale_factor if right_image is not None else 1
+        right_image_height = right_image.height() / right_scale_factor if right_image is not None else 1
+        left_image_width = self.left_image.width() / left_scale_factor if self.left_image is not None else right_image_width
+        left_image_height = self.left_image.height() / left_scale_factor if self.left_image is not None else right_image_height
 
         if self.both_images_visible:
             available_height = widget_height - controls_height - 4 * self.padding
@@ -669,24 +692,33 @@ class ImageViewer(QWidget):
         self.update_images()
 
     def set_left_image(self, path):
-        fullpath = os.path.join(configuration.IMAGES_PATH, path)
-        if os.path.exists(fullpath):
-            self.left_image_path_ = path
-            self.left_image = QImage(fullpath)
-        else:
+        full_path = os.path.join(configuration.IMAGES_PATH, path)
+        try:
+            with Image.open(full_path) as image:
+                self.left_metadata = ImageMetadata()
+                self.left_metadata.path = path
+                self.left_metadata.load_from_image_info(image.info)
+
+                self.left_image_path_ = path
+                self.left_image = pil_to_qimage(image)
+        except (IOError, OSError):
             self.left_image_path_ = ''
             self.left_image = None
         self.update_images()
 
     def set_right_image(self, path):
         full_path = os.path.join(configuration.IMAGES_PATH, path)
-        with Image.open(full_path) as image:
-            self.metadata = ImageMetadata()
-            self.metadata.path = path
-            self.metadata.load_from_image_info(image.info)
+        try:
+            with Image.open(full_path) as image:
+                self.metadata = ImageMetadata()
+                self.metadata.path = path
+                self.metadata.load_from_image_info(image.info)
 
-            self.right_image_path_ = path
-            self.right_image = pil_to_qimage(image)
+                self.right_image_path_ = path
+                self.right_image = pil_to_qimage(image)
+        except (IOError, OSError):
+            self.left_image_path_ = ''
+            self.left_image = None
 
         self.metadata_frame.update(self.metadata)
         self.update_images()
@@ -943,7 +975,7 @@ class GenerateThread(QThread):
         gc.collect()
  
     def run_(self):
-        global generate_preprocessor, gfpgan
+        global generate_preprocessor
 
         # load pipeline
         if self.type == 'txt2img':
@@ -966,7 +998,7 @@ class GenerateThread(QThread):
                 image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
                 self.req.source_image = image.copy()
 
-            condition = configuration.conditions[self.req.image_metadata.condition]
+            condition = configuration.conditions.get(self.req.image_metadata.condition, None)
             if isinstance(condition, ControlNetCondition) and self.req.image_metadata.control_net_preprocess:
                 if not isinstance(generate_preprocessor, condition.preprocessor):
                     generate_preprocessor = condition.preprocessor()
@@ -988,19 +1020,33 @@ class GenerateThread(QThread):
         # generate
         images = pipeline(self.req)
 
-        steps = self.compute_total_steps()
-        step = steps - self.req.num_images_per_prompt
+        step = self.compute_pipeline_steps()
         for image in images:
-            # GFPGAN
-            if self.req.image_metadata.gfpgan_strength > 0.0:
-                if gfpgan is None:
-                    gfpgan = GFPGANProcessor()
-                gfpgan.strength = self.req.image_metadata.gfpgan_strength
-                image = gfpgan(image)
+            # ESRGAN
+            if self.req.image_metadata.upscale_enabled:
+                esrgan = ESRGANProcessor()
+                esrgan.upscale_factor = self.req.image_metadata.upscale_factor
+                esrgan.denoising_strength = self.req.image_metadata.upscale_denoising_strength
+                esrgan.blend_strength = self.req.image_metadata.upscale_blend_strength
+                upscaled_image = esrgan(image)
+            else:
+                upscaled_image = image
 
-            progress_amount = (step+1) * 100 / steps
+            self.update_task_progress(step)
             step = step + 1
-            self.task_progress.emit(progress_amount)
+
+            # GFPGAN
+            if self.req.image_metadata.face_enabled:
+                gfpgan = GFPGANProcessor()
+                gfpgan.upscale_factor = self.req.image_metadata.upscale_factor
+                gfpgan.upscaled_image = upscaled_image
+                gfpgan.blend_strength = self.req.image_metadata.face_blend_strength
+                image = gfpgan(image)
+            else:
+                image = upscaled_image
+
+            self.update_task_progress(step)
+            step = step + 1
 
             # Output
             collection_path = settings.value('collection')
@@ -1020,31 +1066,42 @@ class GenerateThread(QThread):
             self.req.image_metadata.save_to_png_info(png_info)
             image.save(full_path, pnginfo=png_info)
 
-            self.image_complete.emit(output_path)
+            self.update_task_progress(step)
+            step = step + 1
 
-        if bool_setting('reduce_memory'):
-            gfpgan = None
+            self.image_complete.emit(output_path)
 
     def generate_callback(self, step: int, timestep: int, latents: torch.FloatTensor):
         if self.cancel:
             raise CancelThreadException()
-        steps = self.compute_total_steps()
-        progress_amount = (step+1) * 100 / steps
-        self.task_progress.emit(progress_amount)
+        self.update_task_progress(step)
 
         pil_image = latents_to_pil(latents)
         pil_image = pil_image.resize((pil_image.size[0] * 8, pil_image.size[1] * 8), Image.NEAREST)
         self.image_preview.emit(pil_image)
 
-    def compute_total_steps(self):
+    def update_task_progress(self, step: int):
+        steps = self.compute_total_steps()
+        progress_amount = (step+1) * 100 / steps
+        self.task_progress.emit(progress_amount)
+
+    def compute_pipeline_steps(self):
         steps = self.req.image_metadata.num_inference_steps
         if self.type == 'img2img':
-            condition = configuration.conditions[self.req.image_metadata.condition]
+            condition = configuration.conditions.get(self.req.image_metadata.condition, None)
             if isinstance(condition, Img2ImgCondition):
                 steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img_strength)
-
-        steps = steps + self.req.num_images_per_prompt
+        
         return steps
+
+    def compute_total_steps(self):
+        steps_per_image = 1
+        if self.req.image_metadata.upscale_enabled:
+            steps_per_image = steps_per_image + 1
+        if self.req.image_metadata.face_enabled:
+            steps_per_image = steps_per_image + 1
+
+        return self.compute_pipeline_steps() + self.req.num_images_per_prompt * steps_per_image
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -1180,11 +1237,6 @@ class MainWindow(QMainWindow):
         cancel_button.setToolTip('Cancel')
         cancel_button.clicked.connect(self.on_cancel_generation)
 
-        generate_hlayout = QHBoxLayout()
-        generate_hlayout.setContentsMargins(0, 0, 0, 0)
-        generate_hlayout.addWidget(self.generate_button)
-        generate_hlayout.addWidget(cancel_button)
-
         controls_frame = QFrame()
         controls_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
@@ -1235,24 +1287,6 @@ class MainWindow(QMainWindow):
         self.scheduler_combo_box.setFixedWidth(120)
         self.scheduler_combo_box.setCurrentText(settings.value('scheduler'))
 
-        controls_grid = QGridLayout(controls_frame)
-        controls_grid.setContentsMargins(0, 0, 0, 0)
-        controls_grid.setVerticalSpacing(2)
-        controls_grid.setRowMinimumHeight(2, 10)
-        controls_grid.addWidget(num_images_label, 0, 0)
-        controls_grid.addWidget(self.num_images_spin_box, 1, 0)
-        controls_grid.addWidget(num_steps_label, 0, 1)
-        controls_grid.addWidget(self.num_steps_spin_box, 1, 1)
-        controls_grid.addWidget(guidance_scale_label, 0, 2)
-        controls_grid.addWidget(self.guidance_scale_spin_box, 1, 2)
-        controls_grid.setAlignment(self.guidance_scale_spin_box, Qt.AlignCenter)
-        controls_grid.addWidget(width_label, 3, 0)
-        controls_grid.addWidget(self.width_spin_box, 4, 0)
-        controls_grid.addWidget(height_label, 3, 1)
-        controls_grid.addWidget(self.height_spin_box, 4, 1)
-        controls_grid.addWidget(scheduler_label, 3, 2)
-        controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
-
         self.manual_seed_check_box = QCheckBox('Manual Seed')
 
         self.seed_frame = QFrame()
@@ -1263,38 +1297,18 @@ class MainWindow(QMainWindow):
         seed_random_button = QPushButton('New')
         seed_random_button.clicked.connect(self.on_seed_random_clicked)
 
-        seed_hlayout = QHBoxLayout(self.seed_frame)
-        seed_hlayout.setContentsMargins(0, 0, 0, 0)
-        seed_hlayout.addWidget(self.seed_lineedit)
-        seed_hlayout.addWidget(seed_random_button)
-
-        seed_vlayout = QVBoxLayout()
-        seed_vlayout.setContentsMargins(0, 0, 0, 0) 
-        seed_vlayout.setSpacing(0)
-        seed_check_box_layout = QHBoxLayout()
-        seed_check_box_layout.setAlignment(Qt.AlignCenter)
-        seed_check_box_layout.addWidget(self.manual_seed_check_box)
-        seed_vlayout.addLayout(seed_check_box_layout)
-        seed_vlayout.addWidget(self.seed_frame)
-
         manual_seed = bool_setting('manual_seed')
         self.seed_frame.setEnabled(manual_seed)
         self.manual_seed_check_box.setChecked(manual_seed)
         self.manual_seed_check_box.stateChanged.connect(self.on_manual_seed_check_box_changed)
 
         self.condition_frame = QFrame()
-        conditions_label = QLabel('Condition')
-        conditions_label.setAlignment(Qt.AlignCenter)
+        conditions_label = QLabel('Condition: ')
         self.condition_combo_box = QComboBox()
+        self.condition_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.condition_combo_box.addItems(configuration.conditions.keys())
         self.condition_combo_box.setCurrentText(settings.value('condition'))
         self.condition_combo_box.currentIndexChanged.connect(self.on_condition_combobox_value_changed)
-
-        condition_frame_layout = QVBoxLayout(self.condition_frame)
-        condition_frame_layout.setContentsMargins(0, 0, 0, 0)
-        condition_frame_layout.setSpacing(2)
-        condition_frame_layout.addWidget(conditions_label)
-        condition_frame_layout.addWidget(self.condition_combo_box)
 
         self.control_net_frame = QFrame()
         self.control_net_preprocess_check_box = QCheckBox('Preprocess')
@@ -1317,15 +1331,107 @@ class MainWindow(QMainWindow):
         control_net_grid.addWidget(control_net_model_label, 0, 1)
         control_net_grid.addWidget(self.control_net_model_combo_box, 1, 1)
 
-        control_net_layout = QVBoxLayout(self.control_net_frame)
-        control_net_layout.setContentsMargins(0, 0, 0, 0)
-        control_net_layout.addLayout(control_net_grid)
-        control_net_layout.addWidget(self.control_net_scale)
-
         self.img_strength = FloatSliderSpinBox('Image Strength', float(settings.value('img_strength')))
 
-        self.gfpgan_strength = FloatSliderSpinBox('Face Restoration', float(settings.value('gfpgan_strength')), checkable=True)
-        self.gfpgan_strength.check_box.setChecked(bool_setting('gfpgan_enabled'))
+        upscale_enabled = settings.value('upscale_enabled', type=bool)
+        self.upscale_enabled_check_box = QCheckBox('Upscaling')
+        self.upscale_enabled_check_box.setChecked(upscale_enabled)
+        self.upscale_enabled_check_box.stateChanged.connect(self.on_upscale_enabled_check_box_changed)
+        self.upscale_frame = QFrame()
+        self.upscale_frame.setEnabled(upscale_enabled)
+        upscale_factor_label = QLabel('Factor: ')
+        self.upscale_factor_combo_box = QComboBox()
+        self.upscale_factor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.upscale_factor_combo_box.addItem('2x', 2)
+        self.upscale_factor_combo_box.addItem('4x', 4)
+        index = self.upscale_factor_combo_box.findData(settings.value('upscale_factor', type=int))
+        if index != -1:
+            self.upscale_factor_combo_box.setCurrentIndex(index)        
+        self.upscale_denoising_strength = FloatSliderSpinBox('Denoising Strength', float(settings.value('upscale_denoising_strength')))
+        self.upscale_blend_strength = FloatSliderSpinBox('Upscale Strength', float(settings.value('upscale_denoising_strength')))
+        self.face_strength = FloatSliderSpinBox('Face Restoration', float(settings.value('face_blend_strength')), checkable=True)
+        self.face_strength.check_box.setChecked(bool_setting('face_enabled'))
+
+        generate_hlayout = QHBoxLayout()
+        generate_hlayout.setContentsMargins(0, 0, 0, 0)
+        generate_hlayout.addWidget(self.generate_button)
+        generate_hlayout.addWidget(cancel_button)
+
+        controls_grid = QGridLayout(controls_frame)
+        controls_grid.setContentsMargins(0, 0, 0, 0)
+        controls_grid.setVerticalSpacing(2)
+        controls_grid.setRowMinimumHeight(2, 10)
+        controls_grid.addWidget(num_images_label, 0, 0)
+        controls_grid.addWidget(self.num_images_spin_box, 1, 0)
+        controls_grid.addWidget(num_steps_label, 0, 1)
+        controls_grid.addWidget(self.num_steps_spin_box, 1, 1)
+        controls_grid.addWidget(guidance_scale_label, 0, 2)
+        controls_grid.addWidget(self.guidance_scale_spin_box, 1, 2)
+        controls_grid.setAlignment(self.guidance_scale_spin_box, Qt.AlignCenter)
+        controls_grid.addWidget(width_label, 3, 0)
+        controls_grid.addWidget(self.width_spin_box, 4, 0)
+        controls_grid.addWidget(height_label, 3, 1)
+        controls_grid.addWidget(self.height_spin_box, 4, 1)
+        controls_grid.addWidget(scheduler_label, 3, 2)
+        controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
+
+        seed_hlayout = QHBoxLayout(self.seed_frame)
+        seed_hlayout.setContentsMargins(0, 0, 0, 0)
+        seed_hlayout.addWidget(self.seed_lineedit)
+        seed_hlayout.addWidget(seed_random_button)
+
+        seed_vlayout = QVBoxLayout()
+        seed_vlayout.setContentsMargins(0, 0, 0, 0) 
+        seed_vlayout.setSpacing(0)
+        seed_check_box_layout = QHBoxLayout()
+        seed_check_box_layout.setAlignment(Qt.AlignCenter)
+        seed_check_box_layout.addWidget(self.manual_seed_check_box)
+        seed_vlayout.addLayout(seed_check_box_layout)
+        seed_vlayout.addWidget(self.seed_frame)
+
+        condition_frame_layout = QHBoxLayout(self.condition_frame)
+        condition_frame_layout.setContentsMargins(0, 0, 0, 0)
+        condition_frame_layout.addWidget(conditions_label)
+        condition_frame_layout.addWidget(self.condition_combo_box)
+
+        control_net_layout = QVBoxLayout(self.control_net_frame)
+        control_net_layout.setContentsMargins(0, 0, 0, 0)
+        control_net_layout.setSpacing(0)
+        control_net_layout.addLayout(control_net_grid)
+        control_net_layout.addWidget(self.control_net_scale)
+        control_net_layout.addWidget(create_frame_separator())
+
+        condition_layout = QVBoxLayout()
+        condition_layout.setContentsMargins(0, 0, 0, 0) 
+        condition_layout.setSpacing(0)
+        condition_layout.addWidget(self.condition_frame)
+        condition_layout.addWidget(self.control_net_frame)
+        condition_layout.addWidget(self.img_strength)
+
+        upscale_factor_layout = QHBoxLayout()
+        upscale_factor_layout.setContentsMargins(0, 0, 0, 0) 
+        upscale_factor_layout.setSpacing(0)
+        upscale_factor_layout.addWidget(upscale_factor_label)
+        upscale_factor_layout.addWidget(self.upscale_factor_combo_box)
+
+        upscale_frame_layout = QVBoxLayout(self.upscale_frame)
+        upscale_frame_layout.setContentsMargins(0, 0, 0, 0)
+        upscale_frame_layout.setSpacing(0)
+        upscale_frame_layout.addLayout(upscale_factor_layout)
+        upscale_frame_layout.addWidget(self.upscale_denoising_strength)
+        upscale_frame_layout.addWidget(self.upscale_blend_strength)
+
+        upscale_enabled_check_box_layout = QVBoxLayout()
+        upscale_enabled_check_box_layout.setContentsMargins(0, 0, 0, 0) 
+        upscale_enabled_check_box_layout.setSpacing(0)
+        upscale_enabled_check_box_layout.addWidget(self.upscale_enabled_check_box)
+        upscale_enabled_check_box_layout.setAlignment(self.upscale_enabled_check_box, Qt.AlignCenter)
+
+        upscale_layout = QVBoxLayout()
+        upscale_layout.setContentsMargins(0, 0, 0, 0) 
+        upscale_layout.setSpacing(0)
+        upscale_layout.addLayout(upscale_enabled_check_box_layout)
+        upscale_layout.addWidget(self.upscale_frame)
 
         config_layout = QVBoxLayout(config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0) 
@@ -1333,12 +1439,15 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(self.prompt_edit)
         config_layout.addWidget(self.negative_prompt_edit)
         config_layout.addLayout(generate_hlayout)
+        config_layout.addWidget(create_frame_separator())
         config_layout.addWidget(controls_frame)
+        config_layout.addWidget(create_frame_separator())
         config_layout.addLayout(seed_vlayout)
-        config_layout.addWidget(self.condition_frame)
-        config_layout.addWidget(self.control_net_frame)
-        config_layout.addWidget(self.img_strength)
-        config_layout.addWidget(self.gfpgan_strength)
+        config_layout.addWidget(create_frame_separator())
+        config_layout.addLayout(condition_layout)
+        config_layout.addLayout(upscale_layout)
+        config_layout.addWidget(create_frame_separator())
+        config_layout.addWidget(self.face_strength)
         config_layout.addStretch()
 
         # Image viewer
@@ -1428,7 +1537,7 @@ class MainWindow(QMainWindow):
 
     def on_condition_combobox_value_changed(self, index):
         condition_name = self.condition_combo_box.itemText(index)
-        condition = configuration.conditions[condition_name]
+        condition = configuration.conditions.get(condition_name, None)
         if isinstance(condition, Img2ImgCondition):
             pass
         elif isinstance(condition, ControlNetCondition):
@@ -1451,7 +1560,7 @@ class MainWindow(QMainWindow):
             source_image = image.copy()
 
         condition_name = self.condition_combo_box.currentText()
-        condition = configuration.conditions[condition_name]
+        condition = configuration.conditions.get(condition_name, None)
         if isinstance(condition, ControlNetCondition):
             global preview_preprocessor
             if not isinstance(preview_preprocessor, condition.preprocessor):
@@ -1472,7 +1581,7 @@ class MainWindow(QMainWindow):
             self.image_viewer.set_both_images_visible(False)
         elif self.type == 'img2img':
             condition_name = self.condition_combo_box.currentText()
-            condition = configuration.conditions[condition_name]
+            condition = configuration.conditions.get(condition_name, None)
             self.condition_frame.setVisible(True)
             if isinstance(condition, Img2ImgCondition):
                 self.img_strength.setVisible(True)
@@ -1487,7 +1596,7 @@ class MainWindow(QMainWindow):
             self.randomize_seed()
 
         condition_name = self.condition_combo_box.currentText()
-        condition = configuration.conditions[condition_name]
+        condition = configuration.conditions.get(condition_name, None)
 
         settings.setValue('collection', self.thumbnail_viewer.collection())
         settings.setValue('type', self.type)
@@ -1509,8 +1618,12 @@ class MainWindow(QMainWindow):
             settings.setValue('control_net_scale', self.control_net_scale.spin_box.value())
         settings.setValue('source_path', self.image_viewer.left_image_path())
         settings.setValue('img_strength', self.img_strength.spin_box.value())
-        settings.setValue('gfpgan_enabled', self.gfpgan_strength.check_box.isChecked())
-        settings.setValue('gfpgan_strength', self.gfpgan_strength.spin_box.value())
+        settings.setValue('upscale_enabled', self.upscale_enabled_check_box.isChecked())
+        settings.setValue('upscale_factor', self.upscale_factor_combo_box.currentData())
+        settings.setValue('upscale_denoising_strength', self.upscale_denoising_strength.spin_box.value())
+        settings.setValue('upscale_blend_strength', self.upscale_blend_strength.spin_box.value())
+        settings.setValue('face_enabled', self.face_strength.check_box.isChecked())
+        settings.setValue('face_blend_strength', self.face_strength.spin_box.value())
 
         self.update_progress(0, 0)
         self.generate_button.setEnabled(False)
@@ -1566,6 +1679,9 @@ class MainWindow(QMainWindow):
     def on_seed_random_clicked(self):
         self.randomize_seed()
 
+    def on_upscale_enabled_check_box_changed(self, state):
+        self.upscale_frame.setEnabled(state)
+
     def on_thumbnail_selection_change(self):
         selected_items = self.thumbnail_viewer.list_widget.selectedItems()
         for item in selected_items:
@@ -1607,17 +1723,29 @@ class MainWindow(QMainWindow):
             if image_metadata.type == 'img2img':
                 self.image_viewer.set_left_image(image_metadata.source_path)
                 self.condition_combo_box.setCurrentText(image_metadata.condition)
-                condition = configuration.conditions[image_metadata.condition]
+                condition = configuration.conditions.get(image_metadata.condition, None)
                 if isinstance(condition, Img2ImgCondition):
                     self.img_strength.spin_box.setValue(image_metadata.img_strength)
                 if isinstance(condition, ControlNetCondition):
                     self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
                     self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
-            if image_metadata.gfpgan_enabled:
-                self.gfpgan_strength.check_box.setChecked(True)
-                self.gfpgan_strength.spin_box.setValue(image_metadata.gfpgan_strength)
+
+            if image_metadata.upscale_enabled:
+                self.upscale_enabled_check_box.setChecked(True)
+                index = self.upscale_factor_combo_box.findData(image_metadata.upscale_factor)
+                if index != -1:
+                    self.upscale_factor_combo_box.setCurrentIndex(index)
+                self.upscale_denoising_strength.spin_box.setValue(image_metadata.upscale_denoising_strength)
+                self.upscale_blend_strength.spin_box.setValue(image_metadata.upscale_blend_strength)
             else:
-                self.gfpgan_strength.check_box.setChecked(False)
+                self.upscale_enabled_check_box.setChecked(False)
+
+            if image_metadata.face_enabled:
+                self.face_strength.check_box.setChecked(True)
+                self.face_strength.spin_box.setValue(image_metadata.face_blend_strength)
+            else:
+                self.face_strength.check_box.setChecked(False)
+
             self.set_type(image_metadata.type)
 
     def on_delete(self, image_metadata):
@@ -1706,8 +1834,12 @@ class Application(QApplication):
         set_default_setting('control_net_scale', 1.0)
         set_default_setting('source_path', '')
         set_default_setting('img_strength', 0.5)
-        set_default_setting('gfpgan_enabled', False)
-        set_default_setting('gfpgan_strength', 0.8)
+        set_default_setting('upscale_enabled', False)
+        set_default_setting('upscale_factor', 2)
+        set_default_setting('upscale_denoising_strength', 0.75)
+        set_default_setting('upscale_blend_strength', 0.75)
+        set_default_setting('face_enabled', False)
+        set_default_setting('face_blend_strength', 0.75)
         set_default_setting('reduce_memory', True)
         settings.beginGroup('Models')
         set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')

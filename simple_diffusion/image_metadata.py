@@ -6,27 +6,30 @@ from configuration import ControlNetCondition
 
 
 class ImageMetadata:
-    def __init__(self):
-        self.type = 'txt2img'
-        self.model = 'stabilityai/stable-diffusion-2-1-base'
-        self.safety_checker = True
-        self.scheduler = 'k_euler_a'
-        self.path = ''
-        self.prompt = ''
-        self.negative_prompt = ''
-        self.seed = 1
-        self.num_inference_steps = 30
-        self.guidance_scale = 7.5
-        self.width = 512
-        self.height = 512
-        self.condition = 'Text'
-        self.control_net_preprocess = False
-        self.control_net_model = ''
-        self.control_net_scale = 1.0
-        self.source_path = ''
-        self.img_strength = 0.0
-        self.gfpgan_enabled = False
-        self.gfpgan_strength  = 0.0
+    type: str = 'txt2img'
+    model: str = 'stabilityai/stable-diffusion-2-1-base'
+    safety_checker: bool = True
+    scheduler: str = 'k_euler_a'
+    path: str = ''
+    prompt: str = ''
+    negative_prompt: str = ''
+    seed: int = 1
+    num_inference_steps: int = 30
+    guidance_scale: float = 7.5
+    width: int = 512
+    height: int = 512
+    condition: str = 'Text'
+    control_net_preprocess: bool = False
+    control_net_model: str = ''
+    control_net_scale: float = 1.0
+    source_path: str = ''
+    img_strength: float = 0.0
+    upscale_enabled: bool = False
+    upscale_factor: int = 1
+    upscale_denoising_strength: float = 0.0
+    upscale_blend_strength: float = 0.0
+    face_enabled: bool = False
+    face_blend_strength: float  = 0.0
 
     def load_from_settings(self, settings):
         self.type = settings.value('type')
@@ -48,17 +51,24 @@ class ImageMetadata:
         self.img_strength = 0.0
         if self.type == 'img2img':
             self.condition = settings.value('condition', 'Image')
-            condition = configuration.conditions[self.condition]
+            condition = configuration.conditions.get(self.condition, None)
             if isinstance(condition, ControlNetCondition):
                 self.control_net_preprocess = settings.value('control_net_preprocess', type=bool)
                 self.control_net_model = settings.value('control_net_model')
                 self.control_net_scale = settings.value('control_net_scale')
             self.source_path = settings.value('source_path')
             self.img_strength = float(settings.value('img_strength'))
-        self.gfpgan_enabled = settings.value('gfpgan_enabled', type=bool)
-        self.gfpgan_strength = 0.0
-        if self.gfpgan_enabled:
-            self.gfpgan_strength = float(settings.value('gfpgan_strength'))
+        self.upscale_enabled = settings.value('upscale_enabled', type=bool)
+        self.upscale_factor = 1
+        self.upscale_denoising_strength = 0.0
+        self.upscale_blend_strength = 0.0
+        if self.upscale_enabled:
+            self.upscale_factor = int(settings.value('upscale_factor'))
+            self.upscale_denoising_strength = float(settings.value('upscale_denoising_strength'))
+            self.upscale_blend_strength = float(settings.value('upscale_blend_strength'))
+        self.face_enabled = settings.value('face_enabled', type=bool)
+        if self.face_enabled:
+            self.face_blend_strength = float(settings.value('face_blend_strength'))
     
     def load_from_image_info(self, image_info):
         if 'sd-metadata' in image_info:
@@ -83,17 +93,24 @@ class ImageMetadata:
                 self.source_path = ''
                 self.img_strength = 0.0
                 if self.type == 'img2img':
-                    condition = configuration.conditions[self.condition]
+                    condition = configuration.conditions.get(self.condition, None)
                     if isinstance(condition, ControlNetCondition):
                         self.control_net_preprocess = image_data.get('control_net_preprocess', False)
                         self.control_net_model = image_data.get('control_net_model', '')
                         self.control_net_scale = image_data.get('control_net_scale', 1.0)
                     self.source_path = image_data.get('source_path', '')
                     self.img_strength = float(image_data.get('img_strength', 0.5))
-                self.gfpgan_enabled = 'gfpgan_strength' in image_data
-                self.gfpgan_strength = 0.0
-                if self.gfpgan_enabled:
-                    self.gfpgan_strength = float(image_data.get('gfpgan_strength'))
+                self.upscale_enabled = 'upscale_blend_strength' in image_data
+                self.upscale_factor = 1
+                self.upscale_denoising_strength = 0.0
+                self.upscale_blend_strength = 0.0
+                if self.upscale_enabled:
+                    self.upscale_factor = int(image_data.get('upscale_factor'))
+                    self.upscale_denoising_strength = float(image_data.get('upscale_denoising_strength'))
+                    self.upscale_blend_strength = float(image_data.get('upscale_blend_strength'))
+                self.face_enabled = 'face_blend_strength' in image_data
+                if self.face_enabled:
+                    self.face_blend_strength = float(image_data.get('face_blend_strength'))
 
     def save_to_png_info(self, png_info):
         sd_metadata = {
@@ -117,15 +134,19 @@ class ImageMetadata:
             }
         }
         if self.type == 'img2img':
-            condition = configuration.conditions[self.condition]
+            condition = configuration.conditions.get(self.condition, None)
             if isinstance(condition, ControlNetCondition):
                 sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess
                 sd_metadata['image']['control_net_model'] = self.control_net_model
                 sd_metadata['image']['control_net_scale'] = self.control_net_scale
             sd_metadata['image']['source_path'] = self.source_path
             sd_metadata['image']['img_strength'] = self.img_strength
-        if self.gfpgan_enabled:
-            sd_metadata['image']['gfpgan_strength'] = self.gfpgan_strength
+        if self.upscale_enabled:
+            sd_metadata['image']['upscale_factor'] = self.upscale_factor
+            sd_metadata['image']['upscale_denoising_strength'] = self.upscale_denoising_strength
+            sd_metadata['image']['upscale_blend_strength'] = self.upscale_blend_strength
+        if self.face_enabled:
+            sd_metadata['image']['face_blend_strength'] = self.face_blend_strength
 
         png_info.add_text('Dream',
             '"{:s} [{:s}]" -s {:d} -S {:d} -W {:d} -H {:d} -C {:f} -A {:s}'.format(
