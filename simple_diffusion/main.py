@@ -12,9 +12,11 @@ import traceback
 import torch
 from compel import Compel
 from PIL import Image, PngImagePlugin
-from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QThread, Signal
-from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QImage, QPalette,
-                           QPixmap, QTextCharFormat, QTextCursor)
+from PySide6.QtCore import (QEvent, QPoint, QRect, QSettings, QSize, Qt,
+                            QThread, Signal)
+from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QImage, QPainter,
+                           QPalette, QPen, QPixmap, QTextCharFormat,
+                           QTextCursor)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFrame, QGridLayout, QGroupBox,
@@ -23,9 +25,9 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QMenu, QMenuBar, QMessageBox, QPlainTextEdit,
                                QProgressBar, QPushButton, QScrollArea,
                                QSizePolicy, QSlider, QSpinBox, QSplitter,
-                               QStyle, QStyleOptionSlider, QTableWidget,
-                               QTableWidgetItem, QTextEdit, QToolBar,
-                               QVBoxLayout, QWidget)
+                               QStyle, QStyledItemDelegate, QStyleOptionSlider,
+                               QTableWidget, QTableWidgetItem, QTextEdit,
+                               QToolBar, QVBoxLayout, QWidget)
 from spellchecker import SpellChecker
 
 if sys.platform == 'darwin':
@@ -170,12 +172,40 @@ class PromptTextEdit(QPlainTextEdit):
 
         self.setExtraSelections(extra_selections)
 
-class ThumbnailListWidget(QListWidget):
+class ThumbnailSelectionDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+
+        if option.state & QStyle.State_Selected:
+            rect = QRect(option.rect)
+            checkmark_start = QPoint(rect.left() * 0.70 + rect.right() * 0.30, rect.top() * 0.50 + rect.bottom() * 0.50)
+            checkmark_middle = QPoint(rect.left() * 0.55 + rect.right() * 0.45, rect.top() * 0.35 + rect.bottom() * 0.65)
+            checkmark_end = QPoint(rect.left() * 0.25 + rect.right() * 0.75, rect.top() * 0.65 + rect.bottom() * 0.35)
+
+            painter.save()
+            painter.setPen(QPen(QColor(0, 255, 0), 8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.drawLine(checkmark_start, checkmark_middle)
+            painter.drawLine(checkmark_middle, checkmark_end)
+            painter.restore()
+
+class ThumbnailListWidget(QListWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.min_thumbnail_size = 100
         self.max_thumbnail_size = 250
+        self.spacing = 8
+
+        self.setViewMode(QListWidget.IconMode)
+        self.setResizeMode(QListWidget.Adjust)
+        self.setMovement(QListWidget.Static)
+        self.setSpacing(self.spacing)
+        self.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.setItemDelegate(ThumbnailSelectionDelegate(self))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -190,18 +220,21 @@ class ThumbnailListWidget(QListWidget):
     def update_icon_size(self):
         style = QApplication.instance().style()
         scrollbar_width = style.pixelMetric(QStyle.PM_ScrollBarExtent, QStyleOptionSlider())
-        available_width = self.width() - scrollbar_width
-        num_columns = int((available_width) / (self.min_thumbnail_size))
+        available_width = self.width() - scrollbar_width - 4
+        num_columns = int((available_width) / (self.min_thumbnail_size + self.spacing * 2))
         num_columns = max(1, num_columns)
-        new_icon_size = int((available_width - num_columns) / num_columns)
+        new_icon_size = int((available_width - num_columns * self.spacing * 2) / num_columns)
         new_icon_size = max(self.min_thumbnail_size, min(new_icon_size, self.max_thumbnail_size))
 
         self.setIconSize(QSize(new_icon_size, new_icon_size))
-        self.setGridSize(QSize(new_icon_size, new_icon_size))
 
 class ThumbnailViewer(QWidget):
+    file_dropped = Signal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self.setAcceptDrops(True)
 
         self.action_send_to_img2img = actions.send_to_img2img.create()
         self.action_use_prompt = actions.use_prompt.create()
@@ -214,11 +247,6 @@ class ThumbnailViewer(QWidget):
         self.collection_combobox = QComboBox()
 
         self.list_widget = ThumbnailListWidget()
-        self.list_widget.setViewMode(QListWidget.IconMode)
-        self.list_widget.setResizeMode(QListWidget.Adjust)
-        self.list_widget.setSpacing(10)
-        self.list_widget.setSelectionMode(QAbstractItemView.SingleSelection)
-        self.list_widget.setContextMenuPolicy(Qt.CustomContextMenu)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
         scroll_area = QScrollArea()
@@ -253,6 +281,27 @@ class ThumbnailViewer(QWidget):
         self.collection_combobox.setCurrentText(settings.value('collection'))
         self.collection_combobox.currentIndexChanged.connect(self.update_collection)
         self.update_collection()
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self.setStyleSheet('QListWidget {background-color: #222233;}')
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event):
+        self.setStyleSheet('QListWidget {background-color: black;}')
+        pass
+
+    def dropEvent(self, event):
+        urls = event.mimeData().urls()
+        for url in urls:
+            self.file_dropped.emit(url.toLocalFile())
+        self.setStyleSheet('QListWidget {background-color: black;}')
+
+        event.acceptProposedAction()
 
     def collection(self):
         return self.collection_combobox.currentText()
@@ -293,11 +342,8 @@ class ThumbnailViewer(QWidget):
         if not os.path.exists(thumbnail_path):
             image_path = os.path.join(configuration.IMAGES_PATH, rel_path)
             with Image.open(image_path) as image:
-                width, height = image.size
-                width = width // 2
-                height = height // 2
-                scaled_image = image.resize((width, height))
-                scaled_image.save(thumbnail_path, 'WEBP')
+                thumbnail_image = utils.create_thumbnail(image)
+                thumbnail_image.save(thumbnail_path, 'WEBP')
 
         with Image.open(thumbnail_path) as image:
             pixmap = QPixmap.fromImage(pil_to_qimage(image))
@@ -325,8 +371,9 @@ class ThumbnailViewer(QWidget):
             self.list_widget.setCurrentRow(next_row)
 
     def get_current_metadata(self):
-        item = self.list_widget.currentItem()
-        if item is not None:
+        selected_items = self.list_widget.selectedItems()
+        if selected_items:
+            item = selected_items[0]
             rel_path = item.data(Qt.UserRole)
             full_path = os.path.join(configuration.IMAGES_PATH, rel_path)
             with Image.open(full_path) as image:
@@ -893,6 +940,7 @@ class GenerateThread(QThread):
 
         self.cancel = False
         self.type = settings.value('type')
+        self.collection = settings.value('collection')
         self.req = GenerateRequest()
         self.req.image_metadata.load_from_settings(settings)
         self.req.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
@@ -984,22 +1032,19 @@ class GenerateThread(QThread):
             step = step + 1
 
             # Output
-            collection_path = settings.value('collection')
-            image_files = sorted([file for file in os.listdir(os.path.join(configuration.IMAGES_PATH, collection_path)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
-
-            next_image_id = 0
-            for image_file in image_files:
-                match = re.match(r'(\d+)\.png', image_file)
-                if match:
-                    next_image_id = max(next_image_id, int(match.group(1)))
-            next_image_id = next_image_id + 1
-
-            output_path = os.path.join(collection_path, '{:05d}.png'.format(next_image_id))
-            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
-
+            collection = self.collection
             png_info = PngImagePlugin.PngInfo()
             self.req.image_metadata.save_to_png_info(png_info)
-            image.save(full_path, pnginfo=png_info)
+
+            def output_image():
+                next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
+                output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
+                full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+
+                image.save(full_path, pnginfo=png_info)
+                return output_path
+
+            output_path = utils.retry_on_failure(output_image)
 
             self.update_task_progress(step)
             step = step + 1
@@ -1386,6 +1431,7 @@ class MainWindow(QMainWindow):
 
         # Thumbnail viewer
         self.thumbnail_viewer = ThumbnailViewer()
+        self.thumbnail_viewer.file_dropped.connect(self.on_thumbnail_file_dropped)
         self.thumbnail_viewer.list_widget.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
         self.thumbnail_viewer.action_send_to_img2img.triggered.connect(lambda: self.on_send_to_img2img(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.thumbnail_viewer.get_current_metadata()))
@@ -1606,6 +1652,30 @@ class MainWindow(QMainWindow):
 
     def on_upscale_enabled_check_box_changed(self, state):
         self.upscale_frame.setEnabled(state)
+
+    def on_thumbnail_file_dropped(self, source_path: str):
+        collection = settings.value('collection')
+
+        def output_image():
+            next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
+            output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
+            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+
+            with Image.open(source_path) as image:
+                metadata = ImageMetadata()
+                metadata.path = output_path
+                metadata.load_from_image_info(image.info)
+                png_info = PngImagePlugin.PngInfo()
+                metadata.save_to_png_info(png_info)
+
+                image.save(full_path, pnginfo = png_info)
+            return output_path
+
+        output_path = utils.retry_on_failure(output_image)
+
+        self.thumbnail_viewer.add_image(output_path)
+        self.thumbnail_viewer.list_widget.setCurrentRow(0)
+        self.image_viewer.set_right_image(output_path)
 
     def on_thumbnail_selection_change(self):
         selected_items = self.thumbnail_viewer.list_widget.selectedItems()

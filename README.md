@@ -36,15 +36,14 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 ### Roadmap
 
 Near-term:
-- Move/Copy image to another collection
-- Import image to collection
-- Improve selection display in thumbnail viewer
-- Collapsing panels in controls section
+- Move image to another collection
 - LoRA
 - Clip Interrogator
+- Scrollbar for generation controls and image metadata
+- Collapsing panels in UI
+- Upscale/Restore Faces for existing images
 - Thumbnail paths by image hash 
 - Show image in Delete Image dialog
-- Metadata scrollbar
 - Long Prompt Weighting
 - UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
 - Inpainting

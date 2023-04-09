@@ -71,8 +71,8 @@ use_prompt = ActionDef('Use Prompt', icon='use_prompt_icon.png', shortcut=Qt.Key
 use_seed = ActionDef('Use Seed', icon='use_seed_icon.png', shortcut=Qt.Key_S)
 use_initial_image = ActionDef('Use Initial Image', icon='use_initial_image_icon.png')
 use_all = ActionDef('Use All', icon='use_all_icon.png', shortcut=Qt.Key_A)
-toggle_metadata = ActionDef('Toggle Metadata', icon='metadata_icon.png', shortcut=Qt.Key_I)
-toggle_preview = ActionDef('Toggle Preview', icon='preview_icon.png')
+toggle_metadata = ActionDef('Toggle Metadata', icon='metadata_icon.png', shortcut=Qt.Key_I, checkable=True)
+toggle_preview = ActionDef('Toggle Preview', icon='preview_icon.png', checkable=True)
 
 delete_image = ActionDef('Delete Image', icon='delete_icon.png', shortcut=Qt.Key_Delete)
 reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
