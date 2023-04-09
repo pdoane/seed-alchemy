@@ -213,6 +213,7 @@ class ESRGANProcessor(ProcessorBase):
             warnings.simplefilter('ignore')
             from basicsr.archs.rrdbnet_arch import RRDBNet
             from realesrgan.archs.srvgg_arch import SRVGGNetCompact
+
             from realesrgan import RealESRGANer
 
             if self.model_name == 'RealESRGAN_x4plus':  # x4 RRDBNet model

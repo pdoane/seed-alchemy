@@ -13,8 +13,8 @@ import torch
 from compel import Compel
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QEvent, QSettings, QSize, Qt, QThread, Signal
-from PySide6.QtGui import (QAction, QColor, QFontMetrics, QIcon, QImage,
-                           QPalette, QPixmap, QTextCharFormat, QTextCursor)
+from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QImage, QPalette,
+                           QPixmap, QTextCharFormat, QTextCursor)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QDoubleSpinBox, QFrame, QGridLayout, QGroupBox,
@@ -25,14 +25,16 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QSizePolicy, QSlider, QSpinBox, QSplitter,
                                QStyle, QStyleOptionSlider, QTableWidget,
                                QTableWidgetItem, QTextEdit, QToolBar,
-                               QToolButton, QVBoxLayout, QWidget)
+                               QVBoxLayout, QWidget)
 from spellchecker import SpellChecker
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSApplication, NSWorkspace
     from Foundation import NSBundle
 
+import actions
 import configuration
+import utils
 from configuration import ControlNetCondition, Img2ImgCondition
 from image_metadata import ImageMetadata
 from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
@@ -46,9 +48,6 @@ generate_preprocessor: ProcessorBase = None
 preview_preprocessor: ProcessorBase = None
 pipeline_cache: PipelineCache = PipelineCache()
 settings: QSettings = None
-
-def resource_path(relative_path):
-    return os.path.join('simple_diffusion/resources', relative_path)
 
 def set_default_setting(key: str, value):
     if not settings.contains(key):
@@ -204,12 +203,13 @@ class ThumbnailViewer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.action_send_to_img2img = QAction(QIcon(resource_path('share_icon.png')), 'Send to Image to Image')
-        self.action_use_prompt = QAction(QIcon(resource_path('use_prompt_icon.png')), 'Use Prompt')
-        self.action_use_seed = QAction(QIcon(resource_path('use_seed_icon.png')), 'Use Seed')
-        self.action_use_all = QAction(QIcon(resource_path('use_all_icon.png')), 'Use All')
-        self.action_use_initial_image = QAction(QIcon(resource_path('use_initial_image_icon.png')), 'Use Initial Image')
-        self.action_delete = QAction(QIcon(resource_path('delete_icon.png')), 'Delete Image')
+        self.action_send_to_img2img = actions.send_to_img2img.create()
+        self.action_use_prompt = actions.use_prompt.create()
+        self.action_use_seed = actions.use_seed.create()
+        self.action_use_all = actions.use_all.create()
+        self.action_use_initial_image = actions.use_initial_image.create()
+        self.action_delete = actions.delete_image.create()
+        self.action_reveal_in_finder = actions.reveal_in_finder.create()
 
         self.collection_combobox = QComboBox()
 
@@ -236,10 +236,12 @@ class ThumbnailViewer(QWidget):
         self.menu.addSeparator()
         self.menu.addAction(self.action_use_prompt)
         self.menu.addAction(self.action_use_seed)
-        self.menu.addAction(self.action_use_all)
         self.menu.addAction(self.action_use_initial_image)
+        self.menu.addAction(self.action_use_all)
         self.menu.addSeparator()
         self.menu.addAction(self.action_delete)
+        self.menu.addSeparator()
+        self.menu.addAction(self.action_reveal_in_finder)
 
         # Gather collections
         collections = sorted([entry for entry in os.listdir(configuration.IMAGES_PATH) if os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))])
@@ -375,12 +377,9 @@ class ImageMetadataFrame(QFrame):
         self.seed = MetadataRow('Seed:')
         self.num_inference_steps = MetadataRow('Steps:')
         self.guidance_scale = MetadataRow('CFG Scale:')
-        self.width = MetadataRow('Width:')
-        self.height = MetadataRow('Height:')
+        self.size = MetadataRow('Size:')
         self.condition = MetadataRow('Condition:')
-        self.control_net_preprocess = MetadataRow('Control Net Preprocess:')
-        self.control_net_model = MetadataRow('Control Net Model:')
-        self.control_net_scale = MetadataRow('Control Net Scale:')
+        self.control_net = MetadataRow('Control Net:')
         self.source_path = MetadataRow('Source Path:')
         self.img_strength = MetadataRow('Image Strength:')
         self.upscale = MetadataRow('Upscaling:')
@@ -396,12 +395,9 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.seed.frame)
         vlayout.addWidget(self.num_inference_steps.frame)
         vlayout.addWidget(self.guidance_scale.frame)
-        vlayout.addWidget(self.width.frame)
-        vlayout.addWidget(self.height.frame)
+        vlayout.addWidget(self.size.frame)
         vlayout.addWidget(self.condition.frame)
-        vlayout.addWidget(self.control_net_preprocess.frame)
-        vlayout.addWidget(self.control_net_model.frame)
-        vlayout.addWidget(self.control_net_scale.frame)
+        vlayout.addWidget(self.control_net.frame)
         vlayout.addWidget(self.source_path.frame)
         vlayout.addWidget(self.img_strength.frame)
         vlayout.addWidget(self.upscale.frame)
@@ -418,31 +414,26 @@ class ImageMetadataFrame(QFrame):
         self.seed.value.setText(str(metadata.seed))
         self.num_inference_steps.value.setText(str(metadata.num_inference_steps))
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
-        self.width.value.setText(str(metadata.width))
-        self.height.value.setText(str(metadata.height))
+        self.size.value.setText('{:d}x{:d}'.format(metadata.width, metadata.height))
         self.condition.value.setText(metadata.condition)
         if metadata.type == 'img2img':
             condition = configuration.conditions.get(metadata.condition, None)
             if isinstance(condition, ControlNetCondition):
                 self.img_strength.frame.setVisible(False)
-                self.control_net_preprocess.frame.setVisible(True)
-                self.control_net_model.frame.setVisible(True)
-                self.control_net_scale.frame.setVisible(True)
-                self.control_net_preprocess.value.setText(str(metadata.control_net_preprocess))
-                self.control_net_model.value.setText(metadata.control_net_model)
-                self.control_net_scale.value.setText(str(metadata.control_net_scale))
+                self.control_net.frame.setVisible(True)
+                self.control_net.value.setText('Preprocess={:s}, Scale={:g}, {:s}'.format(
+                    str(metadata.control_net_preprocess),
+                    metadata.control_net_scale,
+                    metadata.control_net_model
+                ))
             else:
-                self.control_net_preprocess.frame.setVisible(False)
-                self.control_net_model.frame.setVisible(False)
-                self.control_net_scale.frame.setVisible(False)
+                self.control_net.frame.setVisible(False)
                 self.img_strength.frame.setVisible(True)
                 self.img_strength.value.setText(str(metadata.img_strength))
             self.source_path.frame.setVisible(True)
             self.source_path.value.setText(metadata.source_path)
         else:
-            self.control_net_preprocess.frame.setVisible(False)
-            self.control_net_model.frame.setVisible(False)
-            self.control_net_scale.frame.setVisible(False)
+            self.control_net.frame.setVisible(False)
             self.source_path.frame.setVisible(False)
             self.img_strength.frame.setVisible(False)
         if metadata.upscale_enabled:
@@ -486,75 +477,18 @@ class ImageViewer(QWidget):
         self.metadata_frame = ImageMetadataFrame(self)
         self.metadata_frame.setVisible(False)
 
-        icon_size = QSize(24, 24)
-
-        self.locate_source_button = QToolButton()
-        self.locate_source_button.setIcon(QIcon(resource_path('locate_icon.png')))
-        self.locate_source_button.setIconSize(icon_size)
-        self.locate_source_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.locate_source_button.setToolTip('Locate Source Image')
-        self.locate_source_button.setToolTipDuration(0)
-
-        self.send_to_img2img_button = QToolButton()
-        self.send_to_img2img_button.setIcon(QIcon(resource_path('share_icon.png')))
-        self.send_to_img2img_button.setIconSize(icon_size)
-        self.send_to_img2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.send_to_img2img_button.setToolTip('Send to Image to Image')
-        self.send_to_img2img_button.setToolTipDuration(0)
-
-        self.use_prompt_button = QToolButton()
-        self.use_prompt_button.setIcon(QIcon(resource_path('use_prompt_icon.png')))
-        self.use_prompt_button.setIconSize(icon_size)
-        self.use_prompt_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.use_prompt_button.setToolTip('Use Prompt')
-        self.use_prompt_button.setToolTipDuration(0)
-
-        self.use_seed_button = QToolButton()
-        self.use_seed_button.setIcon(QIcon(resource_path('use_seed_icon.png')))
-        self.use_seed_button.setIconSize(icon_size)
-        self.use_seed_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.use_seed_button.setToolTip('Use Seed')
-        self.use_seed_button.setToolTipDuration(0)
-
-        self.use_initial_image_button = QToolButton()
-        self.use_initial_image_button.setIcon(QIcon(resource_path('use_initial_image_icon.png')))
-        self.use_initial_image_button.setIconSize(icon_size)
-        self.use_initial_image_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.use_initial_image_button.setToolTip('Use Initial Image')
-        self.use_initial_image_button.setToolTipDuration(0)
-
-        self.use_all_button = QToolButton()
-        self.use_all_button.setIcon(QIcon(resource_path('use_all_icon.png')))
-        self.use_all_button.setIconSize(icon_size)
-        self.use_all_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.use_all_button.setToolTip('Use All')
-        self.use_all_button.setToolTipDuration(0)
-
-        self.metadata_button = QToolButton()
-        self.metadata_button.setIcon(QIcon(resource_path('metadata_icon.png')))
-        self.metadata_button.setIconSize(icon_size)
-        self.metadata_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.metadata_button.setCheckable(True)
-        self.metadata_button.setToolTip('Toggle Image Metadata')
-        self.metadata_button.setToolTipDuration(0)
-        self.metadata_button.toggled.connect(self.on_metadata_button_changed)
-
-        self.preview_button = QToolButton()
-        self.preview_button.setIcon(QIcon(resource_path('preview_icon.png')))
-        self.preview_button.setIconSize(icon_size)
-        self.preview_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.preview_button.setCheckable(True)
-        self.preview_button.setChecked(True)
-        self.preview_button.setToolTip('Toggle Preview')
-        self.preview_button.setToolTipDuration(0)
-        self.preview_button.toggled.connect(self.on_preview_button_changed)
-
-        self.delete_button = QToolButton()
-        self.delete_button.setIcon(QIcon(resource_path('delete_icon.png')))
-        self.delete_button.setIconSize(icon_size)
-        self.delete_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.delete_button.setToolTip('Delete')
-        self.delete_button.setToolTipDuration(0)
+        self.locate_source_button = actions.locate_source.tool_button()
+        self.send_to_img2img_button = actions.send_to_img2img.tool_button()
+        self.use_prompt_button = actions.use_prompt.tool_button()
+        self.use_seed_button = actions.use_seed.tool_button()
+        self.use_initial_image_button = actions.use_initial_image.tool_button()
+        self.use_all_button = actions.use_all.tool_button()
+        self.toggle_metadata_button = actions.toggle_metadata.tool_button()
+        self.toggle_metadata_button.toggled.connect(self.on_metadata_button_changed)
+        self.toggle_preview_button = actions.toggle_preview.tool_button()
+        self.toggle_preview_button.setChecked(True)
+        self.toggle_preview_button.toggled.connect(self.on_preview_button_changed)
+        self.delete_button = actions.delete_image.tool_button()
 
         left_controls_layout = QHBoxLayout(self.left_controls_frame)
         left_controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -574,8 +508,8 @@ class ImageViewer(QWidget):
         right_controls_layout.addWidget(self.use_initial_image_button)
         right_controls_layout.addWidget(self.use_all_button)
         right_controls_layout.addSpacing(8)
-        right_controls_layout.addWidget(self.metadata_button)
-        right_controls_layout.addWidget(self.preview_button)
+        right_controls_layout.addWidget(self.toggle_metadata_button)
+        right_controls_layout.addWidget(self.toggle_preview_button)
         right_controls_layout.addSpacing(8)
         right_controls_layout.addWidget(self.delete_button)
         right_controls_layout.addStretch()
@@ -592,9 +526,10 @@ class ImageViewer(QWidget):
         widget_height = self.height()
         controls_height = 24
 
-        right_scale_factor = 1 if self.preview_image else self.metadata.upscale_factor if self.right_image else 1
+        use_preview_image = self.preview_image is not None and self.show_preview
+        right_scale_factor = 1 if use_preview_image else self.metadata.upscale_factor if self.right_image else 1
         left_scale_factor = self.left_metadata.upscale_factor if self.left_image else 1
-        right_image = self.preview_image if self.preview_image is not None and self.show_preview else self.right_image
+        right_image = self.preview_image if use_preview_image else self.right_image
 
         right_image_width = right_image.width() / right_scale_factor if right_image is not None else 1
         right_image_height = right_image.height() / right_scale_factor if right_image is not None else 1
@@ -1118,28 +1053,20 @@ class MainWindow(QMainWindow):
         # Menubar
         menu_bar = QMenuBar(self)
 
-        action_about = QAction("About", self)
-        action_about.triggered.connect(self.show_about_dialog)
-        action_preferences = QAction("Preferences", self)
-        action_preferences.setMenuRole(QAction.MenuRole.PreferencesRole)
-        action_preferences.triggered.connect(self.show_preferences_dialog)
+        action_about = actions.about.create(self)
+        action_preferences = actions.preferences.create(self)
 
-        action_generate_image = QAction("Generate Image", self)
-        action_generate_image.setShortcut(Qt.CTRL | Qt.Key_Return)
-        action_cancel_generation = QAction("Cancel Generation", self)
-        action_cancel_generation.setShortcut(Qt.SHIFT | Qt.Key_X)
-        action_send_to_img2img = QAction("Send to Image to Image", self)
-        action_use_prompt = QAction("Use Prompt", self)
-        action_use_prompt.setShortcut(Qt.Key_P)
-        action_use_seed = QAction("Use Seed", self)
-        action_use_seed.setShortcut(Qt.Key_S)
-        action_use_initial_image = QAction("Use Initial Image", self)
-        action_use_all = QAction("Use All", self)
-        action_use_all.setShortcut(Qt.Key_A)
-        action_metadata = QAction("Metadata", self)
-        action_metadata.setShortcut(Qt.Key_I)
-        action_delete_image = QAction("Delete Image", self)
-        action_delete_image.setShortcut(Qt.Key_Delete)
+        action_generate_image = actions.generate_image.create(self)
+        action_cancel_generation = actions.cancel_generation.create(self)
+        action_send_to_img2img = actions.send_to_img2img.create(self)
+        action_use_prompt = actions.use_prompt.create(self)
+        action_use_seed = actions.use_seed.create(self)
+        action_use_initial_image = actions.use_initial_image.create(self)
+        action_use_all = actions.use_all.create(self)
+        action_toggle_metadata = actions.toggle_metadata.create(self)
+        action_toggle_preview = actions.toggle_preview.create(self)
+        action_delete_image = actions.delete_image.create(self)
+        action_reveal_in_finder = actions.reveal_in_finder.create(self)
 
         app_menu = QMenu("Application", self)
         menu_bar.addMenu(app_menu)
@@ -1152,14 +1079,22 @@ class MainWindow(QMainWindow):
         image_menu.addAction(action_cancel_generation)
         image_menu.addSeparator()
         image_menu.addAction(action_send_to_img2img)
+        image_menu.addSeparator()
         image_menu.addAction(action_use_prompt)
         image_menu.addAction(action_use_seed)
         image_menu.addAction(action_use_initial_image)
         image_menu.addAction(action_use_all)
-        image_menu.addAction(action_metadata)
+        image_menu.addSeparator()
+        image_menu.addAction(action_toggle_metadata)
+        image_menu.addAction(action_toggle_preview)
         image_menu.addSeparator()
         image_menu.addAction(action_delete_image)
         image_menu.addSeparator()
+        image_menu.addAction(action_reveal_in_finder)
+        image_menu.addSeparator()
+
+        action_about.triggered.connect(self.show_about_dialog)
+        action_preferences.triggered.connect(self.show_preferences_dialog)
 
         action_generate_image.triggered.connect(self.on_generate_image)
         action_cancel_generation.triggered.connect(self.on_cancel_generation)
@@ -1168,8 +1103,10 @@ class MainWindow(QMainWindow):
         action_use_seed.triggered.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
         action_use_initial_image.triggered.connect(lambda: self.on_use_initial_image(self.image_viewer.metadata))
         action_use_all.triggered.connect(lambda: self.on_use_all(self.image_viewer.metadata))
-        action_metadata.triggered.connect(lambda: self.image_viewer.metadata_button.toggle())
+        action_toggle_metadata.triggered.connect(lambda: self.image_viewer.toggle_metadata_button.toggle())
+        action_toggle_preview.triggered.connect(lambda: self.image_viewer.toggle_preview_button.toggle())
         action_delete_image.triggered.connect(lambda: self.on_delete(self.image_viewer.metadata))
+        action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.image_viewer.metadata))
 
         # Add the menu to the menu bar
         menu_bar.addMenu(image_menu)
@@ -1182,21 +1119,8 @@ class MainWindow(QMainWindow):
         mode_toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, mode_toolbar)
 
-        txt2img_button = QToolButton()
-        txt2img_button.setIcon(QIcon(resource_path('txt2img_icon.png')))
-        txt2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        txt2img_button.setCheckable(True)
-        txt2img_button.setAutoExclusive(True)
-        txt2img_button.setToolTip('Text To Image')
-        txt2img_button.setToolTipDuration(0)
-
-        img2img_button = QToolButton()
-        img2img_button.setIcon(QIcon(resource_path('img2img_icon.png')))
-        img2img_button.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        img2img_button.setCheckable(True)
-        img2img_button.setAutoExclusive(True)
-        img2img_button.setToolTip('Image To Image')
-        img2img_button.setToolTipDuration(0)
+        txt2img_button = actions.txt2img.tool_button()
+        img2img_button = actions.img2img.tool_button()
 
         mode_toolbar.addWidget(txt2img_button)
         mode_toolbar.addWidget(img2img_button)
@@ -1233,7 +1157,7 @@ class MainWindow(QMainWindow):
         self.generate_button.clicked.connect(self.on_generate_image)
 
         cancel_button = QPushButton()
-        cancel_button.setIcon(QIcon(resource_path('cancel_icon.png')))
+        cancel_button.setIcon(QIcon(utils.resource_path('cancel_icon.png')))
         cancel_button.setToolTip('Cancel')
         cancel_button.clicked.connect(self.on_cancel_generation)
 
@@ -1469,6 +1393,7 @@ class MainWindow(QMainWindow):
         self.thumbnail_viewer.action_use_initial_image.triggered.connect(lambda: self.on_use_initial_image(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_all.triggered.connect(lambda: self.on_use_all(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_delete.triggered.connect(lambda: self.on_delete(self.thumbnail_viewer.get_current_metadata()))
+        self.thumbnail_viewer.action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.thumbnail_viewer.get_current_metadata()))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.image_viewer)
@@ -1775,6 +1700,11 @@ class MainWindow(QMainWindow):
                 if self.image_viewer.left_image_path() == image_metadata.path:
                     self.image_viewer.clear_left_image()
 
+    def on_reveal_in_finder(self, image_metadata):
+        if image_metadata is not None:
+            full_path = os.path.abspath(os.path.join(configuration.IMAGES_PATH, image_metadata.path))
+            utils.reveal_in_finder(full_path)
+
     def hide_if_thread_running(self):
         if self.generate_thread:
             self.active_thread_count = self.active_thread_count + 1
@@ -1845,7 +1775,7 @@ class Application(QApplication):
         set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')
         settings.endGroup()
 
-        self.setWindowIcon(QIcon(resource_path('app_icon.png')))
+        self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
         self.setStyleSheet('''
         QToolButton {

@@ -1,7 +1,11 @@
 import os
+import sys
 import time
 
 import requests
+
+if sys.platform == 'darwin':
+    from AppKit import NSURL, NSWorkspace
 
 
 class ChangeDirectory:
@@ -30,6 +34,14 @@ class Timer:
             print(f"{self.name} took {elapsed_time:.6f} seconds")
         else:
             print(f"Elapsed time: {elapsed_time:.6f} seconds")
+
+def resource_path(relative_path):
+    return os.path.join('simple_diffusion/resources', relative_path)
+
+def reveal_in_finder(file_path):
+    if sys.platform == 'darwin':
+        file_url = NSURL.fileURLWithPath_(file_path)
+        NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_([file_url])
 
 def download_file(url: str, output_path: str) -> None:
     with requests.get(url, stream=True) as response:

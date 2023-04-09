@@ -7,12 +7,16 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
 from processors import (CannyProcessor, DepthProcessor, HedProcessor,
                         MlsdProcessor, NormalProcessor, OpenposeProcessor,
                         ProcessorBase, ScribbleProcessor, SegProcessor)
+from PySide6.QtCore import QSize
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
+
 IMAGES_PATH = 'images'
 THUMBNAILS_PATH = 'thumbnails'
 MODELS_PATH = '.models'
+
+ICON_SIZE = QSize(24, 24)
 
 @dataclass
 class Img2ImgCondition:
