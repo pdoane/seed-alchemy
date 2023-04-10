@@ -37,7 +37,7 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 
 Near-term:
 - Clip Interrogator
-- Scrollbar for generation controls and image metadata
+- Async thumbnail loading
 - Collapsing panels in UI
 - Upscale/Restore Faces for existing images
 - Thumbnail paths by image hash 

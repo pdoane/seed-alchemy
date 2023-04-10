@@ -18,13 +18,13 @@ from preferences_dialog import PreferencesDialog
 from processors import ProcessorBase
 from prompt_text_edit import PromptTextEdit
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QAction, QIcon, QPalette
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox,
                                QComboBox, QDialog, QDoubleSpinBox, QFrame,
                                QGridLayout, QHBoxLayout, QLabel, QLineEdit,
                                QMainWindow, QMenu, QMenuBar, QProgressBar,
-                               QPushButton, QSizePolicy, QSpinBox, QSplitter,
-                               QToolBar, QVBoxLayout, QWidget)
+                               QPushButton, QScrollArea, QSizePolicy, QSpinBox,
+                               QSplitter, QToolBar, QVBoxLayout, QWidget)
 from thumbnail_viewer import ThumbnailViewer
 
 if sys.platform == 'darwin':
@@ -136,9 +136,13 @@ class MainWindow(QMainWindow):
         self.button_group.idToggled.connect(self.on_mode_changed)
 
         # Configuration controls
-        config_frame = QFrame()
-        config_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
-        config_frame.setContentsMargins(0, 0, 0, 0)
+        self.config_frame = QFrame()
+        self.config_frame.setContentsMargins(0, 0, 0, 0)
+        
+        config_scroll_area = QScrollArea()
+        config_scroll_area.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        config_scroll_area.setWidgetResizable(True)
+        config_scroll_area.setWidget(self.config_frame)
 
         self.model_combo_box = QComboBox()
         self.settings.beginGroup('Models')
@@ -362,7 +366,7 @@ class MainWindow(QMainWindow):
         upscale_layout.addLayout(upscale_enabled_check_box_layout)
         upscale_layout.addWidget(self.upscale_frame)
 
-        config_layout = QVBoxLayout(config_frame)
+        config_layout = QVBoxLayout(self.config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0) 
         config_layout.addWidget(self.model_combo_box)
         config_layout.addWidget(self.prompt_edit)
@@ -407,9 +411,6 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 1)  # left widget
         splitter.setStretchFactor(1, 0)  # right widget
 
-        palette = QApplication.instance().palette()
-        background_color = palette.color(QPalette.Window)
-
         self.progress_bar = QProgressBar()
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
@@ -418,7 +419,7 @@ class MainWindow(QMainWindow):
         hlayout = QHBoxLayout()
         hlayout.setContentsMargins(8, 2, 8, 8)
         hlayout.setSpacing(8)
-        hlayout.addWidget(config_frame)
+        hlayout.addWidget(config_scroll_area)
         hlayout.addWidget(splitter)
 
         vlayout = QVBoxLayout(central_widget)
@@ -520,6 +521,8 @@ class MainWindow(QMainWindow):
                 self.img_strength.setVisible(False)
                 self.control_net_frame.setVisible(True)
             self.image_viewer.set_both_images_visible(True)
+
+        self.config_frame.adjustSize()
 
     def on_generate_image(self):
         if not self.manual_seed_check_box.isChecked():

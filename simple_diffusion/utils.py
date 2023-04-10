@@ -119,10 +119,7 @@ def empty_qicon():
 def horizontal_separator():
     separator = QFrame()
     separator.setFrameShape(QFrame.HLine)
-    separator.setFrameShadow(QFrame.Sunken)
-    palette = separator.palette()
-    color = palette.color(QPalette.ColorRole.Mid)
-    separator.setStyleSheet(f"QFrame {{ border: 1px solid {color.name()}; }}")
+    separator.setStyleSheet('QFrame { border: 2px solid #252525; }')
     return separator
 
 def pil_to_qimage(pil_image: Image.Image):

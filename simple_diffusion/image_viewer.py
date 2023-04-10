@@ -208,8 +208,8 @@ class ImageViewer(QWidget):
         left_image_width = self.left_image.width() / left_scale_factor if self.left_image is not None else right_image_width
         left_image_height = self.left_image.height() / left_scale_factor if self.left_image is not None else right_image_height
 
-        left_min_size = left_image_height // 2
-        right_min_size = right_image_height // 2
+        left_min_size = max(left_image_width, left_image_height) // 4
+        right_min_size = max(right_image_width, right_image_height) // 4
 
         if self.both_images_visible:
             available_height = widget_height - controls_height - 4 * self.padding

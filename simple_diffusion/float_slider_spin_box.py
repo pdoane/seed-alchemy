@@ -25,6 +25,7 @@ class FloatSliderSpinBox(QWidget):
         self.slider.setPageStep(10)
         self.slider.valueChanged.connect(self.on_slider_changed)
         self.spin_box = QDoubleSpinBox()
+        self.spin_box.setFocusPolicy(Qt.StrongFocus)
         self.spin_box.setAlignment(Qt.AlignCenter)
         self.spin_box.setFixedWidth(80)
         self.spin_box.setRange(0.01, 1.0)

@@ -63,18 +63,11 @@ class Application(QApplication):
         self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
         self.setStyleSheet('''
-        QToolButton {
-            background-color: rgba(50, 50, 50, 255);
-        }
-        QToolButton:hover {
-            background-color: darkgrey;
-        }
-        QToolButton:checked {
-            background-color: darkblue;
-        }
-        QToolButton:pressed {
-            background-color: darkblue;
-        }
+            QScrollArea { background-color: transparent; }
+            QToolButton { background-color: rgba(50, 50, 50, 255); }
+            QToolButton:hover { background-color: darkgrey; }
+            QToolButton:checked { background-color: darkblue; }
+            QToolButton:pressed { background-color: darkblue; }
         ''')
         self.main_window = MainWindow(self.settings, self.collections)
         self.main_window.show()
