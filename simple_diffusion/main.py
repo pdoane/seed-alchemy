@@ -6,6 +6,7 @@ os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] ='1'
 import gc
 import random
 import re
+import shutil
 import sys
 import traceback
 
@@ -14,8 +15,8 @@ from compel import Compel
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import (QEvent, QPoint, QRect, QSettings, QSize, Qt,
                             QThread, Signal)
-from PySide6.QtGui import (QColor, QFontMetrics, QIcon, QImage, QPainter,
-                           QPalette, QPen, QPixmap, QTextCharFormat,
+from PySide6.QtGui import (QAction, QColor, QFontMetrics, QIcon, QImage,
+                           QPainter, QPalette, QPen, QPixmap, QTextCharFormat,
                            QTextCursor)
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
                                QCheckBox, QComboBox, QDialog, QDialogButtonBox,
@@ -31,7 +32,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup,
 from spellchecker import SpellChecker
 
 if sys.platform == 'darwin':
-    from AppKit import NSURL, NSApplication, NSWorkspace
+    from AppKit import NSApplication
     from Foundation import NSBundle
 
 import actions
@@ -50,6 +51,7 @@ generate_preprocessor: ProcessorBase = None
 preview_preprocessor: ProcessorBase = None
 pipeline_cache: PipelineCache = PipelineCache()
 settings: QSettings = None
+collections: list[str] = []
 
 def set_default_setting(key: str, value):
     if not settings.contains(key):
@@ -272,11 +274,6 @@ class ThumbnailViewer(QWidget):
         self.menu.addAction(self.action_reveal_in_finder)
 
         # Gather collections
-        collections = sorted([entry for entry in os.listdir(configuration.IMAGES_PATH) if os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))])
-        if not collections:
-            os.makedirs(os.path.join(configuration.IMAGES_PATH, 'outputs'))
-            collections = ['outputs']
-
         self.collection_combobox.addItems(collections)
         self.collection_combobox.setCurrentText(settings.value('collection'))
         self.collection_combobox.currentIndexChanged.connect(self.update_collection)
@@ -323,9 +320,7 @@ class ThumbnailViewer(QWidget):
         collection = os.path.dirname(rel_path)
         collection_path = os.path.join(configuration.IMAGES_PATH, rel_path)
         if os.path.exists(collection_path):
-            if self.collection() != collection:
-                self.collection_combobox.setCurrentText(collection)
-                self.update_collection()
+            self.collection_combobox.setCurrentText(collection)
 
             for index in range(self.list_widget.count()):
                 item = self.list_widget.item(index)
@@ -334,10 +329,6 @@ class ThumbnailViewer(QWidget):
                     break
 
     def add_image(self, rel_path):
-        collection = os.path.dirname(rel_path)
-        if self.collection() != collection:
-            return
-
         thumbnail_path = os.path.join(configuration.THUMBNAILS_PATH, rel_path)
         if not os.path.exists(thumbnail_path):
             image_path = os.path.join(configuration.IMAGES_PATH, rel_path)
@@ -583,6 +574,9 @@ class ImageViewer(QWidget):
         left_image_width = self.left_image.width() / left_scale_factor if self.left_image is not None else right_image_width
         left_image_height = self.left_image.height() / left_scale_factor if self.left_image is not None else right_image_height
 
+        left_min_size = left_image_height // 2
+        right_min_size = right_image_height // 2
+
         if self.both_images_visible:
             available_height = widget_height - controls_height - 4 * self.padding
             available_width = widget_width - 3 * self.padding
@@ -598,16 +592,16 @@ class ImageViewer(QWidget):
                 left_height = available_height
                 left_width = int(left_image_width * (left_height / left_image_height))
 
-            if left_height < self.minimum_image_size:
-                left_height = self.minimum_image_size
+            if left_height < left_min_size:
+                left_height = left_min_size
                 left_width = int(left_image_width * (left_height / left_image_height))
                 right_width = available_width - left_width
                 right_height = int(right_image_height * (right_width / right_image_width))
                 if right_height > available_height:
                     right_height = available_height
                     right_width = int(right_image_width * (right_height / right_image_height))
-                if right_height < self.minimum_image_size:
-                    right_height = self.minimum_image_size
+                if right_height < right_min_size:
+                    right_height = right_min_size
                     right_width = int(right_image_width * (right_height / right_image_height))
 
             if self.left_image is not None:
@@ -1036,7 +1030,7 @@ class GenerateThread(QThread):
             png_info = PngImagePlugin.PngInfo()
             self.req.image_metadata.save_to_png_info(png_info)
 
-            def output_image():
+            def io_operation():
                 next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
                 output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
                 full_path = os.path.join(configuration.IMAGES_PATH, output_path)
@@ -1044,7 +1038,7 @@ class GenerateThread(QThread):
                 image.save(full_path, pnginfo=png_info)
                 return output_path
 
-            output_path = utils.retry_on_failure(output_image)
+            output_path = utils.retry_on_failure(io_operation)
 
             self.update_task_progress(step)
             step = step + 1
@@ -1113,6 +1107,13 @@ class MainWindow(QMainWindow):
         action_delete_image = actions.delete_image.create(self)
         action_reveal_in_finder = actions.reveal_in_finder.create(self)
 
+        move_image_menu = QMenu('Move To', self)
+        move_image_menu.setIcon(utils.empty_qicon())
+        for collection in collections:
+            item_action = QAction(collection, self)
+            item_action.triggered.connect(lambda checked=False, x=collection: self.on_move_image(self.image_viewer.metadata, x))
+            move_image_menu.addAction(item_action)
+
         app_menu = QMenu("Application", self)
         menu_bar.addMenu(app_menu)
         app_menu.addAction(action_about)
@@ -1133,6 +1134,7 @@ class MainWindow(QMainWindow):
         image_menu.addAction(action_toggle_metadata)
         image_menu.addAction(action_toggle_preview)
         image_menu.addSeparator()
+        image_menu.addMenu(move_image_menu)
         image_menu.addAction(action_delete_image)
         image_menu.addSeparator()
         image_menu.addAction(action_reveal_in_finder)
@@ -1630,9 +1632,7 @@ class MainWindow(QMainWindow):
         self.image_viewer.set_preview_image(preview_image)
 
     def image_complete(self, output_path):
-        self.thumbnail_viewer.add_image(output_path)
-        self.thumbnail_viewer.list_widget.setCurrentRow(0)
-        self.image_viewer.set_right_image(output_path)
+        self.on_add_file(output_path)
 
     def generate_complete(self):
         self.generate_button.setEnabled(True)
@@ -1654,9 +1654,9 @@ class MainWindow(QMainWindow):
         self.upscale_frame.setEnabled(state)
 
     def on_thumbnail_file_dropped(self, source_path: str):
-        collection = settings.value('collection')
+        collection = self.thumbnail_viewer.collection()
 
-        def output_image():
+        def io_operation():
             next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
             output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
             full_path = os.path.join(configuration.IMAGES_PATH, output_path)
@@ -1671,11 +1671,9 @@ class MainWindow(QMainWindow):
                 image.save(full_path, pnginfo = png_info)
             return output_path
 
-        output_path = utils.retry_on_failure(output_image)
+        output_path = utils.retry_on_failure(io_operation)
 
-        self.thumbnail_viewer.add_image(output_path)
-        self.thumbnail_viewer.list_widget.setCurrentRow(0)
-        self.image_viewer.set_right_image(output_path)
+        self.on_add_file(output_path)
 
     def on_thumbnail_selection_change(self):
         selected_items = self.thumbnail_viewer.list_widget.selectedItems()
@@ -1743,6 +1741,28 @@ class MainWindow(QMainWindow):
 
             self.set_type(image_metadata.type)
 
+    def on_move_image(self, image_metadata: ImageMetadata, collection: str):
+        current_collection = self.thumbnail_viewer.collection()
+        if collection == current_collection:
+            return
+
+        if image_metadata is not None:
+            source_path = image_metadata.path
+
+            def io_operation():
+                next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
+                output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
+
+                full_source_path = os.path.join(configuration.IMAGES_PATH, source_path)
+                full_output_path = os.path.join(configuration.IMAGES_PATH, output_path)
+
+                shutil.move(full_source_path, full_output_path)
+
+            output_path = utils.retry_on_failure(io_operation)
+
+            self.on_remove_file(image_metadata.path)
+            self.on_add_file(output_path)
+
     def on_delete(self, image_metadata):
         if image_metadata is not None:
             message_box = QMessageBox()
@@ -1755,20 +1775,26 @@ class MainWindow(QMainWindow):
             result = message_box.exec()
             if result == QMessageBox.Yes:
                 full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
-                if sys.platform == 'darwin':
-                    # Move file to trash
-                    file_url = NSURL.fileURLWithPath_(full_path)
-                    NSWorkspace.sharedWorkspace().recycleURLs_completionHandler_([file_url], None)
-                else:
-                    os.remove(full_path)
+                utils.recycle_file(full_path)
+                self.on_remove_file(image_metadata.path)
 
-                full_path = os.path.join(configuration.THUMBNAILS_PATH, image_metadata.path)
-                os.remove(full_path)
+    def on_add_file(self, path):
+        collection = os.path.dirname(path)
+        current_collection = self.thumbnail_viewer.collection()
+        if collection != current_collection:
+            return
 
-                self.thumbnail_viewer.remove_image(image_metadata.path)
+        self.thumbnail_viewer.add_image(path)
+        self.thumbnail_viewer.list_widget.setCurrentRow(0)
+        self.image_viewer.set_right_image(path)
 
-                if self.image_viewer.left_image_path() == image_metadata.path:
-                    self.image_viewer.clear_left_image()
+    def on_remove_file(self, path):
+        full_thumbnail_path = os.path.join(configuration.THUMBNAILS_PATH, path)
+        os.remove(full_thumbnail_path)
+
+        self.thumbnail_viewer.remove_image(path)
+        if self.image_viewer.left_image_path() == path:
+            self.image_viewer.clear_left_image()
 
     def on_reveal_in_finder(self, image_metadata):
         if image_metadata is not None:
@@ -1879,6 +1905,12 @@ def main():
         bundle = NSBundle.mainBundle()
         info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
         info_dict['CFBundleName'] = configuration.APP_NAME
+
+    global collections
+    collections = sorted([entry for entry in os.listdir(configuration.IMAGES_PATH) if os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))])
+    if not collections:
+        os.makedirs(os.path.join(configuration.IMAGES_PATH, 'outputs'))
+        collections = ['outputs']
 
     app = Application(sys.argv)
     sys.exit(app.exec())

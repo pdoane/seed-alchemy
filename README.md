@@ -36,8 +36,6 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 ### Roadmap
 
 Near-term:
-- Move image to another collection
-- LoRA
 - Clip Interrogator
 - Scrollbar for generation controls and image metadata
 - Collapsing panels in UI
@@ -56,6 +54,7 @@ Evaluate:
 
 Requires new versions of dependencies:
 - diffusers
+  - LoRA
   - Multi-ControlNet
   - ControlNet Guidance Start/End (community pipeline)
   - ControlNet Seperate Conditioning Image (community pipeline)

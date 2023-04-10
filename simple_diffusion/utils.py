@@ -6,10 +6,13 @@ from typing import Callable
 
 import requests
 from PIL import Image
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPixmap
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSWorkspace
 
+empty_icon: QIcon = None
 
 class ChangeDirectory:
     def __init__(self, dir) -> None:
@@ -41,10 +44,17 @@ class Timer:
 def resource_path(relative_path) -> str:
     return os.path.join('simple_diffusion/resources', relative_path)
 
-def reveal_in_finder(file_path: str) -> None:
+def reveal_in_finder(path: str) -> None:
     if sys.platform == 'darwin':
-        file_url = NSURL.fileURLWithPath_(file_path)
-        NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_([file_url])
+        url = NSURL.fileURLWithPath_(path)
+        NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_([url])
+
+def recycle_file(path: str) -> None:
+    if sys.platform == 'darwin':
+        url = NSURL.fileURLWithPath_(path)
+        NSWorkspace.sharedWorkspace().recycleURLs_completionHandler_([url], None)
+    else:
+        os.remove(full_path)
 
 def download_file(url: str, output_path: str) -> None:
     with requests.get(url, stream=True) as response:
@@ -96,3 +106,11 @@ def create_thumbnail(image):
     position = ((thumbnail_size - new_width) // 2, (thumbnail_size - new_height) // 2)
     thumbnail.paste(scaled_image, position)
     return thumbnail
+
+def empty_qicon():
+    global empty_icon
+    if empty_icon is None:
+        empty_pixmap = QPixmap(16, 16)
+        empty_pixmap.fill(Qt.transparent)
+        empty_icon = QIcon(empty_pixmap)
+    return empty_icon

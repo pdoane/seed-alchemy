@@ -6,8 +6,6 @@ from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap
 from PySide6.QtWidgets import QToolButton
 
-empty_icon: QIcon = None
-
 @dataclass
 class ActionDef:
     text: str
@@ -22,13 +20,7 @@ class ActionDef:
         if self.icon is not None:
             action = QAction(QIcon(utils.resource_path(self.icon)), self.text, parent)
         elif self.empty_icon:
-            global empty_icon
-            if empty_icon is None:
-                empty_pixmap = QPixmap(16, 16)
-                empty_pixmap.fill(Qt.transparent)
-                empty_icon = QIcon(empty_pixmap)
-
-            action = QAction(empty_icon, self.text, parent)
+            action = QAction(utils.empty_qicon(), self.text, parent)
         else:
             action = QAction(self.text, parent)
 
