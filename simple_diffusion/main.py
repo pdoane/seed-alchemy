@@ -38,6 +38,7 @@ if sys.platform == 'darwin':
 import actions
 import configuration
 import utils
+from delete_image_dialog import DeleteImageDialog
 from configuration import ControlNetCondition, Img2ImgCondition
 from image_metadata import ImageMetadata
 from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
@@ -1765,16 +1766,10 @@ class MainWindow(QMainWindow):
 
     def on_delete(self, image_metadata):
         if image_metadata is not None:
-            message_box = QMessageBox()
-            message_box.setIcon(QMessageBox.Warning)
-            message_box.setWindowTitle('Confirm Delete')
-            message_box.setText('Are you sure you want to delete this image?')
-            message_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            message_box.setDefaultButton(QMessageBox.No)
-
-            result = message_box.exec()
-            if result == QMessageBox.Yes:
-                full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
+            full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
+            dialog = DeleteImageDialog(full_path)
+            result = dialog.exec()
+            if result == QDialog.Accepted:
                 utils.recycle_file(full_path)
                 self.on_remove_file(image_metadata.path)
 

@@ -41,7 +41,6 @@ Near-term:
 - Collapsing panels in UI
 - Upscale/Restore Faces for existing images
 - Thumbnail paths by image hash 
-- Show image in Delete Image dialog
 - Long Prompt Weighting
 - UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
 - Inpainting
