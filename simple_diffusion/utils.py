@@ -7,7 +7,8 @@ from typing import Callable
 import requests
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPalette, QPixmap
+from PySide6.QtWidgets import QFrame
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSWorkspace
@@ -114,3 +115,17 @@ def empty_qicon():
         empty_pixmap.fill(Qt.transparent)
         empty_icon = QIcon(empty_pixmap)
     return empty_icon
+
+def horizontal_separator():
+    separator = QFrame()
+    separator.setFrameShape(QFrame.HLine)
+    separator.setFrameShadow(QFrame.Sunken)
+    palette = separator.palette()
+    color = palette.color(QPalette.ColorRole.Mid)
+    separator.setStyleSheet(f"QFrame {{ border: 1px solid {color.name()}; }}")
+    return separator
+
+def pil_to_qimage(pil_image: Image.Image):
+    data = pil_image.convert('RGBA').tobytes('raw', 'RGBA')
+    qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
+    return qimage
