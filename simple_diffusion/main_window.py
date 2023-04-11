@@ -143,6 +143,7 @@ class MainWindow(QMainWindow):
         config_scroll_area.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         config_scroll_area.setWidgetResizable(True)
         config_scroll_area.setWidget(self.config_frame)
+        config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
         self.model_combo_box = QComboBox()
         self.settings.beginGroup('Models')
@@ -717,6 +718,7 @@ class MainWindow(QMainWindow):
                 full_output_path = os.path.join(configuration.IMAGES_PATH, output_path)
 
                 shutil.move(full_source_path, full_output_path)
+                return output_path
 
             output_path = utils.retry_on_failure(io_operation)
 
@@ -727,10 +729,13 @@ class MainWindow(QMainWindow):
         if image_metadata is not None:
             full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
             dialog = DeleteImageDialog(full_path)
+            focused_widget = QApplication.focusWidget()
             result = dialog.exec()
             if result == QDialog.Accepted:
                 utils.recycle_file(full_path)
                 self.on_remove_file(image_metadata.path)
+            if focused_widget:
+                focused_widget.setFocus()
 
     def on_add_file(self, path):
         collection = os.path.dirname(path)

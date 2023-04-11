@@ -80,6 +80,10 @@ class ImageMetadata:
                 self.safety_checker = bool(image_data.get('safety_checker', False))
                 self.scheduler = image_data.get('sampler', 'k_euler_a')
                 self.prompt = image_data.get('prompt', '')
+                if isinstance(self.prompt, list):
+                    self.prompt = self.prompt[0]
+                if 'prompt' in self.prompt:
+                    self.prompt = self.prompt['prompt']
                 self.negative_prompt = image_data.get('negative_prompt', '')
                 self.seed = int(image_data.get('seed', 5))
                 self.steps = int(image_data.get('steps', 30))

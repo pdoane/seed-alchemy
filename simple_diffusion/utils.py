@@ -75,7 +75,7 @@ def next_image_id(dir: str) -> int:
             id = max(id, int(match.group(1)))
     return id + 1
 
-def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, backoff_factor=2):
+def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, backoff_factor=1.1):
     current_retry = 0
 
     while current_retry < max_retries:
