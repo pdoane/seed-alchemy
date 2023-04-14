@@ -4,13 +4,13 @@ import os
 import actions
 import configuration
 import utils
-from thumbnail_list_widget import ThumbnailListWidget
 from image_metadata import ImageMetadata
 from PIL import Image
-from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtCore import QSettings, QSize, Qt, Signal
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import (QComboBox, QListWidgetItem, QMenu, QScrollArea,
-                               QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QListWidgetItem, QMenu, QVBoxLayout,
+                               QWidget)
+from thumbnail_list_widget import ThumbnailListWidget
 
 
 class ThumbnailViewer(QWidget):
@@ -34,15 +34,10 @@ class ThumbnailViewer(QWidget):
         self.list_widget = ThumbnailListWidget()
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        scroll_area.setWidget(self.list_widget)
-
         thumbnail_layout = QVBoxLayout(self)
         thumbnail_layout.setContentsMargins(0, 0, 0, 0)
         thumbnail_layout.addWidget(self.collection_combobox)
-        thumbnail_layout.addWidget(scroll_area)
+        thumbnail_layout.addWidget(self.list_widget)
 
         self.menu = QMenu()
         self.menu.addAction(self.action_send_to_img2img)
@@ -125,6 +120,7 @@ class ThumbnailViewer(QWidget):
             item = QListWidgetItem()
             item.setIcon(icon)
             item.setData(Qt.UserRole, rel_path)
+            item.setSizeHint(self.list_widget.iconSize())
             self.list_widget.insertItem(0, item)
 
     def remove_image(self, rel_path):

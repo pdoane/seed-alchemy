@@ -92,7 +92,7 @@ def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, bac
 
 def create_thumbnail(image):
     width, height = image.size
-    thumbnail_size = max(width, height)
+    thumbnail_size = min(256, max(width, height))
 
     aspect_ratio = float(width) / float(height)
     if aspect_ratio > 1:
@@ -119,7 +119,6 @@ def empty_qicon():
 def horizontal_separator():
     separator = QFrame()
     separator.setFrameShape(QFrame.HLine)
-    separator.setStyleSheet('QFrame { border: 2px solid #252525; }')
     return separator
 
 def pil_to_qimage(pil_image: Image.Image):

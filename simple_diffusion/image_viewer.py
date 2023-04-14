@@ -145,7 +145,9 @@ class ImageViewer(QWidget):
         self.left_label = QLabel(self)
         self.right_label = QLabel(self)
         self.left_controls_frame = QFrame(self)
+        self.left_controls_frame.setFrameStyle(QFrame.Panel)
         self.right_controls_frame = QFrame(self)
+        self.right_controls_frame.setFrameStyle(QFrame.Panel)
         self.metadata_frame = ImageMetadataFrame(self)
         self.metadata_frame.setVisible(False)
 
@@ -186,17 +188,13 @@ class ImageViewer(QWidget):
         right_controls_layout.addWidget(self.delete_button)
         right_controls_layout.addStretch()
 
-        background_color = QApplication.instance().palette().color(QPalette.Base)
-        self.setStyleSheet(f'ImageViewer {{ background-color: {background_color.name()}; }}')
-        self.setAttribute(Qt.WA_StyledBackground, True)
-
     def resizeEvent(self, event):
         self.update_images()
 
     def update_images(self):
         widget_width = self.width()
         widget_height = self.height()
-        controls_height = 24
+        controls_height = 32
 
         use_preview_image = self.preview_image is not None and self.show_preview
         right_scale_factor = 1 if use_preview_image else self.metadata.upscale_factor if self.right_image else 1

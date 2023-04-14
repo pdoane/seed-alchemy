@@ -30,6 +30,7 @@ class ThumbnailListWidget(QListWidget):
         self.max_thumbnail_size = 250
         self.spacing = 8
 
+        self.setUniformItemSizes(True)
         self.setViewMode(QListWidget.IconMode)
         self.setResizeMode(QListWidget.Adjust)
         self.setMovement(QListWidget.Static)
@@ -37,24 +38,25 @@ class ThumbnailListWidget(QListWidget):
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.setItemDelegate(ThumbnailSelectionDelegate(self))
+        self.setStyleSheet('''
+            QListWidget::item { padding: 0px; margin: 0px; }
+            QListWidget::item:hover { border: 0px; background-color: rgba(0, 0, 0, 0); }
+            QListWidget::item:selected { border: 0px; background-color: rgba(0, 0, 0, 0); }
+        ''')
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self.update_icon_size()
 
-    def visualRect(self, index):
-        rect = super().visualRect(index)
-        rect.setWidth(self.iconSize().width())
-        rect.setHeight(self.iconSize().height())
-        return rect
-
     def update_icon_size(self):
-        style = QApplication.instance().style()
-        scrollbar_width = style.pixelMetric(QStyle.PM_ScrollBarExtent, QStyleOptionSlider())
-        available_width = self.width() - scrollbar_width - 4
-        num_columns = int((available_width) / (self.min_thumbnail_size + self.spacing * 2))
+        available_width = self.viewport().width() - self.spacing - 1
+        num_columns = int((available_width) / (self.min_thumbnail_size + self.spacing))
         num_columns = max(1, num_columns)
-        new_icon_size = int((available_width - num_columns * self.spacing * 2) / num_columns)
+        new_icon_size = int((available_width - num_columns * self.spacing) / num_columns)
         new_icon_size = max(self.min_thumbnail_size, min(new_icon_size, self.max_thumbnail_size))
 
-        self.setIconSize(QSize(new_icon_size, new_icon_size))
+        size = QSize(new_icon_size, new_icon_size)
+        self.setIconSize(size)
+        for index in range(self.count()):
+            item = self.item(index)
+            item.setSizeHint(size)

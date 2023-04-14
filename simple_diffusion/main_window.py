@@ -9,7 +9,6 @@ import utils
 from about_dialog import AboutDialog
 from configuration import ControlNetCondition, Img2ImgCondition
 from delete_image_dialog import DeleteImageDialog
-from float_slider_spin_box import FloatSliderSpinBox
 from generate_thread import GenerateThread
 from image_metadata import ImageMetadata
 from image_viewer import ImageViewer
@@ -19,13 +18,14 @@ from processors import ProcessorBase
 from prompt_text_edit import PromptTextEdit
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox,
-                               QComboBox, QDialog, QDoubleSpinBox, QFrame,
-                               QGridLayout, QHBoxLayout, QLabel, QLineEdit,
-                               QMainWindow, QMenu, QMenuBar, QProgressBar,
-                               QPushButton, QScrollArea, QSizePolicy, QSpinBox,
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog,
+                               QFrame, QGridLayout, QGroupBox, QHBoxLayout,
+                               QLabel, QLineEdit, QMainWindow, QMenu, QMenuBar,
+                               QProgressBar, QPushButton, QSizePolicy,
                                QSplitter, QToolBar, QVBoxLayout, QWidget)
 from thumbnail_viewer import ThumbnailViewer
+from widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox, ScrollArea,
+                     SpinBox)
 
 if sys.platform == 'darwin':
     from AppKit import NSApplication
@@ -138,14 +138,15 @@ class MainWindow(QMainWindow):
         # Configuration controls
         self.config_frame = QFrame()
         self.config_frame.setContentsMargins(0, 0, 0, 0)
-        
-        config_scroll_area = QScrollArea()
+
+        config_scroll_area = ScrollArea()
+        config_scroll_area.setFrameStyle(QFrame.NoFrame)
         config_scroll_area.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         config_scroll_area.setWidgetResizable(True)
         config_scroll_area.setWidget(self.config_frame)
         config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
-        self.model_combo_box = QComboBox()
+        self.model_combo_box = ComboBox()
         self.settings.beginGroup('Models')
         for key in self.settings.childKeys():
             value = self.settings.value(key)
@@ -171,26 +172,24 @@ class MainWindow(QMainWindow):
         cancel_button.setToolTip('Cancel')
         cancel_button.clicked.connect(self.on_cancel_generation)
 
-        controls_frame = QFrame()
-        controls_frame.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-
         num_images_label = QLabel('Images')
         num_images_label.setAlignment(Qt.AlignCenter)
-        self.num_images_spin_box = QSpinBox()
+        self.num_images_spin_box = SpinBox()
         self.num_images_spin_box.setAlignment(Qt.AlignCenter)
         self.num_images_spin_box.setFixedWidth(80)
         self.num_images_spin_box.setMinimum(1)
         self.num_images_spin_box.setValue(int(self.settings.value('num_images_per_prompt')))
         num_steps_label = QLabel('Steps')
         num_steps_label.setAlignment(Qt.AlignCenter)
-        self.num_steps_spin_box = QSpinBox()
+        self.num_steps_spin_box = SpinBox()
         self.num_steps_spin_box.setAlignment(Qt.AlignCenter)
         self.num_steps_spin_box.setFixedWidth(80)
         self.num_steps_spin_box.setMinimum(1)
         self.num_steps_spin_box.setValue(int(self.settings.value('num_inference_steps')))
         guidance_scale_label = QLabel('CFG Scale')
         guidance_scale_label.setAlignment(Qt.AlignCenter)
-        self.guidance_scale_spin_box = QDoubleSpinBox()
+        self.guidance_scale_spin_box = DoubleSpinBox()
+        self.guidance_scale_spin_box.setFocusPolicy(Qt.StrongFocus)
         self.guidance_scale_spin_box.setAlignment(Qt.AlignCenter)
         self.guidance_scale_spin_box.setFixedWidth(80)
         self.guidance_scale_spin_box.setSingleStep(0.5)
@@ -198,7 +197,7 @@ class MainWindow(QMainWindow):
         self.guidance_scale_spin_box.setValue(float(self.settings.value('guidance_scale')))
         width_label = QLabel('Width')
         width_label.setAlignment(Qt.AlignCenter)
-        self.width_spin_box = QSpinBox()
+        self.width_spin_box = SpinBox()
         self.width_spin_box.setAlignment(Qt.AlignCenter)
         self.width_spin_box.setFixedWidth(80)
         self.width_spin_box.setSingleStep(64)
@@ -207,7 +206,7 @@ class MainWindow(QMainWindow):
         self.width_spin_box.setValue(int(self.settings.value('width')))
         height_label = QLabel('Height')
         height_label.setAlignment(Qt.AlignCenter)
-        self.height_spin_box = QSpinBox()
+        self.height_spin_box = SpinBox()
         self.height_spin_box.setAlignment(Qt.AlignCenter)
         self.height_spin_box.setFixedWidth(80)
         self.height_spin_box.setSingleStep(64)
@@ -216,83 +215,13 @@ class MainWindow(QMainWindow):
         self.height_spin_box.setValue(int(self.settings.value('height')))
         scheduler_label = QLabel('Scheduler')
         scheduler_label.setAlignment(Qt.AlignCenter)
-        self.scheduler_combo_box = QComboBox()
+        self.scheduler_combo_box = ComboBox()
         self.scheduler_combo_box.addItems(configuration.schedulers.keys())
         self.scheduler_combo_box.setFixedWidth(120)
         self.scheduler_combo_box.setCurrentText(self.settings.value('scheduler'))
 
-        self.manual_seed_check_box = QCheckBox('Manual Seed')
-
-        self.seed_frame = QFrame()
-        self.seed_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.seed_lineedit = QLineEdit()
-        self.seed_lineedit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.seed_lineedit.setText(str(self.settings.value('seed')))
-        seed_random_button = QPushButton('New')
-        seed_random_button.clicked.connect(self.on_seed_random_clicked)
-
-        manual_seed = self.settings.value('manual_seed', type=bool)
-        self.seed_frame.setEnabled(manual_seed)
-        self.manual_seed_check_box.setChecked(manual_seed)
-        self.manual_seed_check_box.stateChanged.connect(self.on_manual_seed_check_box_changed)
-
-        self.condition_frame = QFrame()
-        conditions_label = QLabel('Condition: ')
-        self.condition_combo_box = QComboBox()
-        self.condition_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.condition_combo_box.addItems(configuration.conditions.keys())
-        self.condition_combo_box.setCurrentText(self.settings.value('condition'))
-        self.condition_combo_box.currentIndexChanged.connect(self.on_condition_combobox_value_changed)
-
-        self.control_net_frame = QFrame()
-        self.control_net_preprocess_check_box = QCheckBox('Preprocess')
-        self.control_net_preprocess_check_box.setChecked(self.settings.value('control_net_preprocess', type=bool))
-        self.control_net_preview_preprocessor_button = QPushButton('Preview')
-        self.control_net_preview_preprocessor_button.clicked.connect(self.on_control_net_preview_preprocessor_button_clicked)
-
-        control_net_model_label = QLabel('Model')
-        control_net_model_label.setAlignment(Qt.AlignCenter)
-        self.control_net_model_combo_box = QComboBox()
-
-        self.control_net_scale = FloatSliderSpinBox('ControlNet Scale', float(self.settings.value('control_net_scale')))
-
-        control_net_grid = QGridLayout()
-        control_net_grid.setContentsMargins(0, 0, 0, 0)
-        control_net_grid.setVerticalSpacing(2)
-        control_net_grid.addWidget(self.control_net_preprocess_check_box, 0, 0)
-        control_net_grid.setAlignment(self.control_net_preprocess_check_box, Qt.AlignCenter)
-        control_net_grid.addWidget(self.control_net_preview_preprocessor_button, 1, 0)
-        control_net_grid.addWidget(control_net_model_label, 0, 1)
-        control_net_grid.addWidget(self.control_net_model_combo_box, 1, 1)
-
-        self.img_strength = FloatSliderSpinBox('Image Strength', float(self.settings.value('img_strength')))
-
-        upscale_enabled = self.settings.value('upscale_enabled', type=bool)
-        self.upscale_enabled_check_box = QCheckBox('Upscaling')
-        self.upscale_enabled_check_box.setChecked(upscale_enabled)
-        self.upscale_enabled_check_box.stateChanged.connect(self.on_upscale_enabled_check_box_changed)
-        self.upscale_frame = QFrame()
-        self.upscale_frame.setEnabled(upscale_enabled)
-        upscale_factor_label = QLabel('Factor: ')
-        self.upscale_factor_combo_box = QComboBox()
-        self.upscale_factor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.upscale_factor_combo_box.addItem('2x', 2)
-        self.upscale_factor_combo_box.addItem('4x', 4)
-        index = self.upscale_factor_combo_box.findData(self.settings.value('upscale_factor', type=int))
-        if index != -1:
-            self.upscale_factor_combo_box.setCurrentIndex(index)        
-        self.upscale_denoising_strength = FloatSliderSpinBox('Denoising Strength', float(self.settings.value('upscale_denoising_strength')))
-        self.upscale_blend_strength = FloatSliderSpinBox('Upscale Strength', float(self.settings.value('upscale_denoising_strength')))
-        self.face_strength = FloatSliderSpinBox('Face Restoration', float(self.settings.value('face_blend_strength')), checkable=True)
-        self.face_strength.check_box.setChecked(self.settings.value('face_enabled', type=bool))
-
-        generate_hlayout = QHBoxLayout()
-        generate_hlayout.setContentsMargins(0, 0, 0, 0)
-        generate_hlayout.addWidget(self.generate_button)
-        generate_hlayout.addWidget(cancel_button)
-
-        controls_grid = QGridLayout(controls_frame)
-        controls_grid.setContentsMargins(0, 0, 0, 0)
+        self.general_group_box = QGroupBox('General')
+        controls_grid = QGridLayout(self.general_group_box)
         controls_grid.setVerticalSpacing(2)
         controls_grid.setRowMinimumHeight(2, 10)
         controls_grid.addWidget(num_images_label, 0, 0)
@@ -309,79 +238,114 @@ class MainWindow(QMainWindow):
         controls_grid.addWidget(scheduler_label, 3, 2)
         controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
 
+        self.seed_lineedit = QLineEdit()
+        self.seed_lineedit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.seed_lineedit.setText(str(self.settings.value('seed')))
+        seed_random_button = QPushButton('New')
+        seed_random_button.clicked.connect(self.on_seed_random_clicked)
+
+        self.seed_frame = QFrame()
+        self.seed_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         seed_hlayout = QHBoxLayout(self.seed_frame)
         seed_hlayout.setContentsMargins(0, 0, 0, 0)
         seed_hlayout.addWidget(self.seed_lineedit)
         seed_hlayout.addWidget(seed_random_button)
 
-        seed_vlayout = QVBoxLayout()
-        seed_vlayout.setContentsMargins(0, 0, 0, 0) 
-        seed_vlayout.setSpacing(0)
-        seed_check_box_layout = QHBoxLayout()
-        seed_check_box_layout.setAlignment(Qt.AlignCenter)
-        seed_check_box_layout.addWidget(self.manual_seed_check_box)
-        seed_vlayout.addLayout(seed_check_box_layout)
-        seed_vlayout.addWidget(self.seed_frame)
+        self.manual_seed_group_box = QGroupBox('Manual Seed')
+        self.manual_seed_group_box.setCheckable(True)
+        self.manual_seed_group_box.setChecked(self.settings.value('manual_seed', type=bool))
+        manual_seed_group_box_layout = QVBoxLayout(self.manual_seed_group_box)
+        manual_seed_group_box_layout.addWidget(self.seed_frame)
 
-        condition_frame_layout = QHBoxLayout(self.condition_frame)
-        condition_frame_layout.setContentsMargins(0, 0, 0, 0)
-        condition_frame_layout.addWidget(conditions_label)
-        condition_frame_layout.addWidget(self.condition_combo_box)
+        self.condition_combo_box = ComboBox()
+        self.condition_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.condition_combo_box.addItems(configuration.conditions.keys())
+        self.condition_combo_box.setCurrentText(self.settings.value('condition'))
+        self.condition_combo_box.currentIndexChanged.connect(self.on_condition_combobox_value_changed)
 
+        self.control_net_preprocess_check_box = QCheckBox('Preprocess')
+        self.control_net_preprocess_check_box.setChecked(self.settings.value('control_net_preprocess', type=bool))
+        self.control_net_preview_preprocessor_button = QPushButton('Preview')
+        self.control_net_preview_preprocessor_button.clicked.connect(self.on_control_net_preview_preprocessor_button_clicked)
+
+        control_net_model_label = QLabel('Model')
+        control_net_model_label.setAlignment(Qt.AlignCenter)
+        self.control_net_model_combo_box = ComboBox()
+
+        self.control_net_scale = FloatSliderSpinBox('ControlNet Scale', float(self.settings.value('control_net_scale')))
+
+        control_net_grid = QGridLayout()
+        control_net_grid.setContentsMargins(0, 0, 0, 0)
+        control_net_grid.setVerticalSpacing(2)
+        control_net_grid.addWidget(self.control_net_preprocess_check_box, 0, 0)
+        control_net_grid.setAlignment(self.control_net_preprocess_check_box, Qt.AlignCenter)
+        control_net_grid.addWidget(self.control_net_preview_preprocessor_button, 1, 0)
+        control_net_grid.addWidget(control_net_model_label, 0, 1)
+        control_net_grid.addWidget(self.control_net_model_combo_box, 1, 1)
+
+        self.control_net_frame = QFrame()
         control_net_layout = QVBoxLayout(self.control_net_frame)
         control_net_layout.setContentsMargins(0, 0, 0, 0)
-        control_net_layout.setSpacing(0)
         control_net_layout.addLayout(control_net_grid)
         control_net_layout.addWidget(self.control_net_scale)
-        control_net_layout.addWidget(utils.horizontal_separator())
 
-        condition_layout = QVBoxLayout()
-        condition_layout.setContentsMargins(0, 0, 0, 0) 
-        condition_layout.setSpacing(0)
-        condition_layout.addWidget(self.condition_frame)
-        condition_layout.addWidget(self.control_net_frame)
-        condition_layout.addWidget(self.img_strength)
+        self.img_strength = FloatSliderSpinBox('Image Strength', float(self.settings.value('img_strength')))
 
+        self.condition_group_box = QGroupBox('Condition')
+        condition_group_box_layout = QVBoxLayout(self.condition_group_box)
+        condition_group_box_layout.addWidget(self.condition_combo_box)
+        condition_group_box_layout.addWidget(self.control_net_frame)
+        condition_group_box_layout.addWidget(self.img_strength)
+
+        upscale_factor_label = QLabel('Factor: ')
+        self.upscale_factor_combo_box = ComboBox()
+        self.upscale_factor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.upscale_factor_combo_box.addItem('2x', 2)
+        self.upscale_factor_combo_box.addItem('4x', 4)
+        index = self.upscale_factor_combo_box.findData(self.settings.value('upscale_factor', type=int))
+        if index != -1:
+            self.upscale_factor_combo_box.setCurrentIndex(index)        
+        self.upscale_denoising_strength = FloatSliderSpinBox('Denoising Strength', float(self.settings.value('upscale_denoising_strength')))
+        self.upscale_blend_strength = FloatSliderSpinBox('Upscale Strength', float(self.settings.value('upscale_denoising_strength')))
+
+        self.upscale_group_box = QGroupBox('Upscaling')
+        self.upscale_group_box.setCheckable(True)
+        self.upscale_group_box.setChecked(self.settings.value('upscale_enabled', type=bool))
         upscale_factor_layout = QHBoxLayout()
         upscale_factor_layout.setContentsMargins(0, 0, 0, 0) 
         upscale_factor_layout.setSpacing(0)
         upscale_factor_layout.addWidget(upscale_factor_label)
         upscale_factor_layout.addWidget(self.upscale_factor_combo_box)
+        upscale_group_box_layout = QVBoxLayout(self.upscale_group_box)
+        upscale_group_box_layout.addLayout(upscale_factor_layout)
+        upscale_group_box_layout.addWidget(self.upscale_denoising_strength)
+        upscale_group_box_layout.addWidget(self.upscale_blend_strength)
 
-        upscale_frame_layout = QVBoxLayout(self.upscale_frame)
-        upscale_frame_layout.setContentsMargins(0, 0, 0, 0)
-        upscale_frame_layout.setSpacing(0)
-        upscale_frame_layout.addLayout(upscale_factor_layout)
-        upscale_frame_layout.addWidget(self.upscale_denoising_strength)
-        upscale_frame_layout.addWidget(self.upscale_blend_strength)
+        self.face_strength = FloatSliderSpinBox('Strength', float(self.settings.value('face_blend_strength')))
 
-        upscale_enabled_check_box_layout = QVBoxLayout()
-        upscale_enabled_check_box_layout.setContentsMargins(0, 0, 0, 0) 
-        upscale_enabled_check_box_layout.setSpacing(0)
-        upscale_enabled_check_box_layout.addWidget(self.upscale_enabled_check_box)
-        upscale_enabled_check_box_layout.setAlignment(self.upscale_enabled_check_box, Qt.AlignCenter)
+        self.face_strength_group_box = QGroupBox('Face Restoration')
+        self.face_strength_group_box.setCheckable(True)
+        self.face_strength_group_box.setChecked(self.settings.value('face_enabled', type=bool))
 
-        upscale_layout = QVBoxLayout()
-        upscale_layout.setContentsMargins(0, 0, 0, 0) 
-        upscale_layout.setSpacing(0)
-        upscale_layout.addLayout(upscale_enabled_check_box_layout)
-        upscale_layout.addWidget(self.upscale_frame)
+        face_strength_group_box_layout = QVBoxLayout(self.face_strength_group_box)
+        face_strength_group_box_layout.addWidget(self.face_strength)
+
+        generate_hlayout = QHBoxLayout()
+        generate_hlayout.setContentsMargins(0, 0, 0, 0)
+        generate_hlayout.addWidget(self.generate_button)
+        generate_hlayout.addWidget(cancel_button)
 
         config_layout = QVBoxLayout(self.config_frame)
-        config_layout.setContentsMargins(0, 0, 0, 0) 
+        config_layout.setContentsMargins(0, 0, 0, 0)
         config_layout.addWidget(self.model_combo_box)
         config_layout.addWidget(self.prompt_edit)
         config_layout.addWidget(self.negative_prompt_edit)
         config_layout.addLayout(generate_hlayout)
-        config_layout.addWidget(utils.horizontal_separator())
-        config_layout.addWidget(controls_frame)
-        config_layout.addWidget(utils.horizontal_separator())
-        config_layout.addLayout(seed_vlayout)
-        config_layout.addWidget(utils.horizontal_separator())
-        config_layout.addLayout(condition_layout)
-        config_layout.addLayout(upscale_layout)
-        config_layout.addWidget(utils.horizontal_separator())
-        config_layout.addWidget(self.face_strength)
+        config_layout.addWidget(self.general_group_box)
+        config_layout.addWidget(self.manual_seed_group_box)
+        config_layout.addWidget(self.condition_group_box)
+        config_layout.addWidget(self.upscale_group_box)
+        config_layout.addWidget(self.face_strength_group_box)
         config_layout.addStretch()
 
         # Image viewer
@@ -393,6 +357,13 @@ class MainWindow(QMainWindow):
         self.image_viewer.use_initial_image_button.pressed.connect(lambda: self.on_use_initial_image(self.image_viewer.metadata))
         self.image_viewer.use_all_button.pressed.connect(lambda: self.on_use_all(self.image_viewer.metadata))
         self.image_viewer.delete_button.pressed.connect(lambda: self.on_delete(self.image_viewer.metadata))
+
+        image_viewer_frame = QFrame()
+        image_viewer_frame.setFrameShape(QFrame.Panel)
+
+        image_viewer_layout = QVBoxLayout(image_viewer_frame)
+        image_viewer_layout.setContentsMargins(0, 0, 0, 0)
+        image_viewer_layout.addWidget(self.image_viewer)
 
         # Thumbnail viewer
         self.thumbnail_viewer = ThumbnailViewer(self.settings, self.collections)
@@ -407,7 +378,7 @@ class MainWindow(QMainWindow):
         self.thumbnail_viewer.action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.thumbnail_viewer.get_current_metadata()))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.image_viewer)
+        splitter.addWidget(image_viewer_frame)
         splitter.addWidget(self.thumbnail_viewer)
         splitter.setStretchFactor(0, 1)  # left widget
         splitter.setStretchFactor(1, 0)  # right widget
@@ -416,6 +387,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
         self.progress_bar.setMinimum(0)
+        self.progress_bar.setStyleSheet('QProgressBar { border: none; }')
 
         hlayout = QHBoxLayout()
         hlayout.setContentsMargins(8, 2, 8, 8)
@@ -507,14 +479,12 @@ class MainWindow(QMainWindow):
 
     def update_control_visibility(self):
         if self.type == 'txt2img':
-            self.condition_frame.setVisible(False)
-            self.img_strength.setVisible(False)
-            self.control_net_frame.setVisible(False)
+            self.condition_group_box.setVisible(False)
             self.image_viewer.set_both_images_visible(False)
         elif self.type == 'img2img':
             condition_name = self.condition_combo_box.currentText()
             condition = configuration.conditions.get(condition_name, None)
-            self.condition_frame.setVisible(True)
+            self.condition_group_box.setVisible(True)
             if isinstance(condition, Img2ImgCondition):
                 self.img_strength.setVisible(True)
                 self.control_net_frame.setVisible(False)
@@ -526,7 +496,7 @@ class MainWindow(QMainWindow):
         self.config_frame.adjustSize()
 
     def on_generate_image(self):
-        if not self.manual_seed_check_box.isChecked():
+        if not self.manual_seed_group_box.isChecked():
             self.randomize_seed()
 
         condition_name = self.condition_combo_box.currentText()
@@ -538,7 +508,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue('scheduler', self.scheduler_combo_box.currentText())
         self.settings.setValue('prompt', self.prompt_edit.toPlainText())
         self.settings.setValue('negative_prompt', self.negative_prompt_edit.toPlainText())
-        self.settings.setValue('manual_seed', self.manual_seed_check_box.isChecked())
+        self.settings.setValue('manual_seed', self.manual_seed_group_box.isChecked())
         self.settings.setValue('seed', self.seed_lineedit.text())
         self.settings.setValue('num_images_per_prompt', self.num_images_spin_box.value())
         self.settings.setValue('num_inference_steps', self.num_steps_spin_box.value())
@@ -552,11 +522,11 @@ class MainWindow(QMainWindow):
             self.settings.setValue('control_net_scale', self.control_net_scale.spin_box.value())
         self.settings.setValue('source_path', self.image_viewer.left_image_path())
         self.settings.setValue('img_strength', self.img_strength.spin_box.value())
-        self.settings.setValue('upscale_enabled', self.upscale_enabled_check_box.isChecked())
+        self.settings.setValue('upscale_enabled', self.upscale_group_box.isChecked())
         self.settings.setValue('upscale_factor', self.upscale_factor_combo_box.currentData())
         self.settings.setValue('upscale_denoising_strength', self.upscale_denoising_strength.spin_box.value())
         self.settings.setValue('upscale_blend_strength', self.upscale_blend_strength.spin_box.value())
-        self.settings.setValue('face_enabled', self.face_strength.check_box.isChecked())
+        self.settings.setValue('face_enabled', self.face_strength_group_box.isChecked())
         self.settings.setValue('face_blend_strength', self.face_strength.spin_box.value())
 
         self.update_progress(0, 0)
@@ -571,9 +541,9 @@ class MainWindow(QMainWindow):
     def update_progress(self, progress_amount, maximum_amount=100):
         self.progress_bar.setMaximum(maximum_amount)
         if maximum_amount == 0:
-            self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: grey; }')
+            self.progress_bar.setStyleSheet('QProgressBar { border: none; } QProgressBar:chunk { background-color: grey; }')
         else:
-            self.progress_bar.setStyleSheet('QProgressBar:chunk { background-color: blue; }')
+            self.progress_bar.setStyleSheet('QProgressBar { border: none; } QProgressBar:chunk { background-color: blue; }')
         if progress_amount is not None:
             self.progress_bar.setValue(progress_amount)
         else:
@@ -605,14 +575,8 @@ class MainWindow(QMainWindow):
         seed = random.randint(0, 0x7fff_ffff_ffff_ffff)
         self.seed_lineedit.setText(str(seed))
 
-    def on_manual_seed_check_box_changed(self, state):
-        self.seed_frame.setEnabled(state)
-
     def on_seed_random_clicked(self):
         self.randomize_seed()
-
-    def on_upscale_enabled_check_box_changed(self, state):
-        self.upscale_frame.setEnabled(state)
 
     def on_thumbnail_file_dropped(self, source_path: str):
         collection = self.thumbnail_viewer.collection()
@@ -654,7 +618,7 @@ class MainWindow(QMainWindow):
 
     def on_use_seed(self, image_metadata):
         if image_metadata is not None:
-            self.manual_seed_check_box.setChecked(True)
+            self.manual_seed_group_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
 
     def on_use_initial_image(self, image_metadata):
@@ -667,7 +631,7 @@ class MainWindow(QMainWindow):
         if image_metadata is not None:
             self.prompt_edit.setPlainText(image_metadata.prompt)
             self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
-            self.manual_seed_check_box.setChecked(True)
+            self.manual_seed_group_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
             self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
             self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
@@ -685,20 +649,20 @@ class MainWindow(QMainWindow):
                     self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
 
             if image_metadata.upscale_enabled:
-                self.upscale_enabled_check_box.setChecked(True)
+                self.upscale_group_box.setChecked(True)
                 index = self.upscale_factor_combo_box.findData(image_metadata.upscale_factor)
                 if index != -1:
                     self.upscale_factor_combo_box.setCurrentIndex(index)
                 self.upscale_denoising_strength.spin_box.setValue(image_metadata.upscale_denoising_strength)
                 self.upscale_blend_strength.spin_box.setValue(image_metadata.upscale_blend_strength)
             else:
-                self.upscale_enabled_check_box.setChecked(False)
+                self.upscale_group_box.setChecked(False)
 
             if image_metadata.face_enabled:
-                self.face_strength.check_box.setChecked(True)
+                self.face_strength_group_box.setChecked(True)
                 self.face_strength.spin_box.setValue(image_metadata.face_blend_strength)
             else:
-                self.face_strength.check_box.setChecked(False)
+                self.face_strength_group_box.setChecked(False)
 
             self.set_type(image_metadata.type)
 

@@ -1,5 +1,4 @@
 import os
-import sys
 
 import configuration
 import utils
@@ -7,6 +6,7 @@ from main_window import MainWindow
 from PySide6.QtCore import QEvent, QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
+import qdarktheme
 
 class Application(QApplication):
     settings: QSettings = None
@@ -62,13 +62,7 @@ class Application(QApplication):
         # QT configuration
         self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
-        self.setStyleSheet('''
-            QScrollArea { background-color: transparent; }
-            QToolButton { background-color: rgba(50, 50, 50, 255); }
-            QToolButton:hover { background-color: darkgrey; }
-            QToolButton:checked { background-color: darkblue; }
-            QToolButton:pressed { background-color: darkblue; }
-        ''')
+        qdarktheme.setup_theme('dark', corner_shape='sharp')
         self.main_window = MainWindow(self.settings, self.collections)
         self.main_window.show()
 
