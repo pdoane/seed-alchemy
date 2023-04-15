@@ -3,72 +3,16 @@ import warnings
 from abc import ABC, abstractmethod
 
 import configuration
-import cv2
 import numpy as np
 import torch
 import utils
-from controlnet_aux import (CannyDetector, HEDdetector, MidasDetector,
-                            MLSDdetector, OpenposeDetector)
+from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector,
+                            LineartAnimeDetector, LineartDetector,
+                            MidasDetector, MLSDdetector, NormalBaeDetector,
+                            OpenposeDetector, PidiNetDetector)
 from controlnet_aux import util as controlnet_utils
-from controlnet_aux.midas.api import MiDaSInference
-from einops import rearrange
-from huggingface_hub import hf_hub_download
 from PIL import Image
 from transformers import AutoImageProcessor, UperNetForSemanticSegmentation
-
-
-# Fix issues in controlnet_aux 0.0.2 requiring Cuda
-class MidasDetector:
-    def __init__(self, model_type="dpt_hybrid", model_path=None):
-        self.model = MiDaSInference(model_type=model_type, model_path=model_path)
-        if torch.cuda.is_available():
-            self.model = self.model.cuda()
-
-    @classmethod
-    def from_pretrained(cls, pretrained_model_or_path, model_type="dpt_hybrid", filename=None, cache_dir=None):
-        filename = filename or "annotator/ckpts/dpt_hybrid-midas-501f0c75.pt"
-        model_path = hf_hub_download(pretrained_model_or_path, filename, cache_dir=cache_dir)
-        return cls(model_type=model_type, model_path=model_path)
-        
-    def __call__(self, input_image, a=np.pi * 2.0, bg_th=0.1):
-        
-        input_type = "np"
-        if isinstance(input_image, Image.Image):
-            input_image = np.array(input_image)
-            input_type = "pil"
-            
-        input_image = controlnet_utils.HWC3(input_image)
-        image_depth = input_image
-        with torch.no_grad():
-            image_depth = torch.from_numpy(image_depth).float()
-            if torch.cuda.is_available():
-                image_depth = image_depth.cuda()
-            image_depth = image_depth / 127.5 - 1.0
-            image_depth = rearrange(image_depth, 'h w c -> 1 c h w')
-            depth = self.model(image_depth)[0]
-
-            depth_pt = depth.clone()
-            depth_pt -= torch.min(depth_pt)
-            depth_pt /= torch.max(depth_pt)
-            depth_pt = depth_pt.cpu().numpy()
-            depth_image = (depth_pt * 255.0).clip(0, 255).astype(np.uint8)
-
-            depth_np = depth.cpu().numpy()
-            x = cv2.Sobel(depth_np, cv2.CV_32F, 1, 0, ksize=3)
-            y = cv2.Sobel(depth_np, cv2.CV_32F, 0, 1, ksize=3)
-            z = np.ones_like(x) * a
-            x[depth_pt < bg_th] = 0
-            y[depth_pt < bg_th] = 0
-            normal = np.stack([x, y, z], axis=2)
-            normal /= np.sum(normal ** 2.0, axis=2, keepdims=True) ** 0.5
-            normal_image = (normal * 127.5 + 127.5).clip(0, 255).astype(np.uint8)
-        
-        if input_type == "pil":
-            depth_image = Image.fromarray(depth_image)
-            depth_image = depth_image.convert("RGB")
-            normal_image = Image.fromarray(normal_image)
-        
-        return depth_image, normal_image
 
 class ProcessorBase(ABC):
     @abstractmethod
@@ -77,7 +21,7 @@ class ProcessorBase(ABC):
 
 class CannyProcessor(ProcessorBase):
     low_threshold = 100
-    high_threshold = 100
+    high_threshold = 200
 
     def __init__(self) -> None:
         super().__init__()
@@ -90,25 +34,60 @@ class CannyProcessor(ProcessorBase):
         return image
 
 class DepthProcessor(ProcessorBase):
+    bg_th=0.1
+
     def __init__(self) -> None:
         super().__init__()
         self.midas = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.midas is None:
-            self.midas = MidasDetector.from_pretrained('lllyasviel/ControlNet')
-        image, _ = self.midas(image)
+            self.midas = MidasDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.midas(image, bg_th=self.bg_th)
+        return image
+    
+class LineartProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.lineart = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.lineart is None:
+            self.lineart = LineartDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.lineart(image)
+        return image
+    
+class LineartCoarseProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.lineart = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.lineart is None:
+            self.lineart = LineartDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.lineart(image, coarse=True)
         return image
 
-class NormalProcessor(ProcessorBase):
+class LineartAnimeProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
-        self.midas = None
+        self.lineart_anime = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
-        if self.midas is None:
-            self.midas = MidasDetector.from_pretrained('lllyasviel/ControlNet')
-        _, image = self.midas(image)
+        if self.lineart_anime is None:
+            self.lineart_anime = LineartAnimeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.lineart_anime(image)
+        return image
+
+class NormalBaeProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.normal_bae = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.normal_bae is None:
+            self.normal_bae = NormalBaeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.normal_bae(image)
         return image
 
 class HedProcessor(ProcessorBase):
@@ -118,7 +97,7 @@ class HedProcessor(ProcessorBase):
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.hed is None:
-            self.hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
+            self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
         image = self.hed(image)
         return image
 
@@ -129,7 +108,7 @@ class MlsdProcessor(ProcessorBase):
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.mlsd is None:
-            self.mlsd = MLSDdetector.from_pretrained('lllyasviel/ControlNet')
+            self.mlsd = MLSDdetector.from_pretrained('lllyasviel/Annotators')
         image = self.mlsd(image)
         return image
 
@@ -140,19 +119,52 @@ class OpenposeProcessor(ProcessorBase):
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.openpose is None:
-            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/ControlNet')
+            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.openpose(image)
         return image
 
-class ScribbleProcessor(ProcessorBase):
+class OpenposeFullProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.openpose = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.openpose is None:
+            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.openpose(image, hand_and_face=True)
+        return image
+
+class ScribbleHEDProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
         self.hed = None
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.hed is None:
-            self.hed = HEDdetector.from_pretrained('lllyasviel/ControlNet')
+            self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
         image = self.hed(image, scribble=True)
+        return image
+
+class ScribblePIDIProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.pidi = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.pidi is None:
+            self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.pidi(image, scribble=True)
+        return image
+
+class ShuffleProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.content = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.content is None:
+            self.content = ContentShuffleDetector()
+        image = self.content(image)
         return image
 
 class SegProcessor(ProcessorBase):
@@ -176,6 +188,28 @@ class SegProcessor(ProcessorBase):
             color_seg[seg == label, :] = color
         color_seg = color_seg.astype(np.uint8)
         image = Image.fromarray(color_seg)
+        return image
+
+class SoftEdgeHEDProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hed = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.hed is None:
+            self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
+        image = self.hed(image)
+        return image
+
+class SoftEdgePIDIProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.pidi = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.pidi is None:
+            self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.pidi(image)
         return image
 
 class ESRGANProcessor(ProcessorBase):

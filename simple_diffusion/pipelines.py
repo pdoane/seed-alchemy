@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Callable
 
+import configuration
 import torch
 from diffusers import (ControlNetModel, StableDiffusionControlNetPipeline, DiffusionPipeline,
                        StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
@@ -29,7 +30,6 @@ class PipelineCache:
 
 class PipelineBase(ABC):
     def __init__(self) -> None:
-        self.pipe = None
         self.dtype = torch.float32
         self.device = 'mps'
 
@@ -38,6 +38,11 @@ class PipelineBase(ABC):
         pass
 
 class ImagePipeline(PipelineBase):
+    type: str = None
+    pipe: DiffusionPipeline = None
+    control_net: ControlNetModel = None
+    control_net_model_name: str = None
+
     def __init__(self, pipeline_cache: PipelineCache, image_metadata: ImageMetadata) -> None:
         super().__init__()
 
@@ -54,7 +59,7 @@ class ImagePipeline(PipelineBase):
         prev_pipeline = pipeline_cache.pipeline
         if self.is_compatible(prev_pipeline, image_metadata):
             self.control_net = prev_pipeline.control_net
-            self.control_net_model = image_metadata.control_net_model
+            self.control_net_model_name = image_metadata.control_net_model
             if self.type == prev_pipeline.type:
                 self.pipe = prev_pipeline.pipe
             elif self.type == 'txt2img':
@@ -85,8 +90,9 @@ class ImagePipeline(PipelineBase):
                         self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
                 else:
                     print('Loading ControlNet Pipeline', image_metadata.model, image_metadata.control_net_model)
-                    self.control_net = ControlNetModel.from_pretrained(image_metadata.control_net_model, torch_dtype=self.dtype)
-                    self.control_net_model = image_metadata.control_net_model
+                    control_net_model = configuration.control_net_models[image_metadata.control_net_model]
+                    self.control_net = ControlNetModel.from_pretrained(control_net_model.repo_id, subfolder=control_net_model.subfolder, torch_dtype=self.dtype)
+                    self.control_net_model_name = image_metadata.control_net_model
 
                     if self.type == 'controlnet':
                         if image_metadata.safety_checker:
@@ -105,17 +111,17 @@ class ImagePipeline(PipelineBase):
     def is_compatible(self, prev_pipeline: PipelineBase, image_metadata: ImageMetadata) -> bool:
         if not isinstance(prev_pipeline, ImagePipeline):
             return False
-        if prev_pipeline.type != self.type:
+        if self.type != prev_pipeline.type:
             if self.type == 'txt2img' and prev_pipeline.type != 'img2img':
                 return False
             elif self.type == 'img2img' and prev_pipeline.type != 'txt2img':
                 return False
             else:
                 return False
-        if prev_pipeline.type == 'control_net' or prev_pipeline.type == 'controlnet_img2img':
-            if prev_pipeline.control_net_model != image_metadata.control_net_model:
+        if self.type == 'controlnet' or self.type == 'controlnet_img2img':
+            if prev_pipeline.control_net_model_name != image_metadata.control_net_model:
                 return False
-        
+
         return True
 
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:

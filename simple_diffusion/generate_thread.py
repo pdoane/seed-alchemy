@@ -100,9 +100,10 @@ class GenerateThread(QThread):
                 self.req.controlnet_conditioning_image = image.copy()
 
             if self.req.image_metadata.control_net_preprocess:
-                for key, control_net_model in configuration.control_net_models.items():
-                    if control_net_model.repo_id == self.req.image_metadata.control_net_model:
-                        preprocessor_type = control_net_model.preprocessors[0]
+                control_net_model = configuration.control_net_models[self.req.image_metadata.control_net_model]
+                if control_net_model:
+                    preprocessor_type = control_net_model.preprocessor
+                    if preprocessor_type:
                         if not isinstance(generate_preprocessor, preprocessor_type):
                             generate_preprocessor = preprocessor_type()
                         self.req.controlnet_conditioning_image = generate_preprocessor(self.req.controlnet_conditioning_image)

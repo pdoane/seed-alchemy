@@ -263,8 +263,8 @@ class MainWindow(QMainWindow):
         img2img_group_box_layout.addWidget(self.img_strength)
 
         self.control_net_model_combo_box = ComboBox()
-        for key, control_net_model in configuration.control_net_models.items():
-           self.control_net_model_combo_box.addItem(key, control_net_model.repo_id)
+        self.control_net_model_combo_box.addItems(configuration.control_net_models.keys())
+        self.control_net_model_combo_box.setCurrentText(settings.value('control_net_model'))
 
         self.control_net_preprocess_check_box = QCheckBox('Preprocess')
         self.control_net_preprocess_check_box.setChecked(self.settings.value('control_net_preprocess', type=bool))
@@ -293,7 +293,7 @@ class MainWindow(QMainWindow):
         self.upscale_factor_combo_box.addItem('4x', 4)
         index = self.upscale_factor_combo_box.findData(self.settings.value('upscale_factor', type=int))
         if index != -1:
-            self.upscale_factor_combo_box.setCurrentIndex(index)        
+            self.upscale_factor_combo_box.setCurrentIndex(index)
         self.upscale_denoising_strength = FloatSliderSpinBox('Denoising Strength', float(self.settings.value('upscale_denoising_strength')))
         self.upscale_blend_strength = FloatSliderSpinBox('Upscale Strength', float(self.settings.value('upscale_denoising_strength')))
 
@@ -438,16 +438,17 @@ class MainWindow(QMainWindow):
 
         control_net_model = configuration.control_net_models[self.control_net_model_combo_box.currentText()]
         if control_net_model:
-            preprocessor_type = control_net_model.preprocessors[0]
-            if not isinstance(self.preview_preprocessor, preprocessor_type):
-                self.preview_preprocessor = preprocessor_type()
-            source_image = self.preview_preprocessor(source_image)
-            if self.settings.value('reduce_memory', type=bool):
-                self.preview_preprocessor = None
-            output_path = 'preprocessed.png'
-            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
-            source_image.save(full_path)
-            self.image_viewer.set_right_image(output_path)
+            preprocessor_type = control_net_model.preprocessor
+            if preprocessor_type:
+                if not isinstance(self.preview_preprocessor, preprocessor_type):
+                    self.preview_preprocessor = preprocessor_type()
+                source_image = self.preview_preprocessor(source_image)
+                if self.settings.value('reduce_memory', type=bool):
+                    self.preview_preprocessor = None
+                output_path = 'preprocessed.png'
+                full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+                source_image.save(full_path)
+                self.image_viewer.set_right_image(output_path)
 
     def update_control_visibility(self):
         if self.img2img_group_box.isChecked() or self.control_net_group_box.isChecked():
@@ -480,7 +481,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue('control_net_enabled', self.control_net_group_box.isChecked())
         self.settings.setValue('control_net_conditioning_image_path', self.image_viewer.left_image_path())
         self.settings.setValue('control_net_preprocess', self.control_net_preprocess_check_box.isChecked())
-        self.settings.setValue('control_net_model', self.control_net_model_combo_box.currentData())
+        self.settings.setValue('control_net_model', self.control_net_model_combo_box.currentText())
         self.settings.setValue('control_net_scale', self.control_net_scale.spin_box.value())
         self.settings.setValue('upscale_enabled', self.upscale_group_box.isChecked())
         self.settings.setValue('upscale_factor', self.upscale_factor_combo_box.currentData())
@@ -584,9 +585,22 @@ class MainWindow(QMainWindow):
 
     def on_use_initial_image(self, image_metadata):
         if image_metadata is not None:
-            self.image_viewer.set_left_image(image_metadata.source_path)
-            self.img2img_group_box.setChecked(True)
-            self.img_strength.spin_box.setValue(image_metadata.img_strength)
+            if image_metadata.img2img_enabled:
+                self.image_viewer.set_left_image(image_metadata.source_path)
+                self.img2img_group_box.setChecked(True)
+                self.img_strength.spin_box.setValue(image_metadata.img_strength)
+            else:
+                self.img2img_group_box.setChecked(False)
+
+            if image_metadata.control_net_enabled:
+                self.image_viewer.set_left_image(image_metadata.control_net_conditioning_image_path)
+                self.control_net_group_box.setChecked(True)
+                self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
+                self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
+                self.control_net_scale.spin_box.setValue(image_metadata.control_net_scale)
+            else:
+                self.control_net_group_box.setChecked(False)
+
             self.set_type('image')
  
     def on_use_all(self, image_metadata):
@@ -602,18 +616,17 @@ class MainWindow(QMainWindow):
             self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
 
             if image_metadata.img2img_enabled:
-                self.img2img_group_box.setChecked(True)
                 self.image_viewer.set_left_image(image_metadata.source_path)
+                self.img2img_group_box.setChecked(True)
                 self.img_strength.spin_box.setValue(image_metadata.img_strength)
             else:
                 self.img2img_group_box.setChecked(False)
 
             if image_metadata.control_net_enabled:
+                self.image_viewer.set_left_image(image_metadata.control_net_conditioning_image_path)
                 self.control_net_group_box.setChecked(True)
                 self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
-                for key, control_net_model in configuration.control_net_models.items():
-                   if control_net_model.repo_id == image_metadata.control_net_model:
-                        self.control_net_model_combo_box.setCurrentText(key)
+                self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
                 self.control_net_scale.spin_box.setValue(image_metadata.control_net_scale)
             else:
                 self.control_net_group_box.setChecked(False)
