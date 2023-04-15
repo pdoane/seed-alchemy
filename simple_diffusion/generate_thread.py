@@ -6,10 +6,8 @@ import configuration
 import torch
 import utils
 from compel import Compel
-from configuration import ControlNetCondition, Img2ImgCondition
 from PIL import Image, PngImagePlugin
-from pipelines import (ControlNetPipeline, GenerateRequest, Img2ImgPipeline,
-                       PipelineCache, Txt2ImgPipeline)
+from pipelines import GenerateRequest, ImagePipeline, PipelineCache
 from processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
 from PySide6.QtCore import QSettings, QThread, Signal
 
@@ -59,7 +57,6 @@ class GenerateThread(QThread):
         super().__init__(parent)
 
         self.cancel = False
-        self.type = settings.value('type')
         self.collection = settings.value('collection')
         self.reduce_memory = settings.value('reduce_memory', type=bool)
         self.req = GenerateRequest()
@@ -82,33 +79,35 @@ class GenerateThread(QThread):
         global generate_preprocessor
 
         # load pipeline
-        if self.type == 'txt2img':
-            pipeline_type = Txt2ImgPipeline
-        elif self.type == 'img2img':
-            if self.req.image_metadata.control_net_model != '':
-                pipeline_type = ControlNetPipeline
-            else:
-                pipeline_type = Img2ImgPipeline
-
-        pipeline = pipeline_type(pipeline_cache, self.req.image_metadata)
+        pipeline = ImagePipeline(pipeline_cache, self.req.image_metadata)
         pipeline_cache.pipeline = pipeline
         pipe = pipeline.pipe
 
         # Source image
-        if self.type == 'img2img':
+        if self.req.image_metadata.img2img_enabled:
             full_path = os.path.join(configuration.IMAGES_PATH, self.req.image_metadata.source_path)
             with Image.open(full_path) as image:
                 image = image.convert('RGB')
                 image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
                 self.req.source_image = image.copy()
 
-            condition = configuration.conditions.get(self.req.image_metadata.condition, None)
-            if isinstance(condition, ControlNetCondition) and self.req.image_metadata.control_net_preprocess:
-                if not isinstance(generate_preprocessor, condition.preprocessor):
-                    generate_preprocessor = condition.preprocessor()
-                self.req.source_image = generate_preprocessor(self.req.source_image)
-                if self.reduce_memory:
-                    generate_preprocessor = None
+        # Conditioning image
+        if self.req.image_metadata.control_net_enabled:
+            full_path = os.path.join(configuration.IMAGES_PATH, self.req.image_metadata.control_net_conditioning_image_path)
+            with Image.open(full_path) as image:
+                image = image.convert('RGB')
+                image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+                self.req.controlnet_conditioning_image = image.copy()
+
+            if self.req.image_metadata.control_net_preprocess:
+                for key, control_net_model in configuration.control_net_models.items():
+                    if control_net_model.repo_id == self.req.image_metadata.control_net_model:
+                        preprocessor_type = control_net_model.preprocessors[0]
+                        if not isinstance(generate_preprocessor, preprocessor_type):
+                            generate_preprocessor = preprocessor_type()
+                        self.req.controlnet_conditioning_image = generate_preprocessor(self.req.controlnet_conditioning_image)
+                        if self.reduce_memory:
+                            generate_preprocessor = None
 
         # scheduler
         pipe.scheduler = configuration.schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
@@ -188,11 +187,9 @@ class GenerateThread(QThread):
 
     def compute_pipeline_steps(self):
         steps = self.req.image_metadata.num_inference_steps
-        if self.type == 'img2img':
-            condition = configuration.conditions.get(self.req.image_metadata.condition, None)
-            if isinstance(condition, Img2ImgCondition):
-                steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img_strength)
-        
+        if self.req.image_metadata.img2img_enabled:
+            steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img_strength)
+
         return steps
 
     def compute_total_steps(self):

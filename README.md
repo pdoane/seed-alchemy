@@ -29,33 +29,31 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 
 - Text to Image
 - Image to Image
-- ControlNet
+- ControlNet (Base, Img2Img)
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
 
 ### Roadmap
 
 Near-term:
-- Clip Interrogator
+- ControlNet 1.1
+- ControlNet preprocessor arguments, guidance Start/End
+- Multi-ControlNet
+- UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
+- Inpainting
 - Async thumbnail loading
 - Collapsing panels in UI
 - Upscale/Restore Faces for existing images
 - Thumbnail paths by image hash 
 - Long Prompt Weighting
-- UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
-- Inpainting
-- ControlNet preprocessor arguments
 
 Evaluate:
-- InstructPix2Pix
 - Self-Attention Guidance
 - MultiDiffusion
 
 Requires new versions of dependencies:
 - diffusers
-  - LoRA
-  - Multi-ControlNet
-  - ControlNet Guidance Start/End (community pipeline)
-  - ControlNet Seperate Conditioning Image (community pipeline)
+  - LoRA (support is still minimal)
+  - ControlNet Guess Mode
 - torch
   - Retest float16 support

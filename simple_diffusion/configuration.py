@@ -19,45 +19,19 @@ MODELS_PATH = '.models'
 ICON_SIZE = QSize(24, 24)
 
 @dataclass
-class Img2ImgCondition:
-    pass
+class ControlNetModel:
+    repo_id: str
+    preprocessors: list[ProcessorBase]
 
-@dataclass
-class ControlNetCondition:
-    preprocessor: ProcessorBase
-    models: dict[str, str]
-
-conditions = {
-    'Image': Img2ImgCondition(),
-    'Canny': ControlNetCondition(CannyProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-canny',
-        'SD 2.1': 'thibaud/controlnet-sd21-canny-diffusers'
-    }),
-    'Depth': ControlNetCondition(DepthProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-depth',
-        'SD 2.1': 'thibaud/controlnet-sd21-depth-diffusers'
-    }),
-    'Normal': ControlNetCondition(NormalProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-normal',
-    }),
-    'HED': ControlNetCondition(HedProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-hed',
-        'SD 2.1': 'thibaud/controlnet-sd21-hed-diffusers'
-    }),
-    'M-LSD': ControlNetCondition(MlsdProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-mlsd',
-    }),
-    'Openpose': ControlNetCondition(OpenposeProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-openpose',
-        'SD 2.1': 'thibaud/controlnet-sd21-openpose-diffusers'
-    }),
-    'Scribble': ControlNetCondition(ScribbleProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-scribble',
-        'SD 2.1': 'thibaud/controlnet-sd21-scribble-diffusers'
-    }),
-    'Segmentation': ControlNetCondition(SegProcessor, {
-        'SD 1.5': 'lllyasviel/sd-controlnet-seg',
-    }),
+control_net_models: dict[str, ControlNetModel] = {
+    'Canny': ControlNetModel('lllyasviel/sd-controlnet-canny', [CannyProcessor]),
+    'Depth': ControlNetModel('lllyasviel/sd-controlnet-depth', [DepthProcessor]),
+    'Normal': ControlNetModel('lllyasviel/sd-controlnet-normal', [NormalProcessor]),
+    'HED': ControlNetModel('lllyasviel/sd-controlnet-hed', [HedProcessor]),
+    'M-LSD': ControlNetModel('lllyasviel/sd-controlnet-mlsd', [MlsdProcessor]),
+    'Openpose': ControlNetModel('lllyasviel/sd-controlnet-openpose', [OpenposeProcessor]),
+    'Scribble': ControlNetModel('lllyasviel/sd-controlnet-scribble', [ScribbleProcessor]),
+    'Segmentation': ControlNetModel('lllyasviel/sd-controlnet-seg', [SegProcessor]),
 }
 
 schedulers: dict[str, SchedulerMixin] = {

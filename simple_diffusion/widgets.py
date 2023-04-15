@@ -30,7 +30,7 @@ class ScrollArea(QScrollArea):
 
     def sizeHint(self):
         size = super().sizeHint()
-        size.setWidth(size.width() + self.verticalScrollBar().width())
+        size.setWidth(size.width() + self.verticalScrollBar().width() + self.widget().contentsMargins().right())
         return size
     
 class Slider(QSlider):

@@ -3,16 +3,16 @@ import os
 import actions
 import configuration
 import utils
-from configuration import ControlNetCondition
 from image_metadata import ImageMetadata
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPalette, QPixmap
-from PySide6.QtWidgets import (QApplication, QFrame,
-                               QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
+                               QVBoxLayout, QWidget)
+
 
 class MetadataRow:
-    def __init__(self, label_text, multiline=False):
+    def __init__(self, label_text):
         self.label = QLabel(label_text)
         self.label.setStyleSheet('font-weight: bold; background-color: transparent')
 
@@ -21,9 +21,7 @@ class MetadataRow:
         self.value.setStyleSheet('background-color: transparent')
         self.value.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.value.setCursor(Qt.IBeamCursor)
-
-        if multiline:
-            self.value.setWordWrap(True)
+        self.value.setWordWrap(True)
 
         self.frame = QFrame()
         self.frame.setContentsMargins(0, 0, 0, 0)
@@ -41,25 +39,21 @@ class ImageMetadataFrame(QFrame):
         self.setStyleSheet('background-color: rgba(0, 0, 0, 127);')
 
         self.path = MetadataRow('Path:')
-        self.type = MetadataRow('Type:')
         self.model = MetadataRow('Model:')
         self.scheduler = MetadataRow('Scheduler:')
-        self.prompt = MetadataRow('Prompt:', multiline=True)
-        self.negative_prompt = MetadataRow('Negative Prompt:', multiline=True)
+        self.prompt = MetadataRow('Prompt:')
+        self.negative_prompt = MetadataRow('Negative Prompt:')
         self.seed = MetadataRow('Seed:')
         self.num_inference_steps = MetadataRow('Steps:')
         self.guidance_scale = MetadataRow('CFG Scale:')
         self.size = MetadataRow('Size:')
-        self.condition = MetadataRow('Condition:')
+        self.img2img = MetadataRow('Image to Image:')
         self.control_net = MetadataRow('Control Net:')
-        self.source_path = MetadataRow('Source Path:')
-        self.img_strength = MetadataRow('Image Strength:')
         self.upscale = MetadataRow('Upscaling:')
         self.face = MetadataRow('Face Restoration:')
 
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
-        vlayout.addWidget(self.type.frame)
         vlayout.addWidget(self.scheduler.frame)
         vlayout.addWidget(self.model.frame)
         vlayout.addWidget(self.prompt.frame)
@@ -68,17 +62,14 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.num_inference_steps.frame)
         vlayout.addWidget(self.guidance_scale.frame)
         vlayout.addWidget(self.size.frame)
-        vlayout.addWidget(self.condition.frame)
+        vlayout.addWidget(self.img2img.frame)
         vlayout.addWidget(self.control_net.frame)
-        vlayout.addWidget(self.source_path.frame)
-        vlayout.addWidget(self.img_strength.frame)
         vlayout.addWidget(self.upscale.frame)
         vlayout.addWidget(self.face.frame)
         vlayout.addStretch()
 
     def update(self, metadata):
         self.path.value.setText(metadata.path)
-        self.type.value.setText(metadata.type)
         self.scheduler.value.setText(metadata.scheduler)
         self.model.value.setText(metadata.model)
         self.prompt.value.setText(metadata.prompt)
@@ -87,27 +78,27 @@ class ImageMetadataFrame(QFrame):
         self.num_inference_steps.value.setText(str(metadata.num_inference_steps))
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
         self.size.value.setText('{:d}x{:d}'.format(metadata.width, metadata.height))
-        self.condition.value.setText(metadata.condition)
-        if metadata.type == 'img2img':
-            condition = configuration.conditions.get(metadata.condition, None)
-            if isinstance(condition, ControlNetCondition):
-                self.img_strength.frame.setVisible(False)
-                self.control_net.frame.setVisible(True)
-                self.control_net.value.setText('Preprocess={:s}, Scale={:g}, {:s}'.format(
-                    str(metadata.control_net_preprocess),
-                    metadata.control_net_scale,
-                    metadata.control_net_model
-                ))
-            else:
-                self.control_net.frame.setVisible(False)
-                self.img_strength.frame.setVisible(True)
-                self.img_strength.value.setText(str(metadata.img_strength))
-            self.source_path.frame.setVisible(True)
-            self.source_path.value.setText(metadata.source_path)
+
+        if metadata.img2img_enabled:
+            self.img2img.frame.setVisible(True)
+            self.img2img.value.setText('Source={:s}, Blend={:g}'.format(
+                metadata.source_path,
+                metadata.img_strength
+            ))
+        else:
+            self.img2img.frame.setVisible(False)
+
+        if metadata.control_net_enabled:
+            self.control_net.frame.setVisible(True)
+            self.control_net.value.setText('Source={:s}, Preprocess={:s}, Scale={:g}, Model={:s}'.format(
+                metadata.control_net_conditioning_image_path,
+                str(metadata.control_net_preprocess),
+                metadata.control_net_scale,
+                metadata.control_net_model
+            ))
         else:
             self.control_net.frame.setVisible(False)
-            self.source_path.frame.setVisible(False)
-            self.img_strength.frame.setVisible(False)
+        
         if metadata.upscale_enabled:
             self.upscale.frame.setVisible(True)
             self.upscale.value.setText('{:d}x, Denoising={:g}, Blend={:g}'.format(
@@ -117,6 +108,7 @@ class ImageMetadataFrame(QFrame):
             ))
         else:
             self.upscale.frame.setVisible(False)
+
         if metadata.face_enabled:
             self.face.frame.setVisible(True)
             self.face.value.setText('Blend={:g}'.format(

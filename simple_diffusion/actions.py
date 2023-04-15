@@ -49,8 +49,7 @@ about = ActionDef('About', empty_icon=False)
 preferences = ActionDef('Preferences', empty_icon=False, role=QAction.MenuRole.PreferencesRole)
 
 # Modes
-txt2img = ActionDef('Text to Image', icon='txt2img_icon.png', checkable=True, auto_exclusive=True)
-img2img = ActionDef('Image to Image', icon='img2img_icon.png', checkable=True, auto_exclusive=True)
+image_mode = ActionDef('Image Generation', icon='img2img_icon.png', checkable=True, auto_exclusive=True)
 
 # Image
 generate_image = ActionDef('Generate Image', shortcut=Qt.CTRL | Qt.Key_Return)

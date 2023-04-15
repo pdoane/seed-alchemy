@@ -7,7 +7,6 @@ import actions
 import configuration
 import utils
 from about_dialog import AboutDialog
-from configuration import ControlNetCondition, Img2ImgCondition
 from delete_image_dialog import DeleteImageDialog
 from generate_thread import GenerateThread
 from image_metadata import ImageMetadata
@@ -124,20 +123,17 @@ class MainWindow(QMainWindow):
         mode_toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, mode_toolbar)
 
-        txt2img_button = actions.txt2img.tool_button()
-        img2img_button = actions.img2img.tool_button()
+        image_mode_button = actions.image_mode.tool_button()
 
-        mode_toolbar.addWidget(txt2img_button)
-        mode_toolbar.addWidget(img2img_button)
+        mode_toolbar.addWidget(image_mode_button)
 
         self.button_group = QButtonGroup()
-        self.button_group.addButton(txt2img_button, 0)
-        self.button_group.addButton(img2img_button, 1)
+        self.button_group.addButton(image_mode_button, 0)
         self.button_group.idToggled.connect(self.on_mode_changed)
 
         # Configuration controls
         self.config_frame = QFrame()
-        self.config_frame.setContentsMargins(0, 0, 0, 0)
+        self.config_frame.setContentsMargins(0, 0, 2, 0)
 
         config_scroll_area = ScrollArea()
         config_scroll_area.setFrameStyle(QFrame.NoFrame)
@@ -257,45 +253,38 @@ class MainWindow(QMainWindow):
         manual_seed_group_box_layout = QVBoxLayout(self.manual_seed_group_box)
         manual_seed_group_box_layout.addWidget(self.seed_frame)
 
-        self.condition_combo_box = ComboBox()
-        self.condition_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.condition_combo_box.addItems(configuration.conditions.keys())
-        self.condition_combo_box.setCurrentText(self.settings.value('condition'))
-        self.condition_combo_box.currentIndexChanged.connect(self.on_condition_combobox_value_changed)
+        self.img_strength = FloatSliderSpinBox('Strength', float(self.settings.value('img_strength')))
+
+        self.img2img_group_box = QGroupBox('Image to Image')
+        self.img2img_group_box.setCheckable(True)
+        self.img2img_group_box.setChecked(self.settings.value('img2img_enabled', type=bool))
+        self.img2img_group_box.clicked.connect(self.update_control_visibility)
+        img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
+        img2img_group_box_layout.addWidget(self.img_strength)
+
+        self.control_net_model_combo_box = ComboBox()
+        for key, control_net_model in configuration.control_net_models.items():
+           self.control_net_model_combo_box.addItem(key, control_net_model.repo_id)
 
         self.control_net_preprocess_check_box = QCheckBox('Preprocess')
         self.control_net_preprocess_check_box.setChecked(self.settings.value('control_net_preprocess', type=bool))
         self.control_net_preview_preprocessor_button = QPushButton('Preview')
         self.control_net_preview_preprocessor_button.clicked.connect(self.on_control_net_preview_preprocessor_button_clicked)
 
-        control_net_model_label = QLabel('Model')
-        control_net_model_label.setAlignment(Qt.AlignCenter)
-        self.control_net_model_combo_box = ComboBox()
+        self.control_net_scale = FloatSliderSpinBox('Scale', float(self.settings.value('control_net_scale')))
 
-        self.control_net_scale = FloatSliderSpinBox('ControlNet Scale', float(self.settings.value('control_net_scale')))
-
-        control_net_grid = QGridLayout()
-        control_net_grid.setContentsMargins(0, 0, 0, 0)
-        control_net_grid.setVerticalSpacing(2)
-        control_net_grid.addWidget(self.control_net_preprocess_check_box, 0, 0)
-        control_net_grid.setAlignment(self.control_net_preprocess_check_box, Qt.AlignCenter)
-        control_net_grid.addWidget(self.control_net_preview_preprocessor_button, 1, 0)
-        control_net_grid.addWidget(control_net_model_label, 0, 1)
-        control_net_grid.addWidget(self.control_net_model_combo_box, 1, 1)
-
-        self.control_net_frame = QFrame()
-        control_net_layout = QVBoxLayout(self.control_net_frame)
-        control_net_layout.setContentsMargins(0, 0, 0, 0)
-        control_net_layout.addLayout(control_net_grid)
-        control_net_layout.addWidget(self.control_net_scale)
-
-        self.img_strength = FloatSliderSpinBox('Image Strength', float(self.settings.value('img_strength')))
-
-        self.condition_group_box = QGroupBox('Condition')
-        condition_group_box_layout = QVBoxLayout(self.condition_group_box)
-        condition_group_box_layout.addWidget(self.condition_combo_box)
-        condition_group_box_layout.addWidget(self.control_net_frame)
-        condition_group_box_layout.addWidget(self.img_strength)
+        self.control_net_group_box = QGroupBox('Control Net')
+        self.control_net_group_box.setCheckable(True)
+        self.control_net_group_box.setChecked(self.settings.value('control_net_enabled', type=bool))
+        self.control_net_group_box.clicked.connect(self.update_control_visibility)
+        control_net_preprocess_hlayout = QHBoxLayout()
+        control_net_preprocess_hlayout.setContentsMargins(0, 0, 0, 0)
+        control_net_preprocess_hlayout.addWidget(self.control_net_preprocess_check_box)
+        control_net_preprocess_hlayout.addWidget(self.control_net_preview_preprocessor_button)
+        control_net_group_box_layout = QVBoxLayout(self.control_net_group_box)
+        control_net_group_box_layout.addWidget(self.control_net_model_combo_box)
+        control_net_group_box_layout.addLayout(control_net_preprocess_hlayout)
+        control_net_group_box_layout.addWidget(self.control_net_scale)
 
         upscale_factor_label = QLabel('Factor: ')
         self.upscale_factor_combo_box = ComboBox()
@@ -343,7 +332,8 @@ class MainWindow(QMainWindow):
         config_layout.addLayout(generate_hlayout)
         config_layout.addWidget(self.general_group_box)
         config_layout.addWidget(self.manual_seed_group_box)
-        config_layout.addWidget(self.condition_group_box)
+        config_layout.addWidget(self.img2img_group_box)
+        config_layout.addWidget(self.control_net_group_box)
         config_layout.addWidget(self.upscale_group_box)
         config_layout.addWidget(self.face_strength_group_box)
         config_layout.addStretch()
@@ -409,7 +399,6 @@ class MainWindow(QMainWindow):
             self.image_viewer.set_left_image(self.settings.value('source_path'))
         self.set_type(self.settings.value('type'))
         self.on_thumbnail_selection_change()
-        self.on_condition_combobox_value_changed(self.condition_combo_box.currentIndex())
 
     def show_about_dialog(self):
         about_dialog = AboutDialog()
@@ -421,37 +410,20 @@ class MainWindow(QMainWindow):
         
     def set_type(self, type):
         self.type = type
-        if self.type == 'txt2img':
+        if self.type == 'image':
             self.button_group.button(0).setChecked(True)
-        elif self.type == 'img2img':
-            self.button_group.button(1).setChecked(True)
 
     def on_mode_changed(self, button_id, checked):
         if not checked:
             return
         if button_id == 0:
-            self.type = 'txt2img'
-        elif button_id == 1:
-            self.type = 'img2img'
-        
-        self.update_control_visibility()
+            self.type = 'image'
 
+        self.update_control_visibility()
+        
     def on_cancel_generation(self):
         if self.generate_thread:
             self.generate_thread.cancel = True
-
-    def on_condition_combobox_value_changed(self, index):
-        condition_name = self.condition_combo_box.itemText(index)
-        condition = configuration.conditions.get(condition_name, None)
-        if isinstance(condition, Img2ImgCondition):
-            pass
-        elif isinstance(condition, ControlNetCondition):
-            self.control_net_model_combo_box.clear()
-            for key, value in condition.models.items():
-                self.control_net_model_combo_box.addItem(key, value)
-            self.control_net_model_combo_box.setCurrentText(self.settings.value('control_net_model'))
-
-        self.update_control_visibility()
 
     def on_control_net_preview_preprocessor_button_clicked(self):
         source_path = self.image_viewer.left_image_path()
@@ -464,11 +436,11 @@ class MainWindow(QMainWindow):
             image = image.resize((width, height))
             source_image = image.copy()
 
-        condition_name = self.condition_combo_box.currentText()
-        condition = configuration.conditions.get(condition_name, None)
-        if isinstance(condition, ControlNetCondition):
-            if not isinstance(self.preview_preprocessor, condition.preprocessor):
-                self.preview_preprocessor = condition.preprocessor()
+        control_net_model = configuration.control_net_models[self.control_net_model_combo_box.currentText()]
+        if control_net_model:
+            preprocessor_type = control_net_model.preprocessors[0]
+            if not isinstance(self.preview_preprocessor, preprocessor_type):
+                self.preview_preprocessor = preprocessor_type()
             source_image = self.preview_preprocessor(source_image)
             if self.settings.value('reduce_memory', type=bool):
                 self.preview_preprocessor = None
@@ -478,29 +450,16 @@ class MainWindow(QMainWindow):
             self.image_viewer.set_right_image(output_path)
 
     def update_control_visibility(self):
-        if self.type == 'txt2img':
-            self.condition_group_box.setVisible(False)
-            self.image_viewer.set_both_images_visible(False)
-        elif self.type == 'img2img':
-            condition_name = self.condition_combo_box.currentText()
-            condition = configuration.conditions.get(condition_name, None)
-            self.condition_group_box.setVisible(True)
-            if isinstance(condition, Img2ImgCondition):
-                self.img_strength.setVisible(True)
-                self.control_net_frame.setVisible(False)
-            elif isinstance(condition, ControlNetCondition):
-                self.img_strength.setVisible(False)
-                self.control_net_frame.setVisible(True)
+        if self.img2img_group_box.isChecked() or self.control_net_group_box.isChecked():
             self.image_viewer.set_both_images_visible(True)
+        else:
+            self.image_viewer.set_both_images_visible(False)
 
-        self.config_frame.adjustSize()
+        # self.config_frame.adjustSize()
 
     def on_generate_image(self):
         if not self.manual_seed_group_box.isChecked():
             self.randomize_seed()
-
-        condition_name = self.condition_combo_box.currentText()
-        condition = configuration.conditions.get(condition_name, None)
 
         self.settings.setValue('collection', self.thumbnail_viewer.collection())
         self.settings.setValue('type', self.type)
@@ -515,13 +474,14 @@ class MainWindow(QMainWindow):
         self.settings.setValue('guidance_scale', self.guidance_scale_spin_box.value())
         self.settings.setValue('width', self.width_spin_box.value())
         self.settings.setValue('height', self.height_spin_box.value())
-        self.settings.setValue('condition', condition_name)
-        if isinstance(condition, ControlNetCondition):
-            self.settings.setValue('control_net_preprocess', self.control_net_preprocess_check_box.isChecked())
-            self.settings.setValue('control_net_model', self.control_net_model_combo_box.currentData())
-            self.settings.setValue('control_net_scale', self.control_net_scale.spin_box.value())
+        self.settings.setValue('img2img_enabled', self.img2img_group_box.isChecked())
         self.settings.setValue('source_path', self.image_viewer.left_image_path())
         self.settings.setValue('img_strength', self.img_strength.spin_box.value())
+        self.settings.setValue('control_net_enabled', self.control_net_group_box.isChecked())
+        self.settings.setValue('control_net_conditioning_image_path', self.image_viewer.left_image_path())
+        self.settings.setValue('control_net_preprocess', self.control_net_preprocess_check_box.isChecked())
+        self.settings.setValue('control_net_model', self.control_net_model_combo_box.currentData())
+        self.settings.setValue('control_net_scale', self.control_net_scale.spin_box.value())
         self.settings.setValue('upscale_enabled', self.upscale_group_box.isChecked())
         self.settings.setValue('upscale_factor', self.upscale_factor_combo_box.currentData())
         self.settings.setValue('upscale_denoising_strength', self.upscale_denoising_strength.spin_box.value())
@@ -609,7 +569,8 @@ class MainWindow(QMainWindow):
     def on_send_to_img2img(self, image_metadata):
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.path)
-            self.set_type('img2img')
+            self.img2img_group_box.setChecked(True)
+            self.set_type('image')
     
     def on_use_prompt(self, image_metadata):
         if image_metadata is not None:
@@ -624,8 +585,9 @@ class MainWindow(QMainWindow):
     def on_use_initial_image(self, image_metadata):
         if image_metadata is not None:
             self.image_viewer.set_left_image(image_metadata.source_path)
+            self.img2img_group_box.setChecked(True)
             self.img_strength.spin_box.setValue(image_metadata.img_strength)
-            self.set_type('img2img')
+            self.set_type('image')
  
     def on_use_all(self, image_metadata):
         if image_metadata is not None:
@@ -638,15 +600,23 @@ class MainWindow(QMainWindow):
             self.width_spin_box.setValue(image_metadata.width)
             self.height_spin_box.setValue(image_metadata.height)
             self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
-            if image_metadata.type == 'img2img':
+
+            if image_metadata.img2img_enabled:
+                self.img2img_group_box.setChecked(True)
                 self.image_viewer.set_left_image(image_metadata.source_path)
-                self.condition_combo_box.setCurrentText(image_metadata.condition)
-                condition = configuration.conditions.get(image_metadata.condition, None)
-                if isinstance(condition, Img2ImgCondition):
-                    self.img_strength.spin_box.setValue(image_metadata.img_strength)
-                if isinstance(condition, ControlNetCondition):
-                    self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
-                    self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
+                self.img_strength.spin_box.setValue(image_metadata.img_strength)
+            else:
+                self.img2img_group_box.setChecked(False)
+
+            if image_metadata.control_net_enabled:
+                self.control_net_group_box.setChecked(True)
+                self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
+                for key, control_net_model in configuration.control_net_models.items():
+                   if control_net_model.repo_id == image_metadata.control_net_model:
+                        self.control_net_model_combo_box.setCurrentText(key)
+                self.control_net_scale.spin_box.setValue(image_metadata.control_net_scale)
+            else:
+                self.control_net_group_box.setChecked(False)
 
             if image_metadata.upscale_enabled:
                 self.upscale_group_box.setChecked(True)
@@ -664,7 +634,7 @@ class MainWindow(QMainWindow):
             else:
                 self.face_strength_group_box.setChecked(False)
 
-            self.set_type(image_metadata.type)
+            self.set_type('image')
 
     def on_move_image(self, image_metadata: ImageMetadata, collection: str):
         current_collection = self.thumbnail_viewer.collection()
