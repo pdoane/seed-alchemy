@@ -1,9 +1,24 @@
+from dataclasses import dataclass, asdict
 import json
 import os
 
 import configuration
+import utils
 
+@dataclass
+class ControlNetMetadata:
+    name: str = ''
+    conditioning_image_path: str = ''
+    preprocess: bool = True
+    scale: float = 1.0
 
+    def to_dict(self):
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(**data)
+    
 class ImageMetadata:
     model: str = 'stabilityai/stable-diffusion-2-1-base'
     safety_checker: bool = True
@@ -22,10 +37,7 @@ class ImageMetadata:
     control_net_enabled: bool = False
     control_net_guidance_start: float = 0.0
     control_net_guidance_end: float = 1.0
-    control_net_conditioning_image_path: str = ''
-    control_net_preprocess: bool = False
-    control_net_model: str = ''
-    control_net_scale: float = 1.0
+    control_nets: list[ControlNetMetadata] = []
     upscale_enabled: bool = False
     upscale_factor: int = 1
     upscale_denoising_strength: float = 0.0
@@ -55,17 +67,10 @@ class ImageMetadata:
         self.control_net_enabled = settings.value('control_net_enabled', type=bool)
         self.control_net_guidance_start = 0.0
         self.control_net_guidance_end = 1.0
-        self.control_net_conditioning_image_path = ''
-        self.control_net_preprocess = False
-        self.control_net_model = ''
-        self.control_net_scale = 1.0
         if self.control_net_enabled:
             self.control_net_guidance_start = settings.value('control_net_guidance_start')
             self.control_net_guidance_end = settings.value('control_net_guidance_end')
-            self.control_net_conditioning_image_path = settings.value('control_net_conditioning_image_path')
-            self.control_net_preprocess = settings.value('control_net_preprocess', type=bool)
-            self.control_net_model = settings.value('control_net_model')
-            self.control_net_scale = settings.value('control_net_scale')
+            self.control_nets = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value('control_nets'))]
 
         self.upscale_enabled = settings.value('upscale_enabled', type=bool)
         self.upscale_factor = 1
@@ -107,20 +112,13 @@ class ImageMetadata:
                     self.source_path = image_data.get('source_path', '')
                     self.img_strength = float(image_data.get('img_strength', 0.5))
 
-                self.control_net_enabled = 'control_net_model' in image_data
+                self.control_net_enabled = 'control_nets' in image_data
                 self.control_net_guidance_start = 0.0
                 self.control_net_guidance_end = 1.0
-                self.control_net_conditioning_image_path = ''
-                self.control_net_preprocess = False
-                self.control_net_model = ''
-                self.control_net_scale = 1.0
                 if self.control_net_enabled:
                     self.control_net_guidance_start = image_data.get('control_net_guidance_start', 0.0)
                     self.control_net_guidance_end = image_data.get('control_net_guidance_end', 1.0)
-                    self.control_net_conditioning_image_path = image_data.get('control_net_conditioning_image_path', '')
-                    self.control_net_preprocess = image_data.get('control_net_preprocess', False)
-                    self.control_net_model = image_data.get('control_net_model', '')
-                    self.control_net_scale = image_data.get('control_net_scale', 1.0)
+                    self.control_nets = [ControlNetMetadata.from_dict(item) for item in image_data.get('control_nets', '[]')]
 
                 self.upscale_enabled = 'upscale_blend_strength' in image_data
                 self.upscale_factor = 1
@@ -160,10 +158,7 @@ class ImageMetadata:
         if self.control_net_enabled:
             sd_metadata['image']['control_net_guidance_start'] = self.control_net_guidance_start
             sd_metadata['image']['control_net_guidance_end'] = self.control_net_guidance_end
-            sd_metadata['image']['control_net_conditioning_image_path'] = self.control_net_conditioning_image_path
-            sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess
-            sd_metadata['image']['control_net_model'] = self.control_net_model
-            sd_metadata['image']['control_net_scale'] = self.control_net_scale
+            sd_metadata['image']['control_nets'] = [control_net.to_dict() for control_net in self.control_nets]
         if self.upscale_enabled:
             sd_metadata['image']['upscale_factor'] = self.upscale_factor
             sd_metadata['image']['upscale_denoising_strength'] = self.upscale_denoising_strength

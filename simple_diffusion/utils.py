@@ -7,7 +7,7 @@ from typing import Callable
 import requests
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QImage, QPalette, QPixmap
+from PySide6.QtGui import QIcon, QImage, QPixmap
 from PySide6.QtWidgets import QFrame
 
 if sys.platform == 'darwin':

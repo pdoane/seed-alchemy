@@ -1,3 +1,4 @@
+import json
 import os
 
 import actions
@@ -90,13 +91,10 @@ class ImageMetadataFrame(QFrame):
 
         if metadata.control_net_enabled:
             self.control_net.frame.setVisible(True)
-            self.control_net.value.setText('Range=[{:.2f},{:.2f}], Model={:s}, Source={:s}, Preprocess={:s}, Scale={:.2f}'.format(
+            self.control_net.value.setText('Range=[{:.2f},{:.2f}], {:s}'.format(
                 metadata.control_net_guidance_start,
                 metadata.control_net_guidance_end,
-                metadata.control_net_model,
-                metadata.control_net_conditioning_image_path,
-                str(metadata.control_net_preprocess),
-                metadata.control_net_scale,
+                json.dumps([control_net.to_dict() for control_net in metadata.control_nets])
             ))
         else:
             self.control_net.frame.setVisible(False)

@@ -2,7 +2,7 @@ import gc
 import os
 import warnings
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 import configuration
@@ -16,7 +16,7 @@ from PIL import Image
 @dataclass
 class GenerateRequest:
     source_image: Image.Image = None
-    controlnet_conditioning_image: Image.Image = None
+    controlnet_conditioning_images: list[Image.Image] = field(default_factory=list)
     image_metadata: ImageMetadata = ImageMetadata()
     num_images_per_prompt: int = 1
     generator: torch.Generator = None
@@ -40,8 +40,8 @@ class PipelineBase(ABC):
 class ImagePipeline(PipelineBase):
     type: str = None
     pipe: DiffusionPipeline = None
-    control_net: ControlNetModel = None
-    control_net_model_name: str = None
+    control_nets: list[ControlNetModel] = []
+    control_net_model_names: list[str] = []
 
     def __init__(self, pipeline_cache: PipelineCache, image_metadata: ImageMetadata) -> None:
         super().__init__()
@@ -58,8 +58,8 @@ class ImagePipeline(PipelineBase):
 
         prev_pipeline = pipeline_cache.pipeline
         if self.is_compatible(prev_pipeline, image_metadata):
-            self.control_net = prev_pipeline.control_net
-            self.control_net_model_name = image_metadata.control_net_model
+            self.control_nets = prev_pipeline.control_nets
+            self.control_net_model_names = prev_pipeline.control_net_model_names
             if self.type == prev_pipeline.type:
                 self.pipe = prev_pipeline.pipe
             elif self.type == 'txt2img':
@@ -89,21 +89,34 @@ class ImagePipeline(PipelineBase):
                     else:
                         self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
                 else:
-                    print('Loading ControlNet Pipeline', image_metadata.model, image_metadata.control_net_model)
-                    control_net_model = configuration.control_net_models[image_metadata.control_net_model]
-                    self.control_net = ControlNetModel.from_pretrained(control_net_model.repo_id, subfolder=control_net_model.subfolder, torch_dtype=self.dtype)
-                    self.control_net_model_name = image_metadata.control_net_model
+                    control_net_model_names = []
+                    for control_net_meta in image_metadata.control_nets:
+                        control_net_model_names.append(control_net_meta.name)
+
+                    print('Loading ControlNet Pipeline', image_metadata.model, control_net_model_names)
+
+                    control_nets = []
+                    for control_net_meta in image_metadata.control_nets:
+                        control_net_config = configuration.control_net_models[control_net_meta.name]
+                        control_net = ControlNetModel.from_pretrained(control_net_config.repo_id, subfolder=control_net_config.subfolder, torch_dtype=self.dtype)
+                        control_nets.append(control_net)
+                    
+                    self.control_nets = control_nets
+                    self.control_net_model_names = control_net_model_names
+
+                    if len(self.control_nets) == 1:
+                        self.control_nets = self.control_nets[0]
 
                     if self.type == 'controlnet':
                         if image_metadata.safety_checker:
-                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=self.control_net, torch_dtype=self.dtype)
+                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=self.control_nets, torch_dtype=self.dtype)
                         else:
-                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=self.control_net, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=self.control_nets, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
                     elif self.type == 'controlnet_img2img':
                         if image_metadata.safety_checker:
-                            self.pipe = DiffusionPipeline.from_pretrained(model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_net, torch_dtype=self.dtype)
+                            self.pipe = DiffusionPipeline.from_pretrained(model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_nets, torch_dtype=self.dtype)
                         else:
-                            self.pipe = DiffusionPipeline.from_pretrained(model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_net, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                            self.pipe = DiffusionPipeline.from_pretrained(model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_nets, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
 
             self.pipe.to(self.device)
             self.pipe.enable_attention_slicing()
@@ -119,12 +132,25 @@ class ImagePipeline(PipelineBase):
             else:
                 return False
         if self.type == 'controlnet' or self.type == 'controlnet_img2img':
-            if prev_pipeline.control_net_model_name != image_metadata.control_net_model:
+            control_net_model_names = []
+            for control_net_meta in image_metadata.control_nets:
+                control_net_model_names.append(control_net_meta.name)
+            if prev_pipeline.control_net_model_names != control_net_model_names:
                 return False
 
         return True
 
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
+        control_net_scales = []
+        for control_net_meta in req.image_metadata.control_nets:
+            control_net_scales.append(control_net_meta.scale)
+
+        if len(req.image_metadata.control_nets) == 1:
+            controlnet_conditioning_images = req.controlnet_conditioning_images[0]
+            control_net_scales = control_net_scales[0]
+        else:
+            controlnet_conditioning_images = req.controlnet_conditioning_images
+
         if self.type == 'txt2img':
             return self.pipe(
                 width=req.image_metadata.width,
@@ -151,8 +177,8 @@ class ImagePipeline(PipelineBase):
             ).images
         elif self.type == 'controlnet':
             return self.pipe(
-                image=req.controlnet_conditioning_image,
-                controlnet_conditioning_scale=req.image_metadata.control_net_scale,
+                image=controlnet_conditioning_images,
+                controlnet_conditioning_scale=control_net_scales,
                 num_inference_steps=req.image_metadata.num_inference_steps,
                 guidance_scale=req.image_metadata.guidance_scale,
                 num_images_per_prompt=req.num_images_per_prompt,
@@ -165,8 +191,8 @@ class ImagePipeline(PipelineBase):
             return self.pipe(
                 image=req.source_image,
                 strength=req.image_metadata.img_strength,
-                controlnet_conditioning_image=req.controlnet_conditioning_image,
-                controlnet_conditioning_scale=req.image_metadata.control_net_scale,
+                controlnet_conditioning_image=controlnet_conditioning_images,
+                controlnet_conditioning_scale=control_net_scales,
                 controlnet_guidance_start=req.image_metadata.control_net_guidance_start,
                 controlnet_guidance_end=req.image_metadata.control_net_guidance_end,
                 num_inference_steps=req.image_metadata.num_inference_steps,

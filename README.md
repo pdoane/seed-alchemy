@@ -29,14 +29,13 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 
 - Text to Image
 - Image to Image
-- ControlNet 1.1 (Base, Img2Img)
+- ControlNet 1.1 (Base, Img2Img, Multi-model)
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
 
 ### Roadmap
 
 Near-term:
-- Multi-ControlNet
 - UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
 - Inpainting
 - Async thumbnail loading

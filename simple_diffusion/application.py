@@ -1,12 +1,15 @@
 import os
+import json
 
 import configuration
+import qdarktheme
 import utils
+from image_metadata import ControlNetMetadata
 from main_window import MainWindow
 from PySide6.QtCore import QEvent, QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
-import qdarktheme
+
 
 class Application(QApplication):
     settings: QSettings = None
@@ -21,6 +24,9 @@ class Application(QApplication):
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)    
 
         # Settings
+        control_net_meta = ControlNetMetadata()
+        control_net_meta.name = 'Canny'
+
         self.settings = QSettings('settings.ini', QSettings.IniFormat)
         self.set_default_setting('safety_checker', True)
         self.set_default_setting('collection', 'outputs')
@@ -41,9 +47,7 @@ class Application(QApplication):
         self.set_default_setting('control_net_enabled', False)
         self.set_default_setting('control_net_guidance_start', 0.0)
         self.set_default_setting('control_net_guidance_end', 1.0)
-        self.set_default_setting('control_net_preprocess', True)
-        self.set_default_setting('control_net_model', '')
-        self.set_default_setting('control_net_scale', 1.0)
+        self.set_default_setting('control_nets', json.dumps([control_net_meta.to_dict()]))
         self.set_default_setting('source_path', '')
         self.set_default_setting('upscale_enabled', False)
         self.set_default_setting('upscale_factor', 2)
@@ -52,6 +56,7 @@ class Application(QApplication):
         self.set_default_setting('face_enabled', False)
         self.set_default_setting('face_blend_strength', 0.75)
         self.set_default_setting('reduce_memory', True)
+
         self.settings.beginGroup('Models')
         self.set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')
         self.settings.endGroup()
@@ -66,6 +71,8 @@ class Application(QApplication):
         self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
         qdarktheme.setup_theme('dark', corner_shape='sharp')
+
+        # Main window
         self.main_window = MainWindow(self.settings, self.collections)
         self.main_window.show()
 

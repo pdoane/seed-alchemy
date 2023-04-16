@@ -91,24 +91,27 @@ class GenerateThread(QThread):
                 image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
                 self.req.source_image = image.copy()
 
-        # Conditioning image
+        # Conditioning images
         if self.req.image_metadata.control_net_enabled:
-            full_path = os.path.join(configuration.IMAGES_PATH, self.req.image_metadata.control_net_conditioning_image_path)
-            with Image.open(full_path) as image:
-                image = image.convert('RGB')
-                image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
-                self.req.controlnet_conditioning_image = image.copy()
+            for control_net_meta in self.req.image_metadata.control_nets:
+                full_path = os.path.join(configuration.IMAGES_PATH, control_net_meta.conditioning_image_path)
+                with Image.open(full_path) as image:
+                    image = image.convert('RGB')
+                    image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+                    controlnet_conditioning_image = image.copy()
 
-            if self.req.image_metadata.control_net_preprocess:
-                control_net_model = configuration.control_net_models[self.req.image_metadata.control_net_model]
-                if control_net_model:
-                    preprocessor_type = control_net_model.preprocessor
-                    if preprocessor_type:
-                        if not isinstance(generate_preprocessor, preprocessor_type):
-                            generate_preprocessor = preprocessor_type()
-                        self.req.controlnet_conditioning_image = generate_preprocessor(self.req.controlnet_conditioning_image)
-                        if self.reduce_memory:
-                            generate_preprocessor = None
+                if control_net_meta.preprocess:
+                    control_net_config = configuration.control_net_models[control_net_meta.name]
+                    if control_net_config:
+                        preprocessor_type = control_net_config.preprocessor
+                        if preprocessor_type:
+                            if not isinstance(generate_preprocessor, preprocessor_type):
+                                generate_preprocessor = preprocessor_type()
+                            controlnet_conditioning_image = generate_preprocessor(controlnet_conditioning_image)
+                            if self.reduce_memory:
+                                generate_preprocessor = None
+                
+                self.req.controlnet_conditioning_images.append(controlnet_conditioning_image)
 
         # scheduler
         pipe.scheduler = configuration.schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
