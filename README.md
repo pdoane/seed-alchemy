@@ -1,6 +1,6 @@
 # SimpleDiffusion
 
-A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less memory making it faster to run on a machine with low RAM (e.g. 16GB).  Developed and tested on macOS.  Other platforms could be supported with a small effort.
+A native UI for Stable Diffusion using the `diffusers` library.  Developed and tested on macOS.  Other platforms could be supported with a small effort.
 
 ![Screenshot](docs/screenshot.webp)
 
@@ -32,6 +32,8 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 - ControlNet 1.1 (Base, Img2Img, Multi-model)
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
+- Image generation with real-time preview
+- Thumbnail viewer with collections
 
 ### Roadmap
 
@@ -39,19 +41,19 @@ Near-term:
 - UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
 - Inpainting
 - Async thumbnail loading
-- Collapsing panels in UI
 - Upscale/Restore Faces for existing images
 - ControlNet preprocessor arguments
 - Thumbnail paths by image hash 
-- Long Prompt Weighting
+- Collapsing panels in UI
 
 Evaluate:
 - Self-Attention Guidance
 - MultiDiffusion
+- Long Prompt Weighting
+- ControlNet Guess Mode
 
 Requires new versions of dependencies:
 - diffusers
   - LoRA (support is still minimal)
-  - ControlNet Guess Mode
 - torch
   - Retest float16 support
