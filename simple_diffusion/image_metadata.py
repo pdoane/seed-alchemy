@@ -20,6 +20,8 @@ class ImageMetadata:
     source_path: str = ''
     img_strength: float = 0.0
     control_net_enabled: bool = False
+    control_net_guidance_start: float = 0.0
+    control_net_guidance_end: float = 1.0
     control_net_conditioning_image_path: str = ''
     control_net_preprocess: bool = False
     control_net_model: str = ''
@@ -51,11 +53,15 @@ class ImageMetadata:
             self.img_strength = float(settings.value('img_strength'))
 
         self.control_net_enabled = settings.value('control_net_enabled', type=bool)
+        self.control_net_guidance_start = 0.0
+        self.control_net_guidance_end = 1.0
         self.control_net_conditioning_image_path = ''
         self.control_net_preprocess = False
         self.control_net_model = ''
         self.control_net_scale = 1.0
         if self.control_net_enabled:
+            self.control_net_guidance_start = settings.value('control_net_guidance_start')
+            self.control_net_guidance_end = settings.value('control_net_guidance_end')
             self.control_net_conditioning_image_path = settings.value('control_net_conditioning_image_path')
             self.control_net_preprocess = settings.value('control_net_preprocess', type=bool)
             self.control_net_model = settings.value('control_net_model')
@@ -102,11 +108,15 @@ class ImageMetadata:
                     self.img_strength = float(image_data.get('img_strength', 0.5))
 
                 self.control_net_enabled = 'control_net_model' in image_data
+                self.control_net_guidance_start = 0.0
+                self.control_net_guidance_end = 1.0
                 self.control_net_conditioning_image_path = ''
                 self.control_net_preprocess = False
                 self.control_net_model = ''
                 self.control_net_scale = 1.0
                 if self.control_net_enabled:
+                    self.control_net_guidance_start = image_data.get('control_net_guidance_start', 0.0)
+                    self.control_net_guidance_end = image_data.get('control_net_guidance_end', 1.0)
                     self.control_net_conditioning_image_path = image_data.get('control_net_conditioning_image_path', '')
                     self.control_net_preprocess = image_data.get('control_net_preprocess', False)
                     self.control_net_model = image_data.get('control_net_model', '')
@@ -148,6 +158,8 @@ class ImageMetadata:
             sd_metadata['image']['source_path'] = self.source_path
             sd_metadata['image']['img_strength'] = self.img_strength
         if self.control_net_enabled:
+            sd_metadata['image']['control_net_guidance_start'] = self.control_net_guidance_start
+            sd_metadata['image']['control_net_guidance_end'] = self.control_net_guidance_end
             sd_metadata['image']['control_net_conditioning_image_path'] = self.control_net_conditioning_image_path
             sd_metadata['image']['control_net_preprocess'] = self.control_net_preprocess
             sd_metadata['image']['control_net_model'] = self.control_net_model

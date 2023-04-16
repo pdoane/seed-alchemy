@@ -1,4 +1,3 @@
-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
                                QLabel, QScrollArea, QSizePolicy, QSlider,
@@ -61,7 +60,7 @@ class FloatSliderSpinBox(QWidget):
         frame = QFrame()
         frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.slider = Slider(Qt.Horizontal)
-        self.slider.setRange(1, 100)
+        self.slider.setRange(0, 100)
         self.slider.setValue(initial_value * 100)
         self.slider.setSingleStep(1)
         self.slider.setPageStep(10)
@@ -69,7 +68,7 @@ class FloatSliderSpinBox(QWidget):
         self.spin_box = DoubleSpinBox()
         self.spin_box.setAlignment(Qt.AlignCenter)
         self.spin_box.setFixedWidth(80)
-        self.spin_box.setRange(0.01, 1.0)
+        self.spin_box.setRange(0.0, 1.0)
         self.spin_box.setSingleStep(0.01)
         self.spin_box.setDecimals(2)
         self.spin_box.setValue(initial_value)

@@ -36,7 +36,6 @@ A Python UI for the `diffusers` library.  Inspired by InvokeAI, but uses less me
 ### Roadmap
 
 Near-term:
-- ControlNet guidance Start/End
 - Multi-ControlNet
 - UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
 - Inpainting

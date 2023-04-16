@@ -167,6 +167,8 @@ class ImagePipeline(PipelineBase):
                 strength=req.image_metadata.img_strength,
                 controlnet_conditioning_image=req.controlnet_conditioning_image,
                 controlnet_conditioning_scale=req.image_metadata.control_net_scale,
+                controlnet_guidance_start=req.image_metadata.control_net_guidance_start,
+                controlnet_guidance_end=req.image_metadata.control_net_guidance_end,
                 num_inference_steps=req.image_metadata.num_inference_steps,
                 guidance_scale=req.image_metadata.guidance_scale,
                 num_images_per_prompt=req.num_images_per_prompt,

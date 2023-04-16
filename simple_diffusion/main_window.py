@@ -258,9 +258,12 @@ class MainWindow(QMainWindow):
         self.img2img_group_box = QGroupBox('Image to Image')
         self.img2img_group_box.setCheckable(True)
         self.img2img_group_box.setChecked(self.settings.value('img2img_enabled', type=bool))
-        self.img2img_group_box.clicked.connect(self.update_control_visibility)
+        self.img2img_group_box.toggled.connect(lambda: self.update_control_state())
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
         img2img_group_box_layout.addWidget(self.img_strength)
+
+        self.control_net_guidance_start = FloatSliderSpinBox('Control Net Start', float(self.settings.value('control_net_guidance_start')))
+        self.control_net_guidance_end = FloatSliderSpinBox('Control Net End', float(self.settings.value('control_net_guidance_end')))
 
         self.control_net_model_combo_box = ComboBox()
         self.control_net_model_combo_box.addItems(configuration.control_net_models.keys())
@@ -276,12 +279,14 @@ class MainWindow(QMainWindow):
         self.control_net_group_box = QGroupBox('Control Net')
         self.control_net_group_box.setCheckable(True)
         self.control_net_group_box.setChecked(self.settings.value('control_net_enabled', type=bool))
-        self.control_net_group_box.clicked.connect(self.update_control_visibility)
+        self.control_net_group_box.toggled.connect(lambda: self.update_control_state())
         control_net_preprocess_hlayout = QHBoxLayout()
         control_net_preprocess_hlayout.setContentsMargins(0, 0, 0, 0)
         control_net_preprocess_hlayout.addWidget(self.control_net_preprocess_check_box)
         control_net_preprocess_hlayout.addWidget(self.control_net_preview_preprocessor_button)
         control_net_group_box_layout = QVBoxLayout(self.control_net_group_box)
+        control_net_group_box_layout.addWidget(self.control_net_guidance_start)
+        control_net_group_box_layout.addWidget(self.control_net_guidance_end)
         control_net_group_box_layout.addWidget(self.control_net_model_combo_box)
         control_net_group_box_layout.addLayout(control_net_preprocess_hlayout)
         control_net_group_box_layout.addWidget(self.control_net_scale)
@@ -419,8 +424,8 @@ class MainWindow(QMainWindow):
         if button_id == 0:
             self.type = 'image'
 
-        self.update_control_visibility()
-        
+        self.update_control_state()
+
     def on_cancel_generation(self):
         if self.generate_thread:
             self.generate_thread.cancel = True
@@ -450,11 +455,10 @@ class MainWindow(QMainWindow):
                 source_image.save(full_path)
                 self.image_viewer.set_right_image(output_path)
 
-    def update_control_visibility(self):
-        if self.img2img_group_box.isChecked() or self.control_net_group_box.isChecked():
-            self.image_viewer.set_both_images_visible(True)
-        else:
-            self.image_viewer.set_both_images_visible(False)
+    def update_control_state(self):
+        self.image_viewer.set_both_images_visible(self.img2img_group_box.isChecked() or self.control_net_group_box.isChecked())
+        self.control_net_guidance_start.setEnabled(self.img2img_group_box.isChecked() and self.control_net_group_box.isChecked())
+        self.control_net_guidance_end.setEnabled(self.img2img_group_box.isChecked() and self.control_net_group_box.isChecked())
 
         # self.config_frame.adjustSize()
 
@@ -479,6 +483,8 @@ class MainWindow(QMainWindow):
         self.settings.setValue('source_path', self.image_viewer.left_image_path())
         self.settings.setValue('img_strength', self.img_strength.spin_box.value())
         self.settings.setValue('control_net_enabled', self.control_net_group_box.isChecked())
+        self.settings.setValue('control_net_guidance_start', self.control_net_guidance_start.spin_box.value())
+        self.settings.setValue('control_net_guidance_end', self.control_net_guidance_end.spin_box.value())
         self.settings.setValue('control_net_conditioning_image_path', self.image_viewer.left_image_path())
         self.settings.setValue('control_net_preprocess', self.control_net_preprocess_check_box.isChecked())
         self.settings.setValue('control_net_model', self.control_net_model_combo_box.currentText())
@@ -625,8 +631,10 @@ class MainWindow(QMainWindow):
             if image_metadata.control_net_enabled:
                 self.image_viewer.set_left_image(image_metadata.control_net_conditioning_image_path)
                 self.control_net_group_box.setChecked(True)
-                self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
+                self.control_net_guidance_start.spin_box.setValue(image_metadata.control_net_guidance_start)
+                self.control_net_guidance_end.spin_box.setValue(image_metadata.control_net_guidance_end)
                 self.control_net_model_combo_box.setCurrentText(image_metadata.control_net_model)
+                self.control_net_preprocess_check_box.setChecked(image_metadata.control_net_preprocess)
                 self.control_net_scale.spin_box.setValue(image_metadata.control_net_scale)
             else:
                 self.control_net_group_box.setChecked(False)

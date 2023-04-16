@@ -39,6 +39,8 @@ class Application(QApplication):
         self.set_default_setting('img2img_enabled', False)
         self.set_default_setting('img_strength', 0.5)
         self.set_default_setting('control_net_enabled', False)
+        self.set_default_setting('control_net_guidance_start', 0.0)
+        self.set_default_setting('control_net_guidance_end', 1.0)
         self.set_default_setting('control_net_preprocess', True)
         self.set_default_setting('control_net_model', '')
         self.set_default_setting('control_net_scale', 1.0)

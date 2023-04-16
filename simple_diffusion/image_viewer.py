@@ -81,27 +81,29 @@ class ImageMetadataFrame(QFrame):
 
         if metadata.img2img_enabled:
             self.img2img.frame.setVisible(True)
-            self.img2img.value.setText('Source={:s}, Blend={:g}'.format(
+            self.img2img.value.setText('Source={:s}, Blend={:.2f}'.format(
                 metadata.source_path,
-                metadata.img_strength
+                metadata.img_strength,
             ))
         else:
             self.img2img.frame.setVisible(False)
 
         if metadata.control_net_enabled:
             self.control_net.frame.setVisible(True)
-            self.control_net.value.setText('Source={:s}, Preprocess={:s}, Scale={:g}, Model={:s}'.format(
+            self.control_net.value.setText('Range=[{:.2f},{:.2f}], Model={:s}, Source={:s}, Preprocess={:s}, Scale={:.2f}'.format(
+                metadata.control_net_guidance_start,
+                metadata.control_net_guidance_end,
+                metadata.control_net_model,
                 metadata.control_net_conditioning_image_path,
                 str(metadata.control_net_preprocess),
                 metadata.control_net_scale,
-                metadata.control_net_model
             ))
         else:
             self.control_net.frame.setVisible(False)
         
         if metadata.upscale_enabled:
             self.upscale.frame.setVisible(True)
-            self.upscale.value.setText('{:d}x, Denoising={:g}, Blend={:g}'.format(
+            self.upscale.value.setText('{:d}x, Denoising={:.2f}, Blend={:.2f}'.format(
                 metadata.upscale_factor,
                 metadata.upscale_denoising_strength,
                 metadata.upscale_blend_strength
@@ -111,7 +113,7 @@ class ImageMetadataFrame(QFrame):
 
         if metadata.face_enabled:
             self.face.frame.setVisible(True)
-            self.face.value.setText('Blend={:g}'.format(
+            self.face.value.setText('Blend={:.2f}'.format(
                 metadata.face_blend_strength
             ))
         else:
