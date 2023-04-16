@@ -56,14 +56,13 @@ class FloatSliderSpinBox(QWidget):
         super().__init__(parent)
 
         label = QLabel(name)
-        label.setAlignment(Qt.AlignCenter)
-        frame = QFrame()
-        frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.slider = Slider(Qt.Horizontal)
         self.slider.setRange(0, 100)
         self.slider.setValue(initial_value * 100)
         self.slider.setSingleStep(1)
         self.slider.setPageStep(10)
+        self.slider.setFixedWidth(101)
         self.slider.valueChanged.connect(self.on_slider_changed)
         self.spin_box = DoubleSpinBox()
         self.spin_box.setAlignment(Qt.AlignCenter)
@@ -74,16 +73,11 @@ class FloatSliderSpinBox(QWidget):
         self.spin_box.setValue(initial_value)
         self.spin_box.valueChanged.connect(self.on_spin_box_changed)
 
-        hlayout = QHBoxLayout(frame)
+        hlayout = QHBoxLayout(self)
         hlayout.setContentsMargins(0, 0, 0, 0)
+        hlayout.addWidget(label)
         hlayout.addWidget(self.slider)
         hlayout.addWidget(self.spin_box)
-
-        vlayout = QVBoxLayout(self)
-        vlayout.setContentsMargins(0, 0, 0, 0) 
-        vlayout.setSpacing(0)
-        vlayout.addWidget(label)
-        vlayout.addWidget(frame)
 
     def on_check_box_changed(self, state):
         self.slider.setEnabled(state)

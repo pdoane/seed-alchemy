@@ -262,8 +262,8 @@ class MainWindow(QMainWindow):
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
         img2img_group_box_layout.addWidget(self.img_strength)
 
-        self.control_net_guidance_start = FloatSliderSpinBox('Control Net Start', float(self.settings.value('control_net_guidance_start')))
-        self.control_net_guidance_end = FloatSliderSpinBox('Control Net End', float(self.settings.value('control_net_guidance_end')))
+        self.control_net_guidance_start = FloatSliderSpinBox('Guidance Start', float(self.settings.value('control_net_guidance_start')))
+        self.control_net_guidance_end = FloatSliderSpinBox('Guidance End', float(self.settings.value('control_net_guidance_end')))
 
         self.control_net_model_combo_box = ComboBox()
         self.control_net_model_combo_box.addItems(configuration.control_net_models.keys())
