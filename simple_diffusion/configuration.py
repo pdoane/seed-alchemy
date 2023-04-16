@@ -37,7 +37,7 @@ control_net_models: dict[str, ControlNetConfig] = {
     'Lineart Coarse': ControlNetConfig('lllyasviel/control_v11p_sd15_lineart', None, LineartCoarseProcessor),
     'Lineart Anime': ControlNetConfig('lllyasviel/control_v11p_sd15s2_lineart_anime', None, LineartAnimeProcessor),
     'M-LSD Lines': ControlNetConfig('lllyasviel/control_v11p_sd15_mlsd', None, MlsdProcessor),
-    'Normal Bae': ControlNetConfig('lllyasviel/control_v11p_sd15_normalbae', None, NormalBaeProcessor),
+    'Normal BAE': ControlNetConfig('lllyasviel/control_v11p_sd15_normalbae', None, NormalBaeProcessor),
     'OpenPose': ControlNetConfig('lllyasviel/control_v11p_sd15_openpose', None, OpenposeProcessor),
     'OpenPose Full': ControlNetConfig('lllyasviel/control_v11p_sd15_openpose', None, OpenposeFullProcessor),
     'Scribble HED': ControlNetConfig('takuma104/control_v11', 'control_v11p_sd15_scribble', ScribbleHEDProcessor),

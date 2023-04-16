@@ -67,6 +67,7 @@ class ImageMetadata:
         self.control_net_enabled = settings.value('control_net_enabled', type=bool)
         self.control_net_guidance_start = 0.0
         self.control_net_guidance_end = 1.0
+        self.control_nets = []
         if self.control_net_enabled:
             self.control_net_guidance_start = settings.value('control_net_guidance_start')
             self.control_net_guidance_end = settings.value('control_net_guidance_end')
@@ -115,6 +116,7 @@ class ImageMetadata:
                 self.control_net_enabled = 'control_nets' in image_data
                 self.control_net_guidance_start = 0.0
                 self.control_net_guidance_end = 1.0
+                self.control_nets = []
                 if self.control_net_enabled:
                     self.control_net_guidance_start = image_data.get('control_net_guidance_start', 0.0)
                     self.control_net_guidance_end = image_data.get('control_net_guidance_end', 1.0)
