@@ -125,10 +125,12 @@ class ImagePipeline(PipelineBase):
         if not isinstance(prev_pipeline, ImagePipeline):
             return False
         if self.type != prev_pipeline.type:
-            if self.type == 'txt2img' and prev_pipeline.type != 'img2img':
-                return False
-            elif self.type == 'img2img' and prev_pipeline.type != 'txt2img':
-                return False
+            if self.type == 'txt2img':
+                if prev_pipeline.type != 'img2img':
+                    return False
+            elif self.type == 'img2img':
+                if prev_pipeline.type != 'txt2img':
+                    return False
             else:
                 return False
         if self.type == 'controlnet' or self.type == 'controlnet_img2img':
