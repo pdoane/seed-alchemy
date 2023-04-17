@@ -58,7 +58,7 @@ class PromptTextEdit(QPlainTextEdit):
                 format.setUnderlineColor(QColor(Qt.red))
                 format.setUnderlineStyle(QTextCharFormat.SingleUnderline)
 
-                index = text.index(word)
+                index = match.start()
                 cursor = QTextCursor(self.document())
                 cursor.setPosition(index, QTextCursor.MoveAnchor)
                 cursor.setPosition(index + len(word), QTextCursor.KeepAnchor)
