@@ -6,12 +6,12 @@ import sys
 
 import actions
 import configuration
+import font_awesome as fa
 import utils
 from about_dialog import AboutDialog
-from image_metadata import ControlNetMetadata
 from delete_image_dialog import DeleteImageDialog
 from generate_thread import GenerateThread
-from image_metadata import ImageMetadata
+from image_metadata import ControlNetMetadata, ImageMetadata
 from image_viewer import ImageViewer
 from PIL import Image, PngImagePlugin
 from preferences_dialog import PreferencesDialog
@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         config_scroll_area.setWidget(self.config_frame)
         config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
+        # Model
         self.model_combo_box = ComboBox()
         self.settings.beginGroup('Models')
         for key in self.settings.childKeys():
@@ -159,6 +160,7 @@ class MainWindow(QMainWindow):
         if index != -1:
             self.model_combo_box.setCurrentIndex(index)
 
+        # Prompts
         self.prompt_edit = PromptTextEdit(8, 'Prompt')
         self.prompt_edit.setPlainText(self.settings.value('prompt'))
         self.prompt_edit.return_pressed.connect(self.on_generate_image)
@@ -166,15 +168,21 @@ class MainWindow(QMainWindow):
         self.negative_prompt_edit.setPlainText(self.settings.value('negative_prompt'))
         self.negative_prompt_edit.return_pressed.connect(self.on_generate_image)
 
+        # Generate
         self.generate_button = QPushButton('Generate')
         self.generate_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.generate_button.clicked.connect(self.on_generate_image)
 
-        cancel_button = QPushButton()
-        cancel_button.setIcon(QIcon(utils.resource_path('cancel_icon.png')))
-        cancel_button.setToolTip('Cancel')
+        cancel_button = actions.cancel_generation.push_button()
         cancel_button.clicked.connect(self.on_cancel_generation)
 
+        generate_hlayout = QHBoxLayout()
+        generate_hlayout.setContentsMargins(0, 0, 0, 0)
+        generate_hlayout.setSpacing(2)
+        generate_hlayout.addWidget(self.generate_button)
+        generate_hlayout.addWidget(cancel_button)
+
+        # General
         num_images_label = QLabel('Images')
         num_images_label.setAlignment(Qt.AlignCenter)
         self.num_images_spin_box = SpinBox()
@@ -241,6 +249,7 @@ class MainWindow(QMainWindow):
         controls_grid.addWidget(scheduler_label, 3, 2)
         controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
 
+        # Seed
         self.seed_lineedit = QLineEdit()
         self.seed_lineedit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.seed_lineedit.setText(str(self.settings.value('seed')))
@@ -260,6 +269,7 @@ class MainWindow(QMainWindow):
         manual_seed_group_box_layout = QVBoxLayout(self.manual_seed_group_box)
         manual_seed_group_box_layout.addWidget(self.seed_frame)
 
+        # Image to Image
         self.img_strength = FloatSliderSpinBox('Strength', float(self.settings.value('img_strength')))
 
         self.img2img_group_box = QGroupBox('Image to Image')
@@ -269,6 +279,7 @@ class MainWindow(QMainWindow):
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
         img2img_group_box_layout.addWidget(self.img_strength)
 
+        # ControlNet
         self.control_net_guidance_start = FloatSliderSpinBox('Guidance Start', float(self.settings.value('control_net_guidance_start')))
         self.control_net_guidance_end = FloatSliderSpinBox('Guidance End', float(self.settings.value('control_net_guidance_end')))
 
@@ -292,6 +303,7 @@ class MainWindow(QMainWindow):
             self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_frame)
             self.control_net_frames.append(control_net_frame)
 
+        # Upscale
         upscale_factor_label = QLabel('Factor: ')
         self.upscale_factor_combo_box = ComboBox()
         self.upscale_factor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -316,6 +328,7 @@ class MainWindow(QMainWindow):
         upscale_group_box_layout.addWidget(self.upscale_denoising_strength)
         upscale_group_box_layout.addWidget(self.upscale_blend_strength)
 
+        # Face Restoration
         self.face_strength = FloatSliderSpinBox('Strength', float(self.settings.value('face_blend_strength')))
 
         self.face_strength_group_box = QGroupBox('Face Restoration')
@@ -325,11 +338,7 @@ class MainWindow(QMainWindow):
         face_strength_group_box_layout = QVBoxLayout(self.face_strength_group_box)
         face_strength_group_box_layout.addWidget(self.face_strength)
 
-        generate_hlayout = QHBoxLayout()
-        generate_hlayout.setContentsMargins(0, 0, 0, 0)
-        generate_hlayout.addWidget(self.generate_button)
-        generate_hlayout.addWidget(cancel_button)
-
+        # Configuration
         config_layout = QVBoxLayout(self.config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0)
         config_layout.addWidget(self.model_combo_box)
@@ -416,7 +425,8 @@ class MainWindow(QMainWindow):
         control_net_frame.model_combo_box.setCurrentText(control_net_meta.name)
 
         remove_button = QPushButton()
-        remove_button.setIcon(QIcon(utils.resource_path('cancel_icon.png')))
+        remove_button.setText(fa.icon_xmark)
+        remove_button.setFont(fa.font)
         remove_button.setToolTip('Remove')
         remove_button.clicked.connect(lambda: self.on_remove_control_net(control_net_frame))
 

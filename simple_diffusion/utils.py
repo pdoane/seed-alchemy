@@ -5,10 +5,11 @@ import time
 from typing import Callable
 
 import requests
+import font_awesome as fa
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QImage, QPixmap
-from PySide6.QtWidgets import QFrame
+from PySide6.QtGui import QIcon, QImage, QPixmap, QFont, QPainter
+from PySide6.QtWidgets import QFrame, QApplication
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSWorkspace
@@ -115,6 +116,26 @@ def empty_qicon():
         empty_pixmap.fill(Qt.transparent)
         empty_icon = QIcon(empty_pixmap)
     return empty_icon
+
+def create_fontawesome_icon(icon_code, size=16, color=Qt.white):
+    app_instance = QApplication.instance()
+    device_pixel_ratio = app_instance.devicePixelRatio()
+    
+    font = QFont(fa.font_family, size * device_pixel_ratio)
+    pixmap = QPixmap(size * device_pixel_ratio, size * device_pixel_ratio)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setFont(font)
+
+    if color:
+        painter.setPen(color)
+
+    painter.drawText(pixmap.rect(), Qt.AlignCenter, icon_code)
+    painter.end()
+
+    return QIcon(pixmap)
 
 def horizontal_separator():
     separator = QFrame()

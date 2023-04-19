@@ -1,7 +1,8 @@
-import os
 import json
+import os
 
 import configuration
+import font_awesome as fa
 import qdarktheme
 import utils
 from image_metadata import ControlNetMetadata
@@ -71,6 +72,7 @@ class Application(QApplication):
         self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
         qdarktheme.setup_theme('dark', corner_shape='sharp')
+        fa.load()
 
         # Main window
         self.main_window = MainWindow(self.settings, self.collections)
