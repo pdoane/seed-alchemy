@@ -8,7 +8,7 @@ import utils
 @dataclass
 class ControlNetMetadata:
     name: str = ''
-    conditioning_image_path: str = ''
+    image_source: int = 0
     preprocess: bool = True
     scale: float = 1.0
 
@@ -17,7 +17,7 @@ class ControlNetMetadata:
 
     @classmethod
     def from_dict(cls, data: dict):
-        return cls(**data)
+        return utils.from_dict(cls, data)
     
 class ImageMetadata:
     model: str = 'stabilityai/stable-diffusion-2-1-base'
@@ -26,14 +26,15 @@ class ImageMetadata:
     path: str = ''
     prompt: str = ''
     negative_prompt: str = ''
+    source_images: list[str] = []
     seed: int = 1
     num_inference_steps: int = 30
     guidance_scale: float = 7.5
     width: int = 512
     height: int = 512
     img2img_enabled: bool = False
-    source_path: str = ''
-    img_strength: float = 0.0
+    img2img_source: int = 0
+    img2img_strength: float = 0.0
     control_net_enabled: bool = False
     control_net_guidance_start: float = 0.0
     control_net_guidance_end: float = 1.0
@@ -51,6 +52,9 @@ class ImageMetadata:
         self.scheduler = settings.value('scheduler')
         self.prompt = settings.value('prompt')
         self.negative_prompt = settings.value('negative_prompt')
+
+        self.source_images = json.loads(settings.value('source_images'))
+
         self.seed = int(settings.value('seed'))
         self.num_inference_steps = int(settings.value('num_inference_steps'))
         self.guidance_scale = float(settings.value('guidance_scale'))
@@ -58,11 +62,11 @@ class ImageMetadata:
         self.height = int(settings.value('height'))
 
         self.img2img_enabled = settings.value('img2img_enabled', type=bool)
-        self.source_path = ''
-        self.img_strength = 0.0
+        self.img2img_source = 0
+        self.img2img_strength = 0.0
         if self.img2img_enabled:
-            self.source_path = settings.value('source_path')
-            self.img_strength = float(settings.value('img_strength'))
+            self.img2img_source = int(settings.value('img2img_source'))
+            self.img2img_strength = float(settings.value('img2img_strength'))
 
         self.control_net_enabled = settings.value('control_net_enabled', type=bool)
         self.control_net_guidance_start = 0.0
@@ -100,18 +104,21 @@ class ImageMetadata:
                 if 'prompt' in self.prompt:
                     self.prompt = self.prompt['prompt']
                 self.negative_prompt = image_data.get('negative_prompt', '')
+
+                self.source_images = image_data.get('source_images', [])
+
                 self.seed = int(image_data.get('seed', 5))
                 self.steps = int(image_data.get('steps', 30))
                 self.guidance_scale = float(image_data.get('cfg_scale', 7.5))
                 self.width = int(image_data.get('width', 512))
                 self.height = int(image_data.get('height', 512))
 
-                self.img2img_enabled = 'img_strength' in image_data
-                self.source_path = ''
-                self.img_strength = 0.0
+                self.img2img_enabled = 'img2img_source' in image_data
+                self.img2img_source = 0
+                self.img2img_strength = 0.0
                 if self.img2img_enabled:
-                    self.source_path = image_data.get('source_path', '')
-                    self.img_strength = float(image_data.get('img_strength', 0.5))
+                    self.img2img_source = int(image_data.get('img2img_source', 0))
+                    self.img2img_strength = float(image_data.get('img2img_strength', 0.5))
 
                 self.control_net_enabled = 'control_nets' in image_data
                 self.control_net_guidance_start = 0.0
@@ -145,6 +152,7 @@ class ImageMetadata:
             'image': {
                 'prompt': self.prompt,
                 'negative_prompt': self.negative_prompt,
+                'source_images': self.source_images,
                 'steps': str(self.num_inference_steps),
                 'cfg_scale': str(self.guidance_scale),
                 'height': str(self.height),
@@ -155,8 +163,8 @@ class ImageMetadata:
             }
         }
         if self.img2img_enabled:
-            sd_metadata['image']['source_path'] = self.source_path
-            sd_metadata['image']['img_strength'] = self.img_strength
+            sd_metadata['image']['img2img_source'] = self.img2img_source
+            sd_metadata['image']['img2img_strength'] = self.img2img_strength
         if self.control_net_enabled:
             sd_metadata['image']['control_net_guidance_start'] = self.control_net_guidance_start
             sd_metadata['image']['control_net_guidance_end'] = self.control_net_guidance_end

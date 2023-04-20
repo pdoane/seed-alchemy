@@ -1,8 +1,6 @@
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
-                               QLabel, QScrollArea, QSizePolicy, QSlider,
-                               QSpinBox, QVBoxLayout, QWidget)
-
+from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel,
+                               QScrollArea, QSlider, QSpinBox, QWidget)
 
 class ComboBox(QComboBox):
     def wheelEvent(self, event):

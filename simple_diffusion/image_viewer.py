@@ -44,6 +44,7 @@ class ImageMetadataFrame(QFrame):
         self.scheduler = MetadataRow('Scheduler:')
         self.prompt = MetadataRow('Prompt:')
         self.negative_prompt = MetadataRow('Negative Prompt:')
+        self.source_images = MetadataRow('Source Images:')
         self.seed = MetadataRow('Seed:')
         self.num_inference_steps = MetadataRow('Steps:')
         self.guidance_scale = MetadataRow('CFG Scale:')
@@ -59,6 +60,7 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.model.frame)
         vlayout.addWidget(self.prompt.frame)
         vlayout.addWidget(self.negative_prompt.frame)
+        vlayout.addWidget(self.source_images.frame)
         vlayout.addWidget(self.seed.frame)
         vlayout.addWidget(self.num_inference_steps.frame)
         vlayout.addWidget(self.guidance_scale.frame)
@@ -75,6 +77,7 @@ class ImageMetadataFrame(QFrame):
         self.model.value.setText(metadata.model)
         self.prompt.value.setText(metadata.prompt)
         self.negative_prompt.value.setText(metadata.negative_prompt)
+        self.source_images.value.setText(json.dumps(metadata.source_images))
         self.seed.value.setText(str(metadata.seed))
         self.num_inference_steps.value.setText(str(metadata.num_inference_steps))
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
@@ -82,9 +85,9 @@ class ImageMetadataFrame(QFrame):
 
         if metadata.img2img_enabled:
             self.img2img.frame.setVisible(True)
-            self.img2img.value.setText('Source={:s}, Blend={:.2f}'.format(
-                metadata.source_path,
-                metadata.img_strength,
+            self.img2img.value.setText('Source={:d}, Blend={:.2f}'.format(
+                metadata.img2img_source,
+                metadata.img2img_strength,
             ))
         else:
             self.img2img.frame.setVisible(False)
@@ -147,7 +150,7 @@ class ImageViewer(QWidget):
         self.send_to_img2img_button = actions.send_to_img2img.tool_button()
         self.use_prompt_button = actions.use_prompt.tool_button()
         self.use_seed_button = actions.use_seed.tool_button()
-        self.use_initial_image_button = actions.use_initial_image.tool_button()
+        self.use_source_images_button = actions.use_source_images.tool_button()
         self.use_all_button = actions.use_all.tool_button()
         self.toggle_metadata_button = actions.toggle_metadata.tool_button()
         self.toggle_metadata_button.toggled.connect(self.on_metadata_button_changed)
@@ -171,7 +174,7 @@ class ImageViewer(QWidget):
         right_controls_layout.addSpacing(8)
         right_controls_layout.addWidget(self.use_prompt_button)
         right_controls_layout.addWidget(self.use_seed_button)
-        right_controls_layout.addWidget(self.use_initial_image_button)
+        right_controls_layout.addWidget(self.use_source_images_button)
         right_controls_layout.addWidget(self.use_all_button)
         right_controls_layout.addSpacing(8)
         right_controls_layout.addWidget(self.toggle_metadata_button)
@@ -233,7 +236,7 @@ class ImageViewer(QWidget):
                 self.left_label.setPixmap(left_pixmap)
                 self.left_label.setStyleSheet('')  
             else:
-                self.left_label.setText('Choose a Source Image')
+                self.left_label.setText('Set Source Image Path')
                 self.left_label.setStyleSheet('border: 2px solid white;')
                 self.left_label.setWordWrap(True)
                 self.left_label.setAlignment(Qt.AlignCenter)

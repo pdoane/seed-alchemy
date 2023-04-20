@@ -89,7 +89,7 @@ locate_source = ActionDef('Locate Source Image', icon=fa.icon_compass, use_fa=Tr
 send_to_img2img = ActionDef('Send to Image to Image', icon=fa.icon_share, use_fa=True)
 use_prompt = ActionDef('Use Prompt', icon=fa.icon_quote_left, use_fa=True, shortcut=Qt.Key_P)
 use_seed = ActionDef('Use Seed', icon=fa.icon_seedling, use_fa=True, shortcut=Qt.Key_S)
-use_initial_image = ActionDef('Use Initial Image', icon=fa.icon_image, use_fa=True)
+use_source_images = ActionDef('Use Source Images', icon=fa.icon_image, use_fa=True)
 use_all = ActionDef('Use All', icon=fa.icon_star_of_life, use_fa=True, shortcut=Qt.Key_A)
 toggle_metadata = ActionDef('Toggle Metadata', icon=fa.icon_circle_info, use_fa=True, shortcut=Qt.Key_I, checkable=True)
 toggle_preview = ActionDef('Toggle Preview', icon=fa.icon_magnifying_glass, use_fa=True, checkable=True)

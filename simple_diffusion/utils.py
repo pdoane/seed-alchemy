@@ -2,14 +2,15 @@ import os
 import re
 import sys
 import time
+from dataclasses import fields
 from typing import Callable
 
-import requests
 import font_awesome as fa
+import requests
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QImage, QPixmap, QFont, QPainter
-from PySide6.QtWidgets import QFrame, QApplication
+from PySide6.QtGui import QFont, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication, QFrame
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSWorkspace
@@ -146,3 +147,13 @@ def pil_to_qimage(pil_image: Image.Image):
     data = pil_image.convert('RGBA').tobytes('raw', 'RGBA')
     qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
     return qimage
+
+def from_dict(dataclass_type, data: dict):
+    field_names = set(field.name for field in fields(dataclass_type))
+    filtered_data = {key: value for key, value in data.items() if key in field_names}
+    return dataclass_type(**filtered_data)
+
+def set_current_data(widget, data):
+    index = widget.findData(data)
+    if index != -1:
+        widget.setCurrentIndex(index)

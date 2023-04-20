@@ -85,7 +85,8 @@ class GenerateThread(QThread):
 
         # Source image
         if self.req.image_metadata.img2img_enabled:
-            full_path = os.path.join(configuration.IMAGES_PATH, self.req.image_metadata.source_path)
+            source_path = self.req.image_metadata.source_images[self.req.image_metadata.img2img_source]
+            full_path = os.path.join(configuration.IMAGES_PATH, source_path)
             with Image.open(full_path) as image:
                 image = image.convert('RGB')
                 image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
@@ -94,7 +95,8 @@ class GenerateThread(QThread):
         # Conditioning images
         if self.req.image_metadata.control_net_enabled:
             for control_net_meta in self.req.image_metadata.control_nets:
-                full_path = os.path.join(configuration.IMAGES_PATH, control_net_meta.conditioning_image_path)
+                source_path = self.req.image_metadata.source_images[control_net_meta.image_source]
+                full_path = os.path.join(configuration.IMAGES_PATH, source_path)
                 with Image.open(full_path) as image:
                     image = image.convert('RGB')
                     image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
@@ -192,7 +194,7 @@ class GenerateThread(QThread):
     def compute_pipeline_steps(self):
         steps = self.req.image_metadata.num_inference_steps
         if self.req.image_metadata.img2img_enabled:
-            steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img_strength)
+            steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img2img_strength)
 
         return steps
 

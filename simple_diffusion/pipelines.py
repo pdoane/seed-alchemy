@@ -168,7 +168,7 @@ class ImagePipeline(PipelineBase):
         elif self.type == 'img2img':
             return self.pipe(
                 image=req.source_image,
-                strength=req.image_metadata.img_strength,
+                strength=req.image_metadata.img2img_strength,
                 num_inference_steps=req.image_metadata.num_inference_steps,
                 guidance_scale=req.image_metadata.guidance_scale,
                 num_images_per_prompt=req.num_images_per_prompt,
@@ -192,7 +192,7 @@ class ImagePipeline(PipelineBase):
         elif self.type == 'controlnet_img2img':
             return self.pipe(
                 image=req.source_image,
-                strength=req.image_metadata.img_strength,
+                strength=req.image_metadata.img2img_strength,
                 controlnet_conditioning_image=controlnet_conditioning_images,
                 controlnet_conditioning_scale=control_net_scales,
                 controlnet_guidance_start=req.image_metadata.control_net_guidance_start,

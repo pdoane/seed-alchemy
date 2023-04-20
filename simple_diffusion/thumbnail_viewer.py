@@ -25,7 +25,7 @@ class ThumbnailViewer(QWidget):
         self.action_use_prompt = actions.use_prompt.create()
         self.action_use_seed = actions.use_seed.create()
         self.action_use_all = actions.use_all.create()
-        self.action_use_initial_image = actions.use_initial_image.create()
+        self.action_use_source_images = actions.use_source_images.create()
         self.action_delete = actions.delete_image.create()
         self.action_reveal_in_finder = actions.reveal_in_finder.create()
 
@@ -44,7 +44,7 @@ class ThumbnailViewer(QWidget):
         self.menu.addSeparator()
         self.menu.addAction(self.action_use_prompt)
         self.menu.addAction(self.action_use_seed)
-        self.menu.addAction(self.action_use_initial_image)
+        self.menu.addAction(self.action_use_source_images)
         self.menu.addAction(self.action_use_all)
         self.menu.addSeparator()
         self.menu.addAction(self.action_delete)

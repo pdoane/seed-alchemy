@@ -32,13 +32,15 @@ A native UI for Stable Diffusion using the `diffusers` library.  Developed and t
 - ControlNet 1.1 (Base, Img2Img, Multi-model)
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
-- Image generation with real-time preview
+- Image generation with real-time preview of latent space
+- Multiple source images
 - Thumbnail viewer with collections
 
 ### Roadmap
 
 Near-term:
-- UI design for multiple source images (e.g. inpainting masks, separate ControlNet images)
+- LoRA
+- Textual Inversion
 - Inpainting
 - Async thumbnail loading
 - Upscale/Restore Faces for existing images
@@ -53,7 +55,5 @@ Evaluate:
 - ControlNet Guess Mode
 
 Requires new versions of dependencies:
-- diffusers
-  - LoRA (support is still minimal)
 - torch
   - Retest float16 support
