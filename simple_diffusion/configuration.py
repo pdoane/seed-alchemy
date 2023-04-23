@@ -11,7 +11,7 @@ from processors import (CannyProcessor, DepthProcessor, LineartAnimeProcessor,
                         ProcessorBase, ScribbleHEDProcessor,
                         ScribblePIDIProcessor, SegProcessor, ShuffleProcessor,
                         SoftEdgeHEDProcessor, SoftEdgePIDIProcessor)
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, QSettings
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
@@ -19,6 +19,8 @@ APP_VERSION = 0.1
 IMAGES_PATH = 'images'
 THUMBNAILS_PATH = 'thumbnails'
 MODELS_PATH = '.models'
+
+embeddings_path: str
 
 ICON_SIZE = QSize(24, 24)
 
@@ -64,3 +66,7 @@ schedulers: dict[str, SchedulerMixin] = {
     'pndm': PNDMScheduler,
     'uni_pc': UniPCMultistepScheduler,
 }
+
+def load_from_settings(settings: QSettings):
+    global embeddings_path
+    embeddings_path = settings.value('embeddings_path')

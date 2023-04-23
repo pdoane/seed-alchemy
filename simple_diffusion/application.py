@@ -29,6 +29,8 @@ class Application(QApplication):
         control_net_meta.name = 'Canny'
 
         self.settings = QSettings('settings.ini', QSettings.IniFormat)
+        self.set_default_setting('embeddings_path', '')
+        self.set_default_setting('reduce_memory', True)
         self.set_default_setting('safety_checker', True)
         self.set_default_setting('collection', 'outputs')
         self.set_default_setting('type', 'image')
@@ -57,11 +59,12 @@ class Application(QApplication):
         self.set_default_setting('upscale_blend_strength', 0.75)
         self.set_default_setting('face_enabled', False)
         self.set_default_setting('face_blend_strength', 0.75)
-        self.set_default_setting('reduce_memory', True)
 
         self.settings.beginGroup('Models')
         self.set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')
         self.settings.endGroup()
+
+        configuration.load_from_settings(self.settings)
 
         # Collections
         self.collections = sorted([entry for entry in os.listdir(configuration.IMAGES_PATH) if os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))])

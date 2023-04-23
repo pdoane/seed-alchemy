@@ -7,11 +7,26 @@ from typing import Callable
 
 import configuration
 import torch
-from diffusers import (ControlNetModel, StableDiffusionControlNetPipeline, DiffusionPipeline,
-                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline)
+from compel.embeddings_provider import BaseTextualInversionManager
+from diffusers import (ControlNetModel, DiffusionPipeline,
+                       StableDiffusionControlNetPipeline,
+                       StableDiffusionImg2ImgPipeline, StableDiffusionPipeline,
+                       TextualInversionLoaderMixin)
 from image_metadata import ImageMetadata
 from PIL import Image
 
+
+class DiffusersTextualInversionManager(BaseTextualInversionManager):
+    def __init__(self, pipe):
+        self.pipe = pipe
+
+    def expand_textual_inversion_token_ids_if_necessary(self, token_ids: list[int]) -> list[int]:
+        if len(token_ids) == 0:
+            return token_ids
+
+        prompt = self.pipe.tokenizer.decode(token_ids)
+        prompt = self.pipe.maybe_convert_prompt(prompt, self.pipe.tokenizer)
+        return self.pipe.tokenizer.encode(prompt, add_special_tokens=False)
 
 @dataclass
 class GenerateRequest:
@@ -40,12 +55,15 @@ class PipelineBase(ABC):
 class ImagePipeline(PipelineBase):
     type: str = None
     pipe: DiffusionPipeline = None
+    model: str = None
     control_nets: list[ControlNetModel] = []
     control_net_model_names: list[str] = []
+    textual_inversion_manager: DiffusersTextualInversionManager = None
 
     def __init__(self, pipeline_cache: PipelineCache, image_metadata: ImageMetadata) -> None:
         super().__init__()
 
+        self.model = os.path.expanduser(image_metadata.model)
         if image_metadata.control_net_enabled:
             if image_metadata.img2img_enabled:
                 self.type = 'controlnet_img2img'
@@ -58,6 +76,7 @@ class ImagePipeline(PipelineBase):
 
         prev_pipeline = pipeline_cache.pipeline
         if self.is_compatible(prev_pipeline, image_metadata):
+            self.model = prev_pipeline.model
             self.control_nets = prev_pipeline.control_nets
             self.control_net_model_names = prev_pipeline.control_net_model_names
             if self.type == prev_pipeline.type:
@@ -66,28 +85,28 @@ class ImagePipeline(PipelineBase):
                 self.pipe = StableDiffusionPipeline(**prev_pipeline.pipe.components, requires_safety_checker=False)
             elif self.type == 'img2img':
                 self.pipe = StableDiffusionImg2ImgPipeline(**prev_pipeline.pipe.components, requires_safety_checker=False)
+            self.textual_inversion_manager = prev_pipeline.textual_inversion_manager
         else:
             prev_pipeline = None
             pipeline_cache.pipeline = None
             gc.collect()
 
-            model = os.path.expanduser(image_metadata.model)
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 if self.type == 'txt2img':
                     print('Loading Stable Diffusion Pipeline', image_metadata.model)
 
                     if image_metadata.safety_checker:
-                        self.pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype)
+                        self.pipe = StableDiffusionPipeline.from_pretrained(self.model, torch_dtype=self.dtype)
                     else:
-                        self.pipe = StableDiffusionPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                        self.pipe = StableDiffusionPipeline.from_pretrained(self.model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
                 elif self.type == 'img2img':
                     print('Loading Stable Diffusion Pipeline', image_metadata.model)
 
                     if image_metadata.safety_checker:
-                        self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model, torch_dtype=self.dtype)
+                        self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(self.model, torch_dtype=self.dtype)
                     else:
-                        self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                        self.pipe = StableDiffusionImg2ImgPipeline.from_pretrained(self.model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
                 else:
                     control_net_model_names = []
                     for control_net_meta in image_metadata.control_nets:
@@ -109,20 +128,36 @@ class ImagePipeline(PipelineBase):
 
                     if self.type == 'controlnet':
                         if image_metadata.safety_checker:
-                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=self.control_nets, torch_dtype=self.dtype)
+                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(self.model, controlnet=self.control_nets, torch_dtype=self.dtype)
                         else:
-                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(model, controlnet=self.control_nets, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                            self.pipe = StableDiffusionControlNetPipeline.from_pretrained(self.model, controlnet=self.control_nets, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
                     elif self.type == 'controlnet_img2img':
                         if image_metadata.safety_checker:
-                            self.pipe = DiffusionPipeline.from_pretrained(model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_nets, torch_dtype=self.dtype)
+                            self.pipe = DiffusionPipeline.from_pretrained(self.model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_nets, torch_dtype=self.dtype)
                         else:
-                            self.pipe = DiffusionPipeline.from_pretrained(model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_nets, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                            self.pipe = DiffusionPipeline.from_pretrained(self.model, custom_pipeline='stable_diffusion_controlnet_img2img', controlnet=self.control_nets, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
 
             self.pipe.to(self.device)
             self.pipe.enable_attention_slicing()
 
+            if isinstance(self.pipe, TextualInversionLoaderMixin):
+                self.textual_inversion_manager = DiffusersTextualInversionManager(self.pipe)
+                directory_path = configuration.embeddings_path
+                for entry in os.listdir(directory_path):
+                    if entry == '.DS_Store':
+                        continue
+                    entry_path = os.path.join(directory_path, entry)
+                    if not os.path.isfile(entry_path):
+                        continue
+
+                    name, _ = os.path.splitext(entry)
+                    print('Loading textual inversion', name)
+                    self.pipe.load_textual_inversion(entry_path, name)
+
     def is_compatible(self, prev_pipeline: PipelineBase, image_metadata: ImageMetadata) -> bool:
         if not isinstance(prev_pipeline, ImagePipeline):
+            return False
+        if self.model != prev_pipeline.model:
             return False
         if self.type != prev_pipeline.type:
             if self.type == 'txt2img':

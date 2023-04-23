@@ -122,7 +122,7 @@ class GenerateThread(QThread):
         self.req.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
 
         # prompt weighting
-        compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder)
+        compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder, textual_inversion_manager=pipeline.textual_inversion_manager)
         self.req.prompt_embeds = compel_proc(self.req.image_metadata.prompt)
         self.req.negative_prompt_embeds = compel_proc(self.req.image_metadata.negative_prompt)
 

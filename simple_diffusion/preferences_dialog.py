@@ -1,9 +1,41 @@
+import configuration
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QGroupBox,
-                               QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-                               QMessageBox, QPushButton, QTableWidget,
-                               QTableWidgetItem, QVBoxLayout)
+from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
+                               QFileDialog, QGroupBox, QHBoxLayout,
+                               QHeaderView, QLabel, QLineEdit, QMessageBox,
+                               QPushButton, QTableWidget, QTableWidgetItem,
+                               QVBoxLayout, QWidget)
 
+
+class DirectoryPathWidget(QWidget):
+    def __init__(self, label_text, parent=None):
+        super().__init__(parent)
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.label = QLabel(label_text)
+        self.line_edit = QLineEdit(self)
+        self.button = QPushButton("Browse...", self)
+
+        self.layout.addWidget(self.label)
+        self.layout.addWidget(self.line_edit)
+        self.layout.addWidget(self.button)
+
+        self.button.clicked.connect(self.browse)
+
+    def browse(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.ShowDirsOnly
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select a directory", "", options=options
+        )
+        if directory:
+            self.line_edit.setText(directory)
+
+    def path(self):
+        return self.line_edit.text()
+
+    def set_path(self, path):
+        self.line_edit.setText(path)
 
 class PreferencesDialog(QDialog):
     def __init__(self, parent=None):
@@ -13,6 +45,9 @@ class PreferencesDialog(QDialog):
         self.settings = QSettings("settings.ini", QSettings.IniFormat)
 
         restartLabel = QLabel("Changes to application settings may require a restart.")
+
+        self.embeddings_path = DirectoryPathWidget('Embeddings Path')
+        self.embeddings_path.set_path(self.settings.value('embeddings_path'))
 
         self.reduce_memory = QCheckBox('Reduce Memory')
         self.reduce_memory.setChecked(self.settings.value('reduce_memory', type=bool))
@@ -49,6 +84,7 @@ class PreferencesDialog(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(restartLabel)
         layout.addSpacing(8)
+        layout.addWidget(self.embeddings_path)
         layout.addWidget(self.reduce_memory)
         layout.addWidget(self.safety_checker)
         layout.addWidget(models_group)
@@ -121,6 +157,7 @@ class PreferencesDialog(QDialog):
             self.table.setItem(row, 1, QTableWidgetItem(repo_id))
 
     def accept(self):
+        self.settings.setValue('embeddings_path', self.embeddings_path.path())
         self.settings.setValue('reduce_memory', self.reduce_memory.isChecked())
         self.settings.setValue('safety_checker', self.safety_checker.isChecked())
 
@@ -134,5 +171,6 @@ class PreferencesDialog(QDialog):
             self.settings.setValue(display_name, repo_id)
 
         self.settings.endGroup()
+        configuration.load_from_settings(self.settings)
 
         super().accept()
