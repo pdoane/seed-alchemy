@@ -320,8 +320,8 @@ class ImageViewer(QWidget):
                 self.right_image_path_ = path
                 self.right_image = utils.pil_to_qimage(image)
         except (IOError, OSError):
-            self.left_image_path_ = ''
-            self.left_image = None
+            self.right_image_path_ = ''
+            self.right_image = None
 
         self.metadata_frame.update(self.metadata)
         self.update_images()

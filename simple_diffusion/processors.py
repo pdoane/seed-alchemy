@@ -14,6 +14,7 @@ from controlnet_aux import util as controlnet_utils
 from PIL import Image
 from transformers import AutoImageProcessor, UperNetForSemanticSegmentation
 
+
 class ProcessorBase(ABC):
     @abstractmethod
     def __call__(self, image: Image.Image) -> Image.Image:
@@ -229,7 +230,7 @@ class ESRGANProcessor(ProcessorBase):
         self.esrgan = None
 
     def load(self):
-        with warnings.catch_warnings(), utils.ChangeDirectory(configuration.MODELS_PATH):
+        with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             from basicsr.archs.rrdbnet_arch import RRDBNet
             from realesrgan import RealESRGANer
@@ -265,7 +266,7 @@ class ESRGANProcessor(ProcessorBase):
 
             model_paths = []
             for url in urls:
-                model_path = os.path.join('realesrgan', os.path.basename(url))
+                model_path = os.path.join(configuration.MODELS_PATH, 'realesrgan', os.path.basename(url))
                 model_paths.append(model_path)
                 if not os.path.exists(model_path):
                     utils.download_file(url, model_path)
@@ -323,9 +324,9 @@ class GFPGANProcessor(ProcessorBase):
         self.gfpgan = None
 
     def load(self):
-        with warnings.catch_warnings(), utils.ChangeDirectory(configuration.MODELS_PATH):
+        with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            from gfpgan import GFPGANer
+            from gfpgan_util import GFPGANer
 
             if self.model_name == 'GFPGANv1.2':
                 url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.2.pth'
@@ -340,7 +341,7 @@ class GFPGANProcessor(ProcessorBase):
                 url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.4/RestoreFormer.pth'
                 arch = 'RestoreFormer'
 
-            model_path = os.path.join('gfpgan', os.path.basename(url))
+            model_path = os.path.join(configuration.MODELS_PATH, 'gfpgan', os.path.basename(url))
             if not os.path.exists(model_path):
                 utils.download_file(url, model_path)
 
@@ -349,7 +350,8 @@ class GFPGANProcessor(ProcessorBase):
                 upscale=self.upscale_factor,
                 arch=arch,
                 channel_multiplier=2,
-                bg_upsampler=self.esrgan)
+                bg_upsampler=self.esrgan,
+                model_rootpath=os.path.join(configuration.MODELS_PATH, 'gfpgan'))
 
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.gfpgan is None:

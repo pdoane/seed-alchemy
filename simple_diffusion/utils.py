@@ -17,17 +17,6 @@ if sys.platform == 'darwin':
 
 empty_icon: QIcon = None
 
-class ChangeDirectory:
-    def __init__(self, dir) -> None:
-        self.dir = dir
-        self.orig_dir = os.getcwd()
-
-    def __enter__(self):
-        os.chdir(self.dir)
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        os.chdir(self.orig_dir)
-
 class Timer:
     def __init__(self, name=None):
         self.name = name
