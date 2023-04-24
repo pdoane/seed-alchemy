@@ -34,7 +34,7 @@ class ImageMetadata:
     height: int = 512
     img2img_enabled: bool = False
     img2img_source: int = 0
-    img2img_strength: float = 0.0
+    img2img_strength: float = 1.0
     control_net_enabled: bool = False
     control_net_guidance_start: float = 0.0
     control_net_guidance_end: float = 1.0
@@ -63,7 +63,7 @@ class ImageMetadata:
 
         self.img2img_enabled = settings.value('img2img_enabled', type=bool)
         self.img2img_source = 0
-        self.img2img_strength = 0.0
+        self.img2img_strength = 1.0
         if self.img2img_enabled:
             self.img2img_source = int(settings.value('img2img_source'))
             self.img2img_strength = float(settings.value('img2img_strength'))
@@ -115,7 +115,7 @@ class ImageMetadata:
 
                 self.img2img_enabled = 'img2img_source' in image_data
                 self.img2img_source = 0
-                self.img2img_strength = 0.0
+                self.img2img_strength = 1.0
                 if self.img2img_enabled:
                     self.img2img_source = int(image_data.get('img2img_source', 0))
                     self.img2img_strength = float(image_data.get('img2img_strength', 0.5))

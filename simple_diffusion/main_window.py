@@ -708,8 +708,6 @@ class MainWindow(QMainWindow):
 
     def update_control_state(self):
         self.image_viewer.set_both_images_visible(len(self.source_image_uis) > 0)
-        self.control_net_guidance_start.setEnabled(self.img2img_group_box.isChecked() and self.control_net_group_box.isChecked())
-        self.control_net_guidance_end.setEnabled(self.img2img_group_box.isChecked() and self.control_net_group_box.isChecked())
 
         # self.config_frame.adjustSize()
 
