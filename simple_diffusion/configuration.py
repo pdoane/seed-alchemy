@@ -74,11 +74,12 @@ def load_from_settings(settings: QSettings):
     global embeddings_path, known_embeddings
 
     embeddings_path = settings.value('embeddings_path')
-    for entry in os.listdir(embeddings_path):
-        if entry == '.DS_Store':
-            continue
-        entry_path = os.path.join(embeddings_path, entry)
-        if not os.path.isfile(entry_path):
-            continue
+    if os.path.exists(embeddings_path):
+        for entry in os.listdir(embeddings_path):
+            if entry == '.DS_Store':
+                continue
+            entry_path = os.path.join(embeddings_path, entry)
+            if not os.path.isfile(entry_path):
+                continue
 
-        known_embeddings.append(entry)
+            known_embeddings.append(entry)
