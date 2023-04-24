@@ -1,3 +1,5 @@
+import os
+
 from dataclasses import dataclass
 
 from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
@@ -21,6 +23,7 @@ THUMBNAILS_PATH = 'thumbnails'
 MODELS_PATH = '.models'
 
 embeddings_path: str
+known_embeddings: list[str] = []
 
 ICON_SIZE = QSize(24, 24)
 
@@ -68,5 +71,14 @@ schedulers: dict[str, SchedulerMixin] = {
 }
 
 def load_from_settings(settings: QSettings):
-    global embeddings_path
+    global embeddings_path, known_embeddings
+
     embeddings_path = settings.value('embeddings_path')
+    for entry in os.listdir(embeddings_path):
+        if entry == '.DS_Store':
+            continue
+        entry_path = os.path.join(embeddings_path, entry)
+        if not os.path.isfile(entry_path):
+            continue
+
+        known_embeddings.append(entry)

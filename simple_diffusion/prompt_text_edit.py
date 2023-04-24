@@ -1,5 +1,7 @@
+import os
 import re
 
+import configuration
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QFontMetrics, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
@@ -12,7 +14,15 @@ class PromptTextEdit(QPlainTextEdit):
     def __init__(self, desired_lines, placeholder_text, parent=None):
         super().__init__(parent)
         self.spell_checker = SpellChecker()
-        self.word_pattern = re.compile(r'\b\w+\b')
+
+        custom_words = ['3d']
+        for entry in configuration.known_embeddings:
+            name, _ = os.path.splitext(entry)
+            custom_words.append(name)
+
+        self.spell_checker.word_frequency.load_words(custom_words)
+
+        self.word_pattern = re.compile(r'\b(?:\w+(?:-\w+)*)\b')
 
         font = self.font()
         font.setPointSize(14)
@@ -53,7 +63,7 @@ class PromptTextEdit(QPlainTextEdit):
         extra_selections = []
         for match in words:
             word = match.group()
-            if not self.spell_checker.known([word]):
+            if not self.is_known_word(word):
                 format = QTextCharFormat()
                 format.setUnderlineColor(QColor(Qt.red))
                 format.setUnderlineStyle(QTextCharFormat.SingleUnderline)
@@ -69,3 +79,11 @@ class PromptTextEdit(QPlainTextEdit):
                 extra_selections.append(extra_selection)
 
         self.setExtraSelections(extra_selections)
+
+    def is_known_word(self, word):
+        if self.spell_checker.known([word]):
+            return True
+        components = word.split('-')
+        if all(self.spell_checker.known([component]) or component.isdigit() for component in components):
+            return True
+        return False
