@@ -8,8 +8,8 @@ from typing import Callable
 import configuration
 import torch
 from compel.embeddings_provider import BaseTextualInversionManager
-from diffusers import (ControlNetModel, DiffusionPipeline,
-                       TextualInversionLoaderMixin)
+from diffusers import ControlNetModel, DiffusionPipeline
+from diffusers.loaders import TextualInversionLoaderMixin
 from image_metadata import ImageMetadata
 from PIL import Image
 from stable_diffusion_pipeline import StableDiffusionPipeline
