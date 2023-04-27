@@ -92,7 +92,7 @@ class ThumbnailViewer(QWidget):
             image_path = os.path.join(collection, image_file)
             self.add_image(image_path)
 
-        self.list_widget.setCurrentRow(0)
+        self.select_index_no_scroll(0)
 
     def select_image(self, rel_path):
         collection = os.path.dirname(rel_path)
@@ -105,6 +105,11 @@ class ThumbnailViewer(QWidget):
                 if item.data(Qt.UserRole) == rel_path:
                     self.list_widget.setCurrentItem(item)
                     break
+    
+    def select_index_no_scroll(self, index):
+        scrollbar_position = self.list_widget.verticalScrollBar().value()
+        self.list_widget.setCurrentRow(index)
+        self.list_widget.verticalScrollBar().setValue(scrollbar_position)
 
     def add_image(self, rel_path):
         thumbnail_path = os.path.join(configuration.THUMBNAILS_PATH, rel_path)
@@ -124,11 +129,13 @@ class ThumbnailViewer(QWidget):
             self.list_widget.insertItem(0, item)
 
     def remove_image(self, rel_path):
+        scrollbar_position = self.list_widget.verticalScrollBar().value()
         for index in range(self.list_widget.count()):
             item = self.list_widget.item(index)
             if item.data(Qt.UserRole) == rel_path:
                 self.list_widget.takeItem(index)
                 break
+        self.list_widget.verticalScrollBar().setValue(scrollbar_position)
 
     def previous_image(self):
         next_row = self.list_widget.currentRow() - 1

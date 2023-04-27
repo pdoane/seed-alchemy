@@ -338,8 +338,8 @@ class MainWindow(QMainWindow):
         self.upscale_factor_combo_box.addItem('2x', 2)
         self.upscale_factor_combo_box.addItem('4x', 4)
         utils.set_current_data(self.upscale_factor_combo_box, self.settings.value('upscale_factor', type=int))
-        self.upscale_denoising_strength = FloatSliderSpinBox('Denoising Strength', float(self.settings.value('upscale_denoising_strength')))
-        self.upscale_blend_strength = FloatSliderSpinBox('Upscale Strength', float(self.settings.value('upscale_denoising_strength')))
+        self.upscale_denoising_strength = FloatSliderSpinBox('Denoising', float(self.settings.value('upscale_denoising_strength')))
+        self.upscale_blend_strength = FloatSliderSpinBox('Strength', float(self.settings.value('upscale_blend_strength')))
 
         self.upscale_group_box = QGroupBox('Upscaling')
         self.upscale_group_box.setCheckable(True)
@@ -544,7 +544,7 @@ class MainWindow(QMainWindow):
         preview_preprocessor_button = QPushButton('Preview')
         preview_preprocessor_button.clicked.connect(lambda: self.on_control_net_preview_preprocessor_button_clicked(control_net_frame))
 
-        control_net_frame.scale = FloatSliderSpinBox('Scale', control_net_meta.scale)
+        control_net_frame.scale = FloatSliderSpinBox('Scale', control_net_meta.scale, maximum=2.0)
 
         model_hlayout = QHBoxLayout()
         model_hlayout.setContentsMargins(0, 0, 0, 0)
@@ -964,7 +964,7 @@ class MainWindow(QMainWindow):
             return
 
         self.thumbnail_viewer.add_image(path)
-        self.thumbnail_viewer.list_widget.setCurrentRow(0)
+        self.thumbnail_viewer.select_index_no_scroll(0)
         self.image_viewer.set_right_image(path)
 
     def on_remove_file(self, path):
