@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog,
                                QProgressBar, QPushButton, QSizePolicy,
                                QSplitter, QToolBar, QVBoxLayout, QWidget)
 from thumbnail_viewer import ThumbnailViewer
-from widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox, ScrollArea,
+from widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox, ScrollArea, IntSliderSpinBox,
                      SpinBox)
 
 if sys.platform == 'darwin':
@@ -230,7 +230,7 @@ class MainWindow(QMainWindow):
         self.width_spin_box.setFixedWidth(80)
         self.width_spin_box.setSingleStep(64)
         self.width_spin_box.setMinimum(64)
-        self.width_spin_box.setMaximum(1024)
+        self.width_spin_box.setMaximum(2048)
         self.width_spin_box.setValue(int(self.settings.value('width')))
         height_label = QLabel('Height')
         height_label.setAlignment(Qt.AlignCenter)
@@ -239,7 +239,7 @@ class MainWindow(QMainWindow):
         self.height_spin_box.setFixedWidth(80)
         self.height_spin_box.setSingleStep(64)
         self.height_spin_box.setMinimum(64)
-        self.height_spin_box.setMaximum(1024)
+        self.height_spin_box.setMaximum(2048)
         self.height_spin_box.setValue(int(self.settings.value('height')))
         scheduler_label = QLabel('Scheduler')
         scheduler_label.setAlignment(Qt.AlignCenter)
@@ -364,6 +364,20 @@ class MainWindow(QMainWindow):
         face_strength_group_box_layout = QVBoxLayout(self.face_strength_group_box)
         face_strength_group_box_layout.addWidget(self.face_strength)
 
+        # High Resolution
+        self.high_res_factor = FloatSliderSpinBox('Factor', self.settings.value('high_res_factor', type=float), minimum=1, maximum=2)
+        self.high_res_steps = IntSliderSpinBox('Steps', self.settings.value('high_res_steps', type=int), minimum=1, maximum=200)
+        self.high_res_noise = FloatSliderSpinBox('Noise', self.settings.value('high_res_noise', type=float))
+
+        self.high_res_group_box = QGroupBox('High Resolution')
+        self.high_res_group_box.setCheckable(True)
+        self.high_res_group_box.setChecked(self.settings.value('high_res_enabled', type=bool))
+
+        high_res_group_box_layout = QVBoxLayout(self.high_res_group_box)
+        high_res_group_box_layout.addWidget(self.high_res_factor)
+        high_res_group_box_layout.addWidget(self.high_res_steps)
+        high_res_group_box_layout.addWidget(self.high_res_noise)
+
         # Configuration
         config_layout = QVBoxLayout(self.config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0)
@@ -376,6 +390,7 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(self.control_net_group_box)
         config_layout.addWidget(self.upscale_group_box)
         config_layout.addWidget(self.face_strength_group_box)
+        config_layout.addWidget(self.high_res_group_box)
         config_layout.addStretch()
 
         # Image viewer
@@ -760,6 +775,10 @@ class MainWindow(QMainWindow):
         self.settings.setValue('upscale_blend_strength', self.upscale_blend_strength.spin_box.value())
         self.settings.setValue('face_enabled', self.face_strength_group_box.isChecked())
         self.settings.setValue('face_blend_strength', self.face_strength.spin_box.value())
+        self.settings.setValue('high_res_enabled', self.high_res_group_box.isChecked())
+        self.settings.setValue('high_res_factor', self.high_res_factor.spin_box.value())
+        self.settings.setValue('high_res_steps', self.high_res_steps.spin_box.value())
+        self.settings.setValue('high_res_noise', self.high_res_noise.spin_box.value())
 
         self.update_progress(0, 0)
         self.generate_button.setEnabled(False)
@@ -911,6 +930,14 @@ class MainWindow(QMainWindow):
                 self.face_strength.spin_box.setValue(image_metadata.face_blend_strength)
             else:
                 self.face_strength_group_box.setChecked(False)
+            
+            if image_metadata.high_res_enabled:
+                self.high_res_group_box.setChecked(True)
+                self.high_res_factor.spin_box.setValue(image_metadata.high_res_factor)
+                self.high_res_steps.spin_box.setValue(image_metadata.high_res_steps)
+                self.high_res_noise.spin_box.setValue(image_metadata.high_res_noise)
+            else:
+                self.high_res_group_box.setChecked(False)
  
     def on_use_all(self, image_metadata):
         if image_metadata is not None:

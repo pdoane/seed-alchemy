@@ -6,6 +6,7 @@ import configuration
 import torch
 import utils
 from compel import Compel
+from image_metadata import ImageMetadata
 from PIL import Image, PngImagePlugin
 from pipelines import GenerateRequest, ImagePipeline, PipelineCache
 from processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
@@ -44,6 +45,9 @@ def latents_to_pil(latents: torch.FloatTensor):
 
     return Image.fromarray(latents_ubyte.numpy())
 
+def align_down(n: int, align: int) -> int:
+    return align * (n // align)
+
 class CancelThreadException(Exception):
     pass
 
@@ -57,9 +61,11 @@ class GenerateThread(QThread):
         super().__init__(parent)
 
         self.cancel = False
+        self.step = 0
         self.collection = settings.value('collection')
         self.reduce_memory = settings.value('reduce_memory', type=bool)
         self.req = GenerateRequest()
+        self.req.image_metadata = ImageMetadata()
         self.req.image_metadata.load_from_settings(settings)
         self.req.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
         self.req.callback = self.generate_callback
@@ -129,33 +135,59 @@ class GenerateThread(QThread):
         # generate
         images = pipeline(self.req)
 
-        step = self.compute_pipeline_steps()
         for image in images:
-            # ESRGAN
-            if self.req.image_metadata.upscale_enabled:
-                esrgan = ESRGANProcessor()
-                esrgan.upscale_factor = self.req.image_metadata.upscale_factor
-                esrgan.denoising_strength = self.req.image_metadata.upscale_denoising_strength
-                esrgan.blend_strength = self.req.image_metadata.upscale_blend_strength
-                upscaled_image = esrgan(image)
-            else:
-                upscaled_image = image
+            loop_count = 2 if self.req.image_metadata.high_res_enabled else 1
 
-            self.update_task_progress(step)
-            step = step + 1
+            for i in range(loop_count):
+                # ESRGAN
+                if self.req.image_metadata.upscale_enabled:
+                    esrgan = ESRGANProcessor()
+                    esrgan.upscale_factor = self.req.image_metadata.upscale_factor
+                    esrgan.denoising_strength = self.req.image_metadata.upscale_denoising_strength
+                    esrgan.blend_strength = self.req.image_metadata.upscale_blend_strength
+                    upscaled_image = esrgan(image)
+                    self.next_step()
+                else:
+                    upscaled_image = image
 
-            # GFPGAN
-            if self.req.image_metadata.face_enabled:
-                gfpgan = GFPGANProcessor()
-                gfpgan.upscale_factor = self.req.image_metadata.upscale_factor
-                gfpgan.upscaled_image = upscaled_image
-                gfpgan.blend_strength = self.req.image_metadata.face_blend_strength
-                image = gfpgan(image)
-            else:
-                image = upscaled_image
+                # GFPGAN
+                if self.req.image_metadata.face_enabled:
+                    gfpgan = GFPGANProcessor()
+                    gfpgan.upscale_factor = self.req.image_metadata.upscale_factor
+                    gfpgan.upscaled_image = upscaled_image
+                    gfpgan.blend_strength = self.req.image_metadata.face_blend_strength
+                    image = gfpgan(image)
+                    self.next_step()
+                else:
+                    image = upscaled_image
+                
+                # High Resolution
+                if i == 0 and self.req.image_metadata.high_res_enabled:
+                    high_res_width = align_down(int(self.req.image_metadata.width * self.req.image_metadata.high_res_factor), 8)
+                    high_res_height = align_down(int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8)
+                    source_image = image.resize((high_res_width, high_res_height))
 
-            self.update_task_progress(step)
-            step = step + 1
+                    controlnet_conditioning_images = []
+                    for controlnet_conditioning_image in self.req.controlnet_conditioning_images:
+                        controlnet_conditioning_image = controlnet_conditioning_image.copy().resize((high_res_width, high_res_height))
+                        controlnet_conditioning_images.append(controlnet_conditioning_image)
+
+                    high_res_req = GenerateRequest()
+                    high_res_req.image_metadata = ImageMetadata()
+                    high_res_req.source_image = source_image
+                    high_res_req.controlnet_conditioning_images = controlnet_conditioning_images
+                    high_res_req.image_metadata.num_inference_steps = self.req.image_metadata.high_res_steps
+                    high_res_req.image_metadata.width = high_res_width
+                    high_res_req.image_metadata.height = high_res_height
+                    high_res_req.image_metadata.img2img_enabled = True
+                    high_res_req.image_metadata.img2img_strength = self.req.image_metadata.high_res_noise
+                    high_res_req.num_images_per_prompt = 1
+                    high_res_req.generator = self.req.generator
+                    high_res_req.prompt_embeds = self.req.prompt_embeds
+                    high_res_req.negative_prompt_embeds = self.req.negative_prompt_embeds
+                    high_res_req.callback = self.req.callback
+
+                    image = pipeline(high_res_req)[0]
 
             # Output
             collection = self.collection
@@ -172,38 +204,40 @@ class GenerateThread(QThread):
 
             output_path = utils.retry_on_failure(io_operation)
 
-            self.update_task_progress(step)
-            step = step + 1
+            self.next_step()
 
             self.image_complete.emit(output_path)
 
     def generate_callback(self, step: int, timestep: int, latents: torch.FloatTensor):
-        if self.cancel:
-            raise CancelThreadException()
-        self.update_task_progress(step)
+        self.next_step()
 
         pil_image = latents_to_pil(latents)
         pil_image = pil_image.resize((pil_image.size[0] * 8, pil_image.size[1] * 8), Image.NEAREST)
         self.image_preview.emit(pil_image)
 
-    def update_task_progress(self, step: int):
+    def next_step(self):
+        if self.cancel:
+            raise CancelThreadException()
+
+        self.step += 1
         steps = self.compute_total_steps()
-        progress_amount = (step+1) * 100 / steps
+        progress_amount = self.step * 100 / steps
         self.task_progress.emit(progress_amount)
 
-    def compute_pipeline_steps(self):
-        steps = self.req.image_metadata.num_inference_steps
-        if self.req.image_metadata.img2img_enabled:
-            steps = int(self.req.image_metadata.num_inference_steps * self.req.image_metadata.img2img_strength)
-
-        return steps
-
     def compute_total_steps(self):
+        loop_count = 2 if self.req.image_metadata.high_res_enabled else 1
+
         steps_per_image = 1
         if self.req.image_metadata.upscale_enabled:
-            steps_per_image = steps_per_image + 1
+            steps_per_image += loop_count
         if self.req.image_metadata.face_enabled:
-            steps_per_image = steps_per_image + 1
+            steps_per_image += loop_count
+        if self.req.image_metadata.high_res_enabled:
+            steps_per_image += int(self.req.image_metadata.high_res_steps * self.req.image_metadata.high_res_noise)
 
-        return self.compute_pipeline_steps() + self.req.num_images_per_prompt * steps_per_image
+        pipeline_steps = self.req.image_metadata.num_inference_steps
+        if self.req.image_metadata.img2img_enabled:
+            pipeline_steps = int(pipeline_steps * self.req.image_metadata.img2img_strength)
+
+        return pipeline_steps + self.req.num_images_per_prompt * steps_per_image
     

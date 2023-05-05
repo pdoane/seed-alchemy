@@ -53,6 +53,7 @@ class ImageMetadataFrame(QFrame):
         self.control_net = MetadataRow('Control Net:')
         self.upscale = MetadataRow('Upscaling:')
         self.face = MetadataRow('Face Restoration:')
+        self.high_res = MetadataRow('High Resolution:')
 
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
@@ -69,6 +70,7 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.control_net.frame)
         vlayout.addWidget(self.upscale.frame)
         vlayout.addWidget(self.face.frame)
+        vlayout.addWidget(self.high_res.frame)
         vlayout.addStretch()
 
     def update(self, metadata):
@@ -119,6 +121,16 @@ class ImageMetadataFrame(QFrame):
             ))
         else:
             self.face.frame.setVisible(False)
+        
+        if metadata.high_res_enabled:
+            self.high_res.frame.setVisible(True)
+            self.high_res.value.setText('Factor={:.2f}, Steps={:d}, Noise={:.2f}'.format(
+                metadata.high_res_factor,
+                metadata.high_res_steps,
+                metadata.high_res_noise
+            ))
+        else:
+            self.high_res.frame.setVisible(False)
 
 class ImageViewer(QWidget):
     def __init__(self, parent=None):

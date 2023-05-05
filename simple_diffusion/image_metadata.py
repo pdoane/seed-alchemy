@@ -44,7 +44,11 @@ class ImageMetadata:
     upscale_denoising_strength: float = 0.0
     upscale_blend_strength: float = 0.0
     face_enabled: bool = False
-    face_blend_strength: float  = 0.0
+    face_blend_strength: float = 0.0
+    high_res_enabled: bool = False
+    high_res_factor: float = 1.0
+    high_res_steps: int = 0
+    high_res_noise: float = 0.0
 
     def load_from_settings(self, settings):
         self.model = settings.value('model')
@@ -87,8 +91,19 @@ class ImageMetadata:
             self.upscale_blend_strength = float(settings.value('upscale_blend_strength'))
 
         self.face_enabled = settings.value('face_enabled', type=bool)
+        self.face_blend_strength = 0.0
         if self.face_enabled:
             self.face_blend_strength = float(settings.value('face_blend_strength'))
+        
+        self.high_res_enabled = settings.value('high_res_enabled', type=bool)
+        self.high_res_factor = 1.0
+        self.high_res_steps = 0
+        self.high_res_noise = 0.0
+        if self.high_res_enabled:
+            self.high_res_factor = settings.value('high_res_factor', type=float)
+            self.high_res_steps = settings.value('high_res_steps', type=int)
+            self.high_res_noise = settings.value('high_res_noise', type=float)
+
 
     def load_from_image_info(self, image_info):
         if 'sd-metadata' in image_info:
@@ -141,6 +156,13 @@ class ImageMetadata:
                 self.face_enabled = 'face_blend_strength' in image_data
                 if self.face_enabled:
                     self.face_blend_strength = float(image_data.get('face_blend_strength'))
+                
+                self.high_res_enabled = 'high_res_factor' in image_data
+                if self.high_res_enabled:
+                    self.high_res_factor = float(image_data.get('high_res_factor'))
+                    self.high_res_steps = int(image_data.get('high_res_steps'))
+                    self.high_res_noise = float(image_data.get('high_res_noise'))
+
 
     def save_to_png_info(self, png_info):
         sd_metadata = {
@@ -175,6 +197,10 @@ class ImageMetadata:
             sd_metadata['image']['upscale_blend_strength'] = self.upscale_blend_strength
         if self.face_enabled:
             sd_metadata['image']['face_blend_strength'] = self.face_blend_strength
+        if self.high_res_enabled:
+            sd_metadata['image']['high_res_factor'] = self.high_res_factor
+            sd_metadata['image']['high_res_steps'] = self.high_res_steps
+            sd_metadata['image']['high_res_noise'] = self.high_res_noise
 
         png_info.add_text('Dream',
             '"{:s} [{:s}]" -s {:d} -S {:d} -W {:d} -H {:d} -C {:f} -A {:s}'.format(

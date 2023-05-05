@@ -102,3 +102,56 @@ class FloatSliderSpinBox(QWidget):
     def _from_slider_value(self, value):
         range = self.maximum - self.minimum
         return self.minimum + value * range / 100.0
+
+class IntSliderSpinBox(QWidget):
+    def __init__(self, name, initial_value, parent=None, minimum=0, maximum=100):
+        super().__init__(parent)
+
+        self.minimum = minimum
+        self.maximum = maximum
+
+        label = QLabel(name)
+        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.slider = Slider(Qt.Horizontal)
+        style_option = QStyleOptionSlider()
+        self.slider.initStyleOption(style_option)
+        thumb_size = self.slider.style().pixelMetric(QStyle.PM_SliderLength, style_option, self.slider)
+        self.slider.setRange(minimum, maximum)
+        self.slider.setValue(initial_value)
+        self.slider.setSingleStep(1)
+        self.slider.setPageStep(10)
+        self.slider.setFixedWidth(101 + thumb_size)
+        self.slider.valueChanged.connect(self.on_slider_changed)
+        self.spin_box = SpinBox()
+        self.spin_box.setAlignment(Qt.AlignCenter)
+        self.spin_box.setFixedWidth(60)
+        self.spin_box.setRange(minimum, maximum)
+        self.spin_box.setSingleStep(1)
+        self.spin_box.setValue(initial_value)
+        self.spin_box.valueChanged.connect(self.on_spin_box_changed)
+
+        hlayout = QHBoxLayout(self)
+        hlayout.setContentsMargins(0, 0, 0, 0)
+        hlayout.addWidget(label)
+        hlayout.addWidget(self.slider)
+        hlayout.addWidget(self.spin_box)
+
+    def on_check_box_changed(self, state):
+        self.slider.setEnabled(state)
+        self.spin_box.setEnabled(state)
+
+    def on_slider_changed(self, value):
+        self.spin_box.setValue(value)
+
+    def on_spin_box_changed(self, value):
+        self.slider.setValue(value)
+
+    def _to_slider_value(self, value):
+        range = self.maximum - self.minimum
+        print('_to_slider_value', value, round((value - self.minimum) * 100.0 / range))
+        return round((value - self.minimum) * 100.0 / range)
+    
+    def _from_slider_value(self, value):
+        range = self.maximum - self.minimum
+        print('_from_slider_value', value, self.minimum + value * range / 100.0)
+        return self.minimum + value * range / 100.0

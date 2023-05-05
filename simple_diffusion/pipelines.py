@@ -31,7 +31,7 @@ class DiffusersTextualInversionManager(BaseTextualInversionManager):
 class GenerateRequest:
     source_image: Image.Image = None
     controlnet_conditioning_images: list[Image.Image] = field(default_factory=list)
-    image_metadata: ImageMetadata = ImageMetadata()
+    image_metadata: ImageMetadata = None
     num_images_per_prompt: int = 1
     generator: torch.Generator = None
     prompt_embeds: torch.FloatTensor = None

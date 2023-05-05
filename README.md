@@ -23,6 +23,7 @@ A native UI for Stable Diffusion using the `diffusers` library.  Developed and t
 - Image to Image
 - ControlNet 1.1 (Base, Img2Img, Multi-model)
 - Textual Inversion
+- High-resolution fix
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
 - Image generation with real-time preview of latent space

@@ -59,6 +59,10 @@ class Application(QApplication):
         self.set_default_setting('upscale_blend_strength', 0.75)
         self.set_default_setting('face_enabled', False)
         self.set_default_setting('face_blend_strength', 0.75)
+        self.set_default_setting('high_res_enabled', False)
+        self.set_default_setting('high_res_factor', 1.5)
+        self.set_default_setting('high_res_noise', 0.3)
+        self.set_default_setting('high_res_steps', 30)
 
         self.settings.beginGroup('Models')
         self.set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')
@@ -75,7 +79,7 @@ class Application(QApplication):
         # QT configuration
         self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
-        qdarktheme.setup_theme('dark', corner_shape='sharp')
+        qdarktheme.setup_theme('auto', corner_shape='sharp')
         fa.load()
 
         # Main window
