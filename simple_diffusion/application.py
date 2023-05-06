@@ -61,6 +61,7 @@ class Application(QApplication):
         self.set_default_setting('face_blend_strength', 0.75)
         self.set_default_setting('high_res_enabled', False)
         self.set_default_setting('high_res_factor', 1.5)
+        self.set_default_setting('high_res_guidance_scale', 7.5)
         self.set_default_setting('high_res_noise', 0.3)
         self.set_default_setting('high_res_steps', 30)
 

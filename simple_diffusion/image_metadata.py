@@ -48,6 +48,7 @@ class ImageMetadata:
     high_res_enabled: bool = False
     high_res_factor: float = 1.0
     high_res_steps: int = 0
+    high_res_guidance_scale: float = 7.5
     high_res_noise: float = 0.0
 
     def load_from_settings(self, settings):
@@ -66,15 +67,11 @@ class ImageMetadata:
         self.height = int(settings.value('height'))
 
         self.img2img_enabled = settings.value('img2img_enabled', type=bool)
-        self.img2img_source = 0
-        self.img2img_strength = 1.0
         if self.img2img_enabled:
             self.img2img_source = int(settings.value('img2img_source'))
             self.img2img_strength = float(settings.value('img2img_strength'))
 
         self.control_net_enabled = settings.value('control_net_enabled', type=bool)
-        self.control_net_guidance_start = 0.0
-        self.control_net_guidance_end = 1.0
         self.control_nets = []
         if self.control_net_enabled:
             self.control_net_guidance_start = settings.value('control_net_guidance_start')
@@ -82,26 +79,20 @@ class ImageMetadata:
             self.control_nets = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value('control_nets'))]
 
         self.upscale_enabled = settings.value('upscale_enabled', type=bool)
-        self.upscale_factor = 1
-        self.upscale_denoising_strength = 0.0
-        self.upscale_blend_strength = 0.0
         if self.upscale_enabled:
             self.upscale_factor = int(settings.value('upscale_factor'))
             self.upscale_denoising_strength = float(settings.value('upscale_denoising_strength'))
             self.upscale_blend_strength = float(settings.value('upscale_blend_strength'))
 
         self.face_enabled = settings.value('face_enabled', type=bool)
-        self.face_blend_strength = 0.0
         if self.face_enabled:
             self.face_blend_strength = float(settings.value('face_blend_strength'))
         
         self.high_res_enabled = settings.value('high_res_enabled', type=bool)
-        self.high_res_factor = 1.0
-        self.high_res_steps = 0
-        self.high_res_noise = 0.0
         if self.high_res_enabled:
             self.high_res_factor = settings.value('high_res_factor', type=float)
             self.high_res_steps = settings.value('high_res_steps', type=int)
+            self.high_res_guidance_scale = settings.value('high_res_guidance_scale', type=float)
             self.high_res_noise = settings.value('high_res_noise', type=float)
 
 
@@ -129,40 +120,32 @@ class ImageMetadata:
                 self.height = int(image_data.get('height', 512))
 
                 self.img2img_enabled = 'img2img_source' in image_data
-                self.img2img_source = 0
-                self.img2img_strength = 1.0
                 if self.img2img_enabled:
                     self.img2img_source = int(image_data.get('img2img_source', 0))
                     self.img2img_strength = float(image_data.get('img2img_strength', 0.5))
 
                 self.control_net_enabled = 'control_nets' in image_data
-                self.control_net_guidance_start = 0.0
-                self.control_net_guidance_end = 1.0
-                self.control_nets = []
                 if self.control_net_enabled:
                     self.control_net_guidance_start = image_data.get('control_net_guidance_start', 0.0)
                     self.control_net_guidance_end = image_data.get('control_net_guidance_end', 1.0)
                     self.control_nets = [ControlNetMetadata.from_dict(item) for item in image_data.get('control_nets', '[]')]
 
                 self.upscale_enabled = 'upscale_blend_strength' in image_data
-                self.upscale_factor = 1
-                self.upscale_denoising_strength = 0.0
-                self.upscale_blend_strength = 0.0
                 if self.upscale_enabled:
-                    self.upscale_factor = int(image_data.get('upscale_factor'))
-                    self.upscale_denoising_strength = float(image_data.get('upscale_denoising_strength'))
-                    self.upscale_blend_strength = float(image_data.get('upscale_blend_strength'))
+                    self.upscale_factor = int(image_data.get('upscale_factor', 1))
+                    self.upscale_denoising_strength = float(image_data.get('upscale_denoising_strength', 0.0))
+                    self.upscale_blend_strength = float(image_data.get('upscale_blend_strength', 0.0))
 
                 self.face_enabled = 'face_blend_strength' in image_data
                 if self.face_enabled:
-                    self.face_blend_strength = float(image_data.get('face_blend_strength'))
+                    self.face_blend_strength = float(image_data.get('face_blend_strength', 0.0))
                 
                 self.high_res_enabled = 'high_res_factor' in image_data
                 if self.high_res_enabled:
-                    self.high_res_factor = float(image_data.get('high_res_factor'))
-                    self.high_res_steps = int(image_data.get('high_res_steps'))
-                    self.high_res_noise = float(image_data.get('high_res_noise'))
-
+                    self.high_res_factor = float(image_data.get('high_res_factor', 1.0))
+                    self.high_res_steps = int(image_data.get('high_res_steps', 0))
+                    self.high_res_guidance_scale = float(image_data.get('high_res_guidance_scale', 7.5))
+                    self.high_res_noise = float(image_data.get('high_res_noise', 0.0))
 
     def save_to_png_info(self, png_info):
         sd_metadata = {
@@ -200,6 +183,7 @@ class ImageMetadata:
         if self.high_res_enabled:
             sd_metadata['image']['high_res_factor'] = self.high_res_factor
             sd_metadata['image']['high_res_steps'] = self.high_res_steps
+            sd_metadata['image']['high_res_guidance_scale'] = self.high_res_guidance_scale
             sd_metadata['image']['high_res_noise'] = self.high_res_noise
 
         png_info.add_text('Dream',

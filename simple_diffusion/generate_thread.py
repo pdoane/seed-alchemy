@@ -95,7 +95,7 @@ class GenerateThread(QThread):
             full_path = os.path.join(configuration.IMAGES_PATH, source_path)
             with Image.open(full_path) as image:
                 image = image.convert('RGB')
-                image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+                # Delay resize until generation for enhance operations
                 self.req.source_image = image.copy()
 
         # Conditioning images
@@ -133,7 +133,12 @@ class GenerateThread(QThread):
         self.req.negative_prompt_embeds = compel_proc(self.req.image_metadata.negative_prompt)
 
         # generate
-        images = pipeline(self.req)
+        if self.req.image_metadata.img2img_enabled and self.req.image_metadata.img2img_strength == 0.0:
+            images = [self.req.source_image]
+        else:
+            if self.req.source_image is not None:
+                self.req.source_image = self.req.source_image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+            images = pipeline(self.req)
 
         for image in images:
             loop_count = 2 if self.req.image_metadata.high_res_enabled else 1
@@ -167,22 +172,17 @@ class GenerateThread(QThread):
                     high_res_height = align_down(int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8)
                     source_image = image.resize((high_res_width, high_res_height))
 
-                    controlnet_conditioning_images = []
-                    for controlnet_conditioning_image in self.req.controlnet_conditioning_images:
-                        controlnet_conditioning_image = controlnet_conditioning_image.copy().resize((high_res_width, high_res_height))
-                        controlnet_conditioning_images.append(controlnet_conditioning_image)
-
                     high_res_req = GenerateRequest()
                     high_res_req.image_metadata = ImageMetadata()
                     high_res_req.source_image = source_image
-                    high_res_req.controlnet_conditioning_images = controlnet_conditioning_images
                     high_res_req.image_metadata.num_inference_steps = self.req.image_metadata.high_res_steps
+                    high_res_req.image_metadata.guidance_scale = self.req.image_metadata.high_res_guidance_scale
                     high_res_req.image_metadata.width = high_res_width
                     high_res_req.image_metadata.height = high_res_height
                     high_res_req.image_metadata.img2img_enabled = True
                     high_res_req.image_metadata.img2img_strength = self.req.image_metadata.high_res_noise
                     high_res_req.num_images_per_prompt = 1
-                    high_res_req.generator = self.req.generator
+                    high_res_req.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
                     high_res_req.prompt_embeds = self.req.prompt_embeds
                     high_res_req.negative_prompt_embeds = self.req.negative_prompt_embeds
                     high_res_req.callback = self.req.callback

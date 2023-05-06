@@ -367,6 +367,7 @@ class MainWindow(QMainWindow):
         # High Resolution
         self.high_res_factor = FloatSliderSpinBox('Factor', self.settings.value('high_res_factor', type=float), minimum=1, maximum=2)
         self.high_res_steps = IntSliderSpinBox('Steps', self.settings.value('high_res_steps', type=int), minimum=1, maximum=200)
+        self.high_res_guidance_scale = FloatSliderSpinBox('Guidance', self.settings.value('high_res_guidance_scale', type=float), minimum=1, maximum=50, single_step=0.5)
         self.high_res_noise = FloatSliderSpinBox('Noise', self.settings.value('high_res_noise', type=float))
 
         self.high_res_group_box = QGroupBox('High Resolution')
@@ -376,6 +377,7 @@ class MainWindow(QMainWindow):
         high_res_group_box_layout = QVBoxLayout(self.high_res_group_box)
         high_res_group_box_layout.addWidget(self.high_res_factor)
         high_res_group_box_layout.addWidget(self.high_res_steps)
+        high_res_group_box_layout.addWidget(self.high_res_guidance_scale)
         high_res_group_box_layout.addWidget(self.high_res_noise)
 
         # Configuration
@@ -778,6 +780,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue('high_res_enabled', self.high_res_group_box.isChecked())
         self.settings.setValue('high_res_factor', self.high_res_factor.spin_box.value())
         self.settings.setValue('high_res_steps', self.high_res_steps.spin_box.value())
+        self.settings.setValue('high_res_guidance_scale', self.high_res_guidance_scale.spin_box.value())
         self.settings.setValue('high_res_noise', self.high_res_noise.spin_box.value())
 
         self.update_progress(0, 0)
@@ -864,6 +867,8 @@ class MainWindow(QMainWindow):
                 self.on_add_source_image(path)
             else:
                 self.current_source_image_ui.line_edit.setText(path)
+            self.width_spin_box.setValue(image_metadata.width)
+            self.height_spin_box.setValue(image_metadata.height)
     
     def on_use_prompt(self, image_metadata):
         if image_metadata is not None:
@@ -935,6 +940,7 @@ class MainWindow(QMainWindow):
                 self.high_res_group_box.setChecked(True)
                 self.high_res_factor.spin_box.setValue(image_metadata.high_res_factor)
                 self.high_res_steps.spin_box.setValue(image_metadata.high_res_steps)
+                self.high_res_guidance_scale.spin_box.setValue(image_metadata.high_res_guidance_scale)
                 self.high_res_noise.spin_box.setValue(image_metadata.high_res_noise)
             else:
                 self.high_res_group_box.setChecked(False)

@@ -124,9 +124,10 @@ class ImageMetadataFrame(QFrame):
         
         if metadata.high_res_enabled:
             self.high_res.frame.setVisible(True)
-            self.high_res.value.setText('Factor={:.2f}, Steps={:d}, Noise={:.2f}'.format(
+            self.high_res.value.setText('Factor={:.2f}, Steps={:d}, Guidance={:.2f}, Noise={:.2f}'.format(
                 metadata.high_res_factor,
                 metadata.high_res_steps,
+                metadata.high_res_guidance_scale,
                 metadata.high_res_noise
             ))
         else:
