@@ -313,7 +313,7 @@ class ImageViewer(QWidget):
             with Image.open(full_path) as image:
                 self.left_metadata = ImageMetadata()
                 self.left_metadata.path = path
-                self.left_metadata.load_from_image_info(image.info)
+                self.left_metadata.load_from_image(image)
 
                 self.left_image_path_ = path
                 self.left_image = utils.pil_to_qimage(image)
@@ -328,7 +328,7 @@ class ImageViewer(QWidget):
             with Image.open(full_path) as image:
                 self.metadata = ImageMetadata()
                 self.metadata.path = path
-                self.metadata.load_from_image_info(image.info)
+                self.metadata.load_from_image(image)
 
                 self.right_image_path_ = path
                 self.right_image = utils.pil_to_qimage(image)

@@ -1,9 +1,11 @@
-from dataclasses import dataclass, asdict
 import json
 import os
+from dataclasses import asdict, dataclass
 
 import configuration
 import utils
+from PIL import Image
+
 
 @dataclass
 class ControlNetMetadata:
@@ -96,7 +98,11 @@ class ImageMetadata:
             self.high_res_noise = settings.value('high_res_noise', type=float)
 
 
-    def load_from_image_info(self, image_info):
+    def load_from_image(self, image: Image.Image):
+        self.width = image.width
+        self.height = image.height
+        
+        image_info = image.info
         if 'sd-metadata' in image_info:
             sd_metadata = json.loads(image_info['sd-metadata'])
             self.model = sd_metadata.get('model_weights', 'stable-diffusion-2-1-base')

@@ -843,7 +843,7 @@ class MainWindow(QMainWindow):
             with Image.open(source_path) as image:
                 metadata = ImageMetadata()
                 metadata.path = output_path
-                metadata.load_from_image_info(image.info)
+                metadata.load_from_image(image)
                 png_info = PngImagePlugin.PngInfo()
                 metadata.save_to_png_info(png_info)
 

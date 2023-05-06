@@ -156,7 +156,7 @@ class ThumbnailViewer(QWidget):
             with Image.open(full_path) as image:
                 metadata = ImageMetadata()
                 metadata.path = rel_path
-                metadata.load_from_image_info(image.info)
+                metadata.load_from_image(image)
                 return metadata
         return None
 
