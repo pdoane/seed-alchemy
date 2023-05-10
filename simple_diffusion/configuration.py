@@ -22,8 +22,12 @@ IMAGES_PATH = 'images'
 THUMBNAILS_PATH = 'thumbnails'
 MODELS_PATH = '.models'
 
-embeddings_path: str
+EMBEDDINGS_DIR = 'embeddings'
+STABLE_DIFFUSION_DIR = 'stable_diffusion'
+
+local_models_path: str
 known_embeddings: list[str] = []
+known_stable_diffusion_models: list[str] = []
 
 ICON_SIZE = QSize(24, 24)
 
@@ -71,11 +75,15 @@ schedulers: dict[str, SchedulerMixin] = {
 }
 
 def load_from_settings(settings: QSettings):
-    global embeddings_path, known_embeddings
+    global local_models_path
+    local_models_path = settings.value('local_models_path')
 
-    embeddings_path = settings.value('embeddings_path')
+    global known_embeddings
+    known_embeddings = []
+
+    embeddings_path = os.path.join(local_models_path, EMBEDDINGS_DIR)
     if os.path.exists(embeddings_path):
-        for entry in os.listdir(embeddings_path):
+        for entry in sorted(os.listdir(embeddings_path)):
             if entry == '.DS_Store':
                 continue
             entry_path = os.path.join(embeddings_path, entry)
@@ -83,3 +91,23 @@ def load_from_settings(settings: QSettings):
                 continue
 
             known_embeddings.append(entry)
+    
+    global known_stable_diffusion_models
+    known_stable_diffusion_models = []
+
+    stable_diffusion_path = os.path.join(local_models_path, STABLE_DIFFUSION_DIR)
+    if os.path.exists(stable_diffusion_path):
+        for entry in sorted(os.listdir(stable_diffusion_path)):
+            if entry == '.DS_Store':
+                continue
+            entry_path = os.path.join(stable_diffusion_path, entry)
+            if not os.path.isdir(entry_path):
+                continue
+
+            known_stable_diffusion_models.append(entry)
+
+def get_embedding_path(str):
+    return os.path.join(local_models_path, EMBEDDINGS_DIR, str)
+
+def get_stable_diffusion_model_path(str):
+    return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, str)

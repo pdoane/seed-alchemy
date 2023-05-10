@@ -1,11 +1,9 @@
-import json
 import os
 
 import configuration
 import font_awesome as fa
 import qdarktheme
 import utils
-from image_metadata import ControlNetMetadata
 from main_window import MainWindow
 from PySide6.QtCore import QEvent, QSettings
 from PySide6.QtGui import QIcon
@@ -26,7 +24,7 @@ class Application(QApplication):
 
         # Settings
         self.settings = QSettings('settings.ini', QSettings.IniFormat)
-        self.set_default_setting('embeddings_path', '')
+        self.set_default_setting('local_models_path', '')
         self.set_default_setting('reduce_memory', True)
         self.set_default_setting('safety_checker', True)
         self.set_default_setting('collection', 'outputs')
@@ -60,10 +58,7 @@ class Application(QApplication):
         self.set_default_setting('high_res_guidance_scale', 7.0)
         self.set_default_setting('high_res_noise', 0.5)
         self.set_default_setting('high_res_steps', 30)
-
-        self.settings.beginGroup('Models')
-        self.set_default_setting('Stable Diffusion v1-5', 'runwayml/stable-diffusion-v1-5')
-        self.settings.endGroup()
+        self.set_default_setting('huggingface_models', ['runwayml/stable-diffusion-v1-5'])
 
         configuration.load_from_settings(self.settings)
 

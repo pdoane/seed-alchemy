@@ -1,4 +1,5 @@
 import configuration
+import utils
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
                                QFileDialog, QGroupBox, QHBoxLayout,
@@ -46,8 +47,8 @@ class PreferencesDialog(QDialog):
 
         restartLabel = QLabel("Changes to application settings may require a restart.")
 
-        self.embeddings_path = DirectoryPathWidget('Embeddings Path')
-        self.embeddings_path.set_path(self.settings.value('embeddings_path'))
+        self.local_models_path = DirectoryPathWidget('Local Models Path')
+        self.local_models_path.set_path(self.settings.value('local_models_path'))
 
         self.reduce_memory = QCheckBox('Reduce Memory')
         self.reduce_memory.setChecked(self.settings.value('reduce_memory', type=bool))
@@ -58,8 +59,8 @@ class PreferencesDialog(QDialog):
         models_group = QGroupBox()
 
         self.table = QTableWidget()
-        self.table.setColumnCount(2)
-        self.table.setHorizontalHeaderLabels(["Display Name", "Repository ID"])
+        self.table.setColumnCount(1)
+        self.table.setHorizontalHeaderLabels(["Repository ID"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
         self.table.verticalHeader().setVisible(False)
 
@@ -84,7 +85,7 @@ class PreferencesDialog(QDialog):
         layout = QVBoxLayout()
         layout.addWidget(restartLabel)
         layout.addSpacing(8)
-        layout.addWidget(self.embeddings_path)
+        layout.addWidget(self.local_models_path)
         layout.addWidget(self.reduce_memory)
         layout.addWidget(self.safety_checker)
         layout.addWidget(models_group)
@@ -96,18 +97,12 @@ class PreferencesDialog(QDialog):
         self.load_models()
 
     def load_models(self):
-        self.settings.beginGroup("Models")
-        keys = self.settings.childKeys()
-        self.table.setRowCount(len(keys))
+        huggingface_models = utils.deserialize_string_list(self.settings.value('huggingface_models'))
 
-        for i, key in enumerate(keys):
-            display_name = key
-            repo_id = self.settings.value(key)
+        self.table.setRowCount(len(huggingface_models))
 
-            self.table.setItem(i, 0, QTableWidgetItem(display_name))
-            self.table.setItem(i, 1, QTableWidgetItem(repo_id))
-
-        self.settings.endGroup()
+        for i, repo_id in enumerate(huggingface_models):
+            self.table.setItem(i, 0, QTableWidgetItem(repo_id))
 
     def remove_model(self):
         current_row = self.table.currentRow()
@@ -124,12 +119,6 @@ class PreferencesDialog(QDialog):
 
         vbox = QVBoxLayout()
 
-        hbox1 = QHBoxLayout()
-        hbox1.addWidget(QLabel("Display Name:"))
-        display_name_edit = QLineEdit()
-        hbox1.addWidget(display_name_edit)
-        vbox.addLayout(hbox1)
-
         hbox2 = QHBoxLayout()
         hbox2.addWidget(QLabel("Repository ID:"))
         repo_id_edit = QLineEdit()
@@ -145,32 +134,26 @@ class PreferencesDialog(QDialog):
 
         result = add_dialog.exec()
         if result == QDialog.Accepted:
-            display_name = display_name_edit.text()
             repo_id = repo_id_edit.text()
 
-            if not display_name or not repo_id:
+            if not repo_id:
                 return
 
             row = self.table.rowCount()
             self.table.insertRow(row)
-            self.table.setItem(row, 0, QTableWidgetItem(display_name))
-            self.table.setItem(row, 1, QTableWidgetItem(repo_id))
+            self.table.setItem(row, 0, QTableWidgetItem(repo_id))
 
     def accept(self):
-        self.settings.setValue('embeddings_path', self.embeddings_path.path())
+        huggingface_models = []
+        for row in range(self.table.rowCount()):
+            repo_id = self.table.item(row, 0).text()
+            huggingface_models.append(repo_id)
+
+        self.settings.setValue('local_models_path', self.local_models_path.path())
         self.settings.setValue('reduce_memory', self.reduce_memory.isChecked())
         self.settings.setValue('safety_checker', self.safety_checker.isChecked())
+        self.settings.setValue('huggingface_models', huggingface_models)
 
-        self.settings.beginGroup("Models")
-        self.settings.remove("")
-
-        for row in range(self.table.rowCount()):
-            display_name = self.table.item(row, 0).text()
-            repo_id = self.table.item(row, 1).text()
-
-            self.settings.setValue(display_name, repo_id)
-
-        self.settings.endGroup()
         configuration.load_from_settings(self.settings)
 
         super().accept()

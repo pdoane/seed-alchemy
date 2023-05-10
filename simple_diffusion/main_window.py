@@ -174,11 +174,10 @@ class MainWindow(QMainWindow):
 
         # Model
         self.model_combo_box = ComboBox()
-        self.settings.beginGroup('Models')
-        for key in self.settings.childKeys():
-            value = self.settings.value(key)
-            index = self.model_combo_box.addItem(key, value)
-        self.settings.endGroup()
+        for model in configuration.known_stable_diffusion_models:
+            self.model_combo_box.addItem(model, configuration.get_stable_diffusion_model_path(model))
+        for repo_id in utils.deserialize_string_list(self.settings.value('huggingface_models')):
+            self.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
         utils.set_current_data(self.model_combo_box, self.settings.value('model'))
 
         # Prompts

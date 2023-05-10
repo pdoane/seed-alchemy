@@ -118,7 +118,7 @@ class ImagePipeline(PipelineBase):
             if isinstance(self.pipe, TextualInversionLoaderMixin):
                 self.textual_inversion_manager = DiffusersTextualInversionManager(self.pipe)
                 for entry in configuration.known_embeddings:
-                    entry_path = os.path.join(configuration.embeddings_path, entry)
+                    entry_path = configuration.get_embedding_path(entry)
                     name, _ = os.path.splitext(entry)
                     print('Loading textual inversion', name)
                     self.pipe.load_textual_inversion(entry_path, name)

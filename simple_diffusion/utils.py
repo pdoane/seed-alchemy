@@ -159,3 +159,8 @@ def set_current_data(widget, data):
     index = widget.findData(data)
     if index != -1:
         widget.setCurrentIndex(index)
+
+def deserialize_string_list(value):
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    return []
