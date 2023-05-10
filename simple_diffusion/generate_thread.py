@@ -91,7 +91,7 @@ class GenerateThread(QThread):
 
         # Source image
         if self.req.image_metadata.img2img_enabled:
-            source_path = self.req.image_metadata.source_images[self.req.image_metadata.img2img_source]
+            source_path = self.req.image_metadata.img2img_source
             full_path = os.path.join(configuration.IMAGES_PATH, source_path)
             with Image.open(full_path) as image:
                 image = image.convert('RGB')
@@ -101,7 +101,7 @@ class GenerateThread(QThread):
         # Conditioning images
         if self.req.image_metadata.control_net_enabled:
             for control_net_meta in self.req.image_metadata.control_nets:
-                source_path = self.req.image_metadata.source_images[control_net_meta.image_source]
+                source_path = control_net_meta.image_source
                 full_path = os.path.join(configuration.IMAGES_PATH, source_path)
                 with Image.open(full_path) as image:
                     image = image.convert('RGB')

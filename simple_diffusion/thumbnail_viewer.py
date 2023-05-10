@@ -16,7 +16,7 @@ from thumbnail_list_widget import ThumbnailListWidget
 class ThumbnailViewer(QWidget):
     file_dropped = Signal(str)
 
-    def __init__(self, settings: QSettings, collections: list[str], parent=None):
+    def __init__(self, settings: QSettings, collections: list[str], source_image_menu, parent=None):
         super().__init__(parent)
 
         self.setAcceptDrops(True)
@@ -40,7 +40,7 @@ class ThumbnailViewer(QWidget):
         thumbnail_layout.addWidget(self.list_widget)
 
         self.menu = QMenu()
-        self.menu.addAction(self.action_send_to_img2img)
+        self.menu.addMenu(source_image_menu)
         self.menu.addSeparator()
         self.menu.addAction(self.action_use_prompt)
         self.menu.addAction(self.action_use_seed)

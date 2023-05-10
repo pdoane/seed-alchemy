@@ -8,8 +8,8 @@ from image_metadata import ImageMetadata
 from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QSizePolicy,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy,
+                               QToolButton, QVBoxLayout, QWidget)
 
 
 class MetadataRow:
@@ -44,7 +44,6 @@ class ImageMetadataFrame(QFrame):
         self.scheduler = MetadataRow('Scheduler:')
         self.prompt = MetadataRow('Prompt:')
         self.negative_prompt = MetadataRow('Negative Prompt:')
-        self.source_images = MetadataRow('Source Images:')
         self.seed = MetadataRow('Seed:')
         self.num_inference_steps = MetadataRow('Steps:')
         self.guidance_scale = MetadataRow('CFG Scale:')
@@ -61,7 +60,6 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.model.frame)
         vlayout.addWidget(self.prompt.frame)
         vlayout.addWidget(self.negative_prompt.frame)
-        vlayout.addWidget(self.source_images.frame)
         vlayout.addWidget(self.seed.frame)
         vlayout.addWidget(self.num_inference_steps.frame)
         vlayout.addWidget(self.guidance_scale.frame)
@@ -79,7 +77,6 @@ class ImageMetadataFrame(QFrame):
         self.model.value.setText(metadata.model)
         self.prompt.value.setText(metadata.prompt)
         self.negative_prompt.value.setText(metadata.negative_prompt)
-        self.source_images.value.setText(json.dumps(metadata.source_images))
         self.seed.value.setText(str(metadata.seed))
         self.num_inference_steps.value.setText(str(metadata.num_inference_steps))
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
@@ -87,7 +84,7 @@ class ImageMetadataFrame(QFrame):
 
         if metadata.img2img_enabled:
             self.img2img.frame.setVisible(True)
-            self.img2img.value.setText('Source={:d}, Blend={:.2f}'.format(
+            self.img2img.value.setText('Source={:s}, Blend={:.2f}'.format(
                 metadata.img2img_source,
                 metadata.img2img_strength,
             ))
@@ -140,27 +137,22 @@ class ImageViewer(QWidget):
         self.setMinimumWidth(300)
         self.padding = 5
         self.minimum_image_size = 100
-        self.both_images_visible = False
         self.show_preview = True
 
-        self.left_image_path_ = ''
-        self.right_image_path_ = ''
+        self.image_path_ = ''
 
-        self.left_image = None
-        self.right_image = None
+        self.image = None
         self.preview_image = None
 
-        self.left_label = QLabel(self)
-        self.right_label = QLabel(self)
-        self.left_controls_frame = QFrame(self)
-        self.left_controls_frame.setFrameStyle(QFrame.Panel)
-        self.right_controls_frame = QFrame(self)
-        self.right_controls_frame.setFrameStyle(QFrame.Panel)
+        self.label = QLabel(self)
+        self.controls_frame = QFrame()
+        self.controls_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.controls_frame.setFrameStyle(QFrame.Panel)
         self.metadata_frame = ImageMetadataFrame(self)
         self.metadata_frame.setVisible(False)
 
-        self.locate_source_button = actions.locate_source.tool_button()
         self.send_to_img2img_button = actions.send_to_img2img.tool_button()
+        self.send_to_img2img_button.setPopupMode(QToolButton.InstantPopup)
         self.use_prompt_button = actions.use_prompt.tool_button()
         self.use_seed_button = actions.use_seed.tool_button()
         self.use_source_images_button = actions.use_source_images.tool_button()
@@ -172,29 +164,27 @@ class ImageViewer(QWidget):
         self.toggle_preview_button.toggled.connect(self.on_preview_button_changed)
         self.delete_button = actions.delete_image.tool_button()
 
-        left_controls_layout = QHBoxLayout(self.left_controls_frame)
-        left_controls_layout.setContentsMargins(0, 0, 0, 0)
-        left_controls_layout.setSpacing(0)
-        left_controls_layout.addStretch()
-        left_controls_layout.addWidget(self.locate_source_button)
-        left_controls_layout.addStretch()
+        controls_layout = QHBoxLayout(self.controls_frame)
+        controls_layout.setContentsMargins(0, 0, 0, 0)
+        controls_layout.setSpacing(0)
+        controls_layout.addStretch()
+        controls_layout.addWidget(self.send_to_img2img_button)
+        controls_layout.addSpacing(8)
+        controls_layout.addWidget(self.use_prompt_button)
+        controls_layout.addWidget(self.use_seed_button)
+        controls_layout.addWidget(self.use_source_images_button)
+        controls_layout.addWidget(self.use_all_button)
+        controls_layout.addSpacing(8)
+        controls_layout.addWidget(self.toggle_metadata_button)
+        controls_layout.addWidget(self.toggle_preview_button)
+        controls_layout.addSpacing(8)
+        controls_layout.addWidget(self.delete_button)
+        controls_layout.addStretch()
 
-        right_controls_layout = QHBoxLayout(self.right_controls_frame)
-        right_controls_layout.setContentsMargins(0, 0, 0, 0)
-        right_controls_layout.setSpacing(0)
-        right_controls_layout.addStretch()
-        right_controls_layout.addWidget(self.send_to_img2img_button)
-        right_controls_layout.addSpacing(8)
-        right_controls_layout.addWidget(self.use_prompt_button)
-        right_controls_layout.addWidget(self.use_seed_button)
-        right_controls_layout.addWidget(self.use_source_images_button)
-        right_controls_layout.addWidget(self.use_all_button)
-        right_controls_layout.addSpacing(8)
-        right_controls_layout.addWidget(self.toggle_metadata_button)
-        right_controls_layout.addWidget(self.toggle_preview_button)
-        right_controls_layout.addSpacing(8)
-        right_controls_layout.addWidget(self.delete_button)
-        right_controls_layout.addStretch()
+        widget_layout = QVBoxLayout(self)
+        widget_layout.setContentsMargins(0, 0, 0, 0)
+        widget_layout.addWidget(self.controls_frame)
+        widget_layout.addStretch()
 
     def resizeEvent(self, event):
         self.update_images()
@@ -203,126 +193,36 @@ class ImageViewer(QWidget):
         widget_width = self.width()
         widget_height = self.height()
         controls_height = 32
+        available_height = widget_height - controls_height - 4 * self.padding
+        available_width = widget_width - 2 * self.padding
 
         use_preview_image = self.preview_image is not None and self.show_preview
-        right_scale_factor = 1 if use_preview_image else self.metadata.upscale_factor if self.right_image else 1
-        left_scale_factor = self.left_metadata.upscale_factor if self.left_image else 1
-        right_image = self.preview_image if use_preview_image else self.right_image
+        image = self.preview_image if use_preview_image else self.image
+        image_width = image.width()
+        image_height = image.height()
 
-        right_image_width = right_image.width() / right_scale_factor if right_image is not None else 1
-        right_image_height = right_image.height() / right_scale_factor if right_image is not None else 1
-        left_image_width = self.left_image.width() / left_scale_factor if self.left_image is not None else right_image_width
-        left_image_height = self.left_image.height() / left_scale_factor if self.left_image is not None else right_image_height
+        width = image_width
+        height = image_height
 
-        left_min_size = max(left_image_width, left_image_height) // 4
-        right_min_size = max(right_image_width, right_image_height) // 4
+        if width > available_width:
+            width = available_width
+            height = int(image_height * (width / image_width))
 
-        if self.both_images_visible:
-            available_height = widget_height - controls_height - 4 * self.padding
-            available_width = widget_width - 3 * self.padding
+        if height > available_height:
+            height = available_height
+            width = int(image_width * (height / image_height))
 
-            right_height = min(available_height, right_image_height)
-            right_width = int(right_image_width * (right_height / right_image_height))
+        if image is not None:
+            pixmap = QPixmap.fromImage(image).scaled(width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.label.setPixmap(pixmap)
 
-            remaining_width = available_width - right_width
-            left_width = min(remaining_width, left_image_width)
-            left_height = int(left_image_height * (left_width / left_image_width))
+        x = (widget_width - width) // 2
+        y = controls_height + 2 * self.padding + (available_height - height) // 2
 
-            if left_height > available_height:
-                left_height = available_height
-                left_width = int(left_image_width * (left_height / left_image_height))
+        self.label.setGeometry(x, y, width, height)
+        self.metadata_frame.setGeometry(x, y, width, height)
 
-            if left_height < left_min_size:
-                left_height = left_min_size
-                left_width = int(left_image_width * (left_height / left_image_height))
-                right_width = available_width - left_width
-                right_height = int(right_image_height * (right_width / right_image_width))
-                if right_height > available_height:
-                    right_height = available_height
-                    right_width = int(right_image_width * (right_height / right_image_height))
-                if right_height < right_min_size:
-                    right_height = right_min_size
-                    right_width = int(right_image_width * (right_height / right_image_height))
-
-            if self.left_image is not None:
-                left_pixmap = QPixmap.fromImage(self.left_image).scaled(left_width, left_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.left_label.setPixmap(left_pixmap)
-                self.left_label.setStyleSheet('')  
-            else:
-                self.left_label.setText('Set Source Image Path')
-                self.left_label.setStyleSheet('border: 2px solid white;')
-                self.left_label.setWordWrap(True)
-                self.left_label.setAlignment(Qt.AlignCenter)
-
-            if right_image is not None:
-                right_pixmap = QPixmap.fromImage(right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.right_label.setPixmap(right_pixmap)
-
-            left_x = (widget_width - left_width - right_width - self.padding) // 2
-            left_y = controls_height + 2 * self.padding + (available_height - left_height) // 2
-            right_x = left_x + self.padding + left_width
-            right_y = controls_height + 2 * self.padding + (available_height - right_height) // 2
-
-            self.left_controls_frame.setVisible(True)
-            self.left_label.setVisible(True)
-
-            self.left_controls_frame.setGeometry(left_x, self.padding, left_width, controls_height)
-            self.left_label.setGeometry(left_x, left_y, left_width, left_height)
-            self.right_controls_frame.setGeometry(right_x, self.padding, right_width, controls_height)
-            self.right_label.setGeometry(right_x, right_y, right_width, right_height)
-            self.metadata_frame.setGeometry(right_x, right_y, right_width, right_height)
-        else:
-            available_height = widget_height - controls_height - 4 * self.padding
-            available_width = widget_width - 2 * self.padding
-
-            right_height = min(available_height, right_image_height)
-            right_width = int(right_image_width * (right_height / right_image_height))
-
-            if right_image is not None:
-                right_pixmap = QPixmap.fromImage(right_image).scaled(right_width, right_height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                self.right_label.setPixmap(right_pixmap)
-
-            right_x = (widget_width - right_width) // 2
-            right_y = controls_height + 2 * self.padding + (available_height - right_height) // 2
-
-            self.left_controls_frame.setVisible(False)
-            self.left_label.setVisible(False)
-
-            self.right_controls_frame.setGeometry(right_x, self.padding, right_width, controls_height)
-            self.right_label.setGeometry(right_x, right_y, right_width, right_height)
-            self.metadata_frame.setGeometry(right_x, right_y, right_width, right_height)
-
-    def set_both_images_visible(self, both_images_visible):
-        self.both_images_visible = both_images_visible
-        self.update_images()
-
-    def left_image_path(self):
-        return self.left_image_path_
-    
-    def right_image_path(self):
-        return self.right_image_path_
-
-    def clear_left_image(self):
-        self.left_image_path_ = ''
-        self.left_image = None
-        self.update_images()
-
-    def set_left_image(self, path):
-        full_path = os.path.join(configuration.IMAGES_PATH, path)
-        try:
-            with Image.open(full_path) as image:
-                self.left_metadata = ImageMetadata()
-                self.left_metadata.path = path
-                self.left_metadata.load_from_image(image)
-
-                self.left_image_path_ = path
-                self.left_image = utils.pil_to_qimage(image)
-        except (IOError, OSError):
-            self.left_image_path_ = ''
-            self.left_image = None
-        self.update_images()
-
-    def set_right_image(self, path):
+    def set_image(self, path):
         full_path = os.path.join(configuration.IMAGES_PATH, path)
         try:
             with Image.open(full_path) as image:
@@ -330,11 +230,11 @@ class ImageViewer(QWidget):
                 self.metadata.path = path
                 self.metadata.load_from_image(image)
 
-                self.right_image_path_ = path
-                self.right_image = utils.pil_to_qimage(image)
+                self.image_path_ = path
+                self.image = utils.pil_to_qimage(image)
         except (IOError, OSError):
-            self.right_image_path_ = ''
-            self.right_image = None
+            self.image_path_ = ''
+            self.image = None
 
         self.metadata_frame.update(self.metadata)
         self.update_images()

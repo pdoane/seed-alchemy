@@ -2,7 +2,7 @@ import os
 import re
 import sys
 import time
-from dataclasses import fields
+from dataclasses import MISSING, fields, is_dataclass
 from typing import Callable
 
 import font_awesome as fa
@@ -138,8 +138,21 @@ def pil_to_qimage(pil_image: Image.Image):
     return qimage
 
 def from_dict(dataclass_type, data: dict):
-    field_names = set(field.name for field in fields(dataclass_type))
-    filtered_data = {key: value for key, value in data.items() if key in field_names}
+    if not is_dataclass(dataclass_type):
+        raise ValueError(f"{dataclass_type} is not a dataclass")
+
+    filtered_data = {}
+
+    for field in fields(dataclass_type):
+        if field.name in data and isinstance(data[field.name], field.type):
+            filtered_data[field.name] = data[field.name]
+        elif field.default != field.default_factory:
+            filtered_data[field.name] = field.default
+        elif field.default_factory != MISSING:
+            filtered_data[field.name] = field.default_factory()
+        else:
+            raise ValueError(f"Missing value for field {field.name}")
+
     return dataclass_type(**filtered_data)
 
 def set_current_data(widget, data):

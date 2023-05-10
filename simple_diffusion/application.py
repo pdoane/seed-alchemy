@@ -25,9 +25,6 @@ class Application(QApplication):
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)    
 
         # Settings
-        control_net_meta = ControlNetMetadata()
-        control_net_meta.name = 'Canny'
-
         self.settings = QSettings('settings.ini', QSettings.IniFormat)
         self.set_default_setting('embeddings_path', '')
         self.set_default_setting('reduce_memory', True)
@@ -42,17 +39,16 @@ class Application(QApplication):
         self.set_default_setting('seed', 1)
         self.set_default_setting('num_images_per_prompt', 1)
         self.set_default_setting('num_inference_steps', 30)
-        self.set_default_setting('guidance_scale', 7.5)
+        self.set_default_setting('guidance_scale', 7.0)
         self.set_default_setting('width', 512)
         self.set_default_setting('height', 512)
         self.set_default_setting('img2img_enabled', False)
-        self.set_default_setting('img2img_source', 0)
+        self.set_default_setting('img2img_source', '')
         self.set_default_setting('img2img_strength', 0.5)
         self.set_default_setting('control_net_enabled', False)
         self.set_default_setting('control_net_guidance_start', 0.0)
         self.set_default_setting('control_net_guidance_end', 1.0)
-        self.set_default_setting('control_nets', json.dumps([control_net_meta.to_dict()]))
-        self.set_default_setting('source_images', json.dumps([]))
+        self.set_default_setting('control_nets', '[]')
         self.set_default_setting('upscale_enabled', False)
         self.set_default_setting('upscale_factor', 2)
         self.set_default_setting('upscale_denoising_strength', 0.75)
@@ -61,8 +57,8 @@ class Application(QApplication):
         self.set_default_setting('face_blend_strength', 0.75)
         self.set_default_setting('high_res_enabled', False)
         self.set_default_setting('high_res_factor', 1.5)
-        self.set_default_setting('high_res_guidance_scale', 7.5)
-        self.set_default_setting('high_res_noise', 0.3)
+        self.set_default_setting('high_res_guidance_scale', 7.0)
+        self.set_default_setting('high_res_noise', 0.5)
         self.set_default_setting('high_res_steps', 30)
 
         self.settings.beginGroup('Models')

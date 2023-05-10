@@ -10,7 +10,7 @@ from PIL import Image
 @dataclass
 class ControlNetMetadata:
     name: str = ''
-    image_source: int = 0
+    image_source: str = ''
     preprocess: bool = True
     scale: float = 1.0
 
@@ -28,14 +28,13 @@ class ImageMetadata:
     path: str = ''
     prompt: str = ''
     negative_prompt: str = ''
-    source_images: list[str] = []
     seed: int = 1
     num_inference_steps: int = 30
     guidance_scale: float = 7.5
     width: int = 512
     height: int = 512
     img2img_enabled: bool = False
-    img2img_source: int = 0
+    img2img_source: str = ''
     img2img_strength: float = 1.0
     control_net_enabled: bool = False
     control_net_guidance_start: float = 0.0
@@ -60,8 +59,6 @@ class ImageMetadata:
         self.prompt = settings.value('prompt')
         self.negative_prompt = settings.value('negative_prompt')
 
-        self.source_images = json.loads(settings.value('source_images'))
-
         self.seed = int(settings.value('seed'))
         self.num_inference_steps = int(settings.value('num_inference_steps'))
         self.guidance_scale = float(settings.value('guidance_scale'))
@@ -70,7 +67,7 @@ class ImageMetadata:
 
         self.img2img_enabled = settings.value('img2img_enabled', type=bool)
         if self.img2img_enabled:
-            self.img2img_source = int(settings.value('img2img_source'))
+            self.img2img_source = settings.value('img2img_source')
             self.img2img_strength = float(settings.value('img2img_strength'))
 
         self.control_net_enabled = settings.value('control_net_enabled', type=bool)
@@ -117,8 +114,6 @@ class ImageMetadata:
                     self.prompt = self.prompt['prompt']
                 self.negative_prompt = image_data.get('negative_prompt', '')
 
-                self.source_images = image_data.get('source_images', [])
-
                 self.seed = int(image_data.get('seed', 5))
                 self.steps = int(image_data.get('steps', 30))
                 self.guidance_scale = float(image_data.get('cfg_scale', 7.5))
@@ -127,7 +122,7 @@ class ImageMetadata:
 
                 self.img2img_enabled = 'img2img_source' in image_data
                 if self.img2img_enabled:
-                    self.img2img_source = int(image_data.get('img2img_source', 0))
+                    self.img2img_source = str(image_data.get('img2img_source', ''))
                     self.img2img_strength = float(image_data.get('img2img_strength', 0.5))
 
                 self.control_net_enabled = 'control_nets' in image_data
@@ -163,7 +158,6 @@ class ImageMetadata:
             'image': {
                 'prompt': self.prompt,
                 'negative_prompt': self.negative_prompt,
-                'source_images': self.source_images,
                 'steps': str(self.num_inference_steps),
                 'cfg_scale': str(self.guidance_scale),
                 'height': str(self.height),
