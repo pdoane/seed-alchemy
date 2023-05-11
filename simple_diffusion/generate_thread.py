@@ -5,7 +5,7 @@ import traceback
 import configuration
 import torch
 import utils
-from compel import Compel
+from compel import Compel, PromptParser
 from image_metadata import ImageMetadata
 from PIL import Image, PngImagePlugin
 from pipelines import GenerateRequest, ImagePipeline, PipelineCache
@@ -126,6 +126,16 @@ class GenerateThread(QThread):
 
         # generator
         self.req.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
+
+        # prompt parsing
+        pp = PromptParser()
+        conjunction = pp.parse_conjunction(self.req.image_metadata.prompt)
+
+        # loras
+        loras = []
+        for lora_weight in conjunction.lora_weights:
+            loras.append((lora_weight.model, lora_weight.weight))
+        pipeline.set_loras(loras)
 
         # prompt weighting
         compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder, textual_inversion_manager=pipeline.textual_inversion_manager)

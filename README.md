@@ -22,18 +22,17 @@ A native UI for Stable Diffusion using the `diffusers` library.  Developed and t
 - Text to Image
 - Image to Image
 - ControlNet 1.1 (Base, Img2Img, Multi-model)
+- LoRA
 - Textual Inversion
 - High-resolution fix
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
 - Image generation with real-time preview of latent space
-- Multiple source images
 - Thumbnail viewer with collections
 
 ### Roadmap
 
 Near-term:
-- LoRA
 - Inpainting
 - Async thumbnail loading
 - Upscale/Restore Faces for existing images

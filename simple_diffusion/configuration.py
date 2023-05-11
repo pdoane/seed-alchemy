@@ -23,10 +23,12 @@ THUMBNAILS_PATH = 'thumbnails'
 MODELS_PATH = '.models'
 
 EMBEDDINGS_DIR = 'embeddings'
+LORA_DIR = 'lora'
 STABLE_DIFFUSION_DIR = 'stable_diffusion'
 
 local_models_path: str
 known_embeddings: list[str] = []
+known_loras: list[str] = []
 known_stable_diffusion_models: list[str] = []
 
 ICON_SIZE = QSize(24, 24)
@@ -91,6 +93,20 @@ def load_from_settings(settings: QSettings):
                 continue
 
             known_embeddings.append(entry)
+
+    global known_loras
+    known_loras = []
+
+    loras_path = os.path.join(local_models_path, LORA_DIR)
+    if os.path.exists(loras_path):
+        for entry in sorted(os.listdir(loras_path)):
+            if entry == '.DS_Store':
+                continue
+            entry_path = os.path.join(loras_path, entry)
+            if not os.path.isfile(entry_path):
+                continue
+
+            known_loras.append(entry)
     
     global known_stable_diffusion_models
     known_stable_diffusion_models = []
@@ -108,6 +124,9 @@ def load_from_settings(settings: QSettings):
 
 def get_embedding_path(str):
     return os.path.join(local_models_path, EMBEDDINGS_DIR, str)
+
+def get_lora_path(str):
+    return os.path.join(local_models_path, LORA_DIR, str + ".safetensors")
 
 def get_stable_diffusion_model_path(str):
     return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, str)

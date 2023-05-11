@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 import configuration
+import lora
 import torch
 from compel.embeddings_provider import BaseTextualInversionManager
 from diffusers import ControlNetModel, DiffusionPipeline
@@ -113,6 +114,7 @@ class ImagePipeline(PipelineBase):
 
             self.pipe.to(self.device)
             self.pipe.enable_attention_slicing()
+            self.pipe.backup_weights = {}
 
             # Textual Inversion
             if isinstance(self.pipe, TextualInversionLoaderMixin):
@@ -122,6 +124,16 @@ class ImagePipeline(PipelineBase):
                     name, _ = os.path.splitext(entry)
                     print('Loading textual inversion', name)
                     self.pipe.load_textual_inversion(entry_path, name)
+
+    def set_loras(self, loras):
+        lora_models = []
+        lora_multipliers = []
+        for lora_model, lora_weight in loras:
+            path = configuration.get_lora_path(lora_model)
+            lora_models.append(lora.load(path, self.device, self.dtype))
+            lora_multipliers.append(lora_weight)
+
+        lora.apply(self.pipe, lora_models, lora_multipliers)
 
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
         # Image parameters

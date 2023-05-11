@@ -15,8 +15,12 @@ class PromptTextEdit(QPlainTextEdit):
         super().__init__(parent)
         self.spell_checker = SpellChecker()
 
-        custom_words = ['3d']
+        custom_words = ['3d', 'useLora', 'withLora']
         for entry in configuration.known_embeddings:
+            name, _ = os.path.splitext(entry)
+            custom_words.append(name)
+
+        for entry in configuration.known_loras:
             name, _ = os.path.splitext(entry)
             custom_words.append(name)
 
