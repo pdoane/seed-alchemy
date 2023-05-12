@@ -221,8 +221,19 @@ class GenerateThread(QThread):
     def generate_callback(self, step: int, timestep: int, latents: torch.FloatTensor):
         self.next_step()
 
+        if self.req.image_metadata.high_res_enabled:
+            preview_width = align_down(int(self.req.image_metadata.width * self.req.image_metadata.high_res_factor), 8)
+            preview_height = align_down(int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8)
+        else:
+            preview_width = self.req.image_metadata.width
+            preview_height = self.req.image_metadata.height
+
+        if self.req.image_metadata.upscale_enabled:
+            preview_width *= self.req.image_metadata.upscale_factor
+            preview_height *= self.req.image_metadata.upscale_factor
+
         pil_image = latents_to_pil(latents)
-        pil_image = pil_image.resize((pil_image.size[0] * 8, pil_image.size[1] * 8), Image.NEAREST)
+        pil_image = pil_image.resize((preview_width, preview_height), Image.NEAREST)
         self.image_preview.emit(pil_image)
 
     def next_step(self):
