@@ -786,10 +786,10 @@ class MainWindow(QMainWindow):
                     control_net_frame = self.create_control_net_frame(control_net_meta)
                     self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_frame)
                     self.control_net_frames.append(control_net_frame)
-
-                self.update_source_image_menu()
             else:
                 self.control_net_group_box.setChecked(False)
+
+            self.update_source_image_menu()
 
     def on_use_post_processing(self, image_metadata):
         if image_metadata is not None:

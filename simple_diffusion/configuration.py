@@ -29,6 +29,7 @@ STABLE_DIFFUSION_DIR = 'stable_diffusion'
 local_models_path: str
 known_embeddings: list[str] = []
 known_loras: list[str] = []
+lora_dict: dict[str, str] = {}
 known_stable_diffusion_models: list[str] = []
 
 ICON_SIZE = QSize(24, 24)
@@ -107,6 +108,9 @@ def load_from_settings(settings: QSettings):
                 continue
 
             known_loras.append(entry)
+
+            base_name,_ = os.path.splitext(entry)
+            lora_dict[base_name] = entry
     
     global known_stable_diffusion_models
     known_stable_diffusion_models = []
@@ -126,7 +130,7 @@ def get_embedding_path(str):
     return os.path.join(local_models_path, EMBEDDINGS_DIR, str)
 
 def get_lora_path(str):
-    return os.path.join(local_models_path, LORA_DIR, str + ".safetensors")
+    return os.path.join(local_models_path, LORA_DIR, lora_dict[str])
 
 def get_stable_diffusion_model_path(str):
     return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, str)

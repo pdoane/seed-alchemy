@@ -1,8 +1,9 @@
 from collections import defaultdict
 
+import os
+import safetensors
 import torch
 from diffusers import DiffusionPipeline
-from safetensors.torch import load_file
 from torch import Tensor
 
 LORA_PREFIX_UNET = "lora_unet"
@@ -13,7 +14,12 @@ class LoraModel:
 
 def load(path, device, dtype) -> LoraModel:
     model = LoraModel()
-    state_dict = load_file(path)
+
+    _, ext = os.path.splitext(path)
+    if ext == '.safetensors':
+        state_dict = safetensors.torch.load_file(path)
+    else:
+        state_dict = torch.load(path, map_location='cpu')
 
     model.layer_elems = defaultdict(dict)
     for key, value in state_dict.items():
