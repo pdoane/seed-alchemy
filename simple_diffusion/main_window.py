@@ -4,29 +4,29 @@ import random
 import shutil
 import sys
 
-import actions
-import configuration
-import font_awesome as fa
-import utils
-from about_dialog import AboutDialog
-from delete_image_dialog import DeleteImageDialog
-from generate_thread import GenerateThread
-from image_metadata import ControlNetMetadata, ImageMetadata
-from image_viewer import ImageViewer
 from PIL import Image, PngImagePlugin
-from preferences_dialog import PreferencesDialog
-from processors import ProcessorBase
-from prompt_text_edit import PromptTextEdit
-from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtGui import QAction, QPixmap, QIcon
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog,
                                QFrame, QGridLayout, QGroupBox, QHBoxLayout,
                                QLabel, QLineEdit, QMainWindow, QMenu, QMenuBar,
                                QProgressBar, QPushButton, QSizePolicy,
                                QSplitter, QToolBar, QVBoxLayout, QWidget)
-from thumbnail_viewer import ThumbnailViewer
-from widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox,
-                     IntSliderSpinBox, ScrollArea, SpinBox)
+
+from . import actions, configuration
+from . import font_awesome as fa
+from . import utils
+from .about_dialog import AboutDialog
+from .delete_image_dialog import DeleteImageDialog
+from .generate_thread import GenerateThread
+from .image_metadata import ControlNetMetadata, ImageMetadata
+from .image_viewer import ImageViewer
+from .preferences_dialog import PreferencesDialog
+from .processors import ProcessorBase
+from .prompt_text_edit import PromptTextEdit
+from .thumbnail_viewer import ThumbnailViewer
+from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox,
+                      IntSliderSpinBox, ScrollArea, SpinBox)
 
 if sys.platform == 'darwin':
     from AppKit import NSApplication

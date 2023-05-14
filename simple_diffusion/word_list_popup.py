@@ -1,4 +1,3 @@
-
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (QDialog, QGraphicsBlurEffect, QLabel, QLineEdit,

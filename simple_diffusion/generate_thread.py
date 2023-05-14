@@ -2,15 +2,15 @@ import gc
 import os
 import traceback
 
-import configuration
 import torch
-import utils
 from compel import Compel, PromptParser
-from image_metadata import ImageMetadata
 from PIL import Image, PngImagePlugin
-from pipelines import GenerateRequest, ImagePipeline, PipelineCache
-from processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
 from PySide6.QtCore import QSettings, QThread, Signal
+
+from . import configuration, utils
+from .image_metadata import ImageMetadata
+from .pipelines import GenerateRequest, ImagePipeline, PipelineCache
+from .processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
 
 pipeline_cache: PipelineCache = PipelineCache()
 generate_preprocessor: ProcessorBase = None

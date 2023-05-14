@@ -1,15 +1,14 @@
 import json
 import os
 
-import actions
-import configuration
-import utils
-from image_metadata import ImageMetadata
 from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy,
                                QToolButton, QVBoxLayout, QWidget)
+
+from . import actions, configuration, utils
+from .image_metadata import ImageMetadata
 
 
 class MetadataRow:

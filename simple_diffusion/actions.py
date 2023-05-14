@@ -1,11 +1,12 @@
 from dataclasses import dataclass
 
-import configuration
-import font_awesome as fa
-import utils
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence
-from PySide6.QtWidgets import QToolButton, QPushButton
+from PySide6.QtWidgets import QPushButton, QToolButton
+
+from . import configuration
+from . import font_awesome as fa
+from . import utils
 
 
 @dataclass

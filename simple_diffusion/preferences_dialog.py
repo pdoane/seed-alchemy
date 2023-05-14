@@ -1,11 +1,11 @@
-import configuration
-import utils
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
                                QFileDialog, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMessageBox,
                                QPushButton, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
+
+from . import configuration, utils
 
 
 class DirectoryPathWidget(QWidget):

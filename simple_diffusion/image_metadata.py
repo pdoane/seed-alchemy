@@ -2,9 +2,9 @@ import json
 import os
 from dataclasses import asdict, dataclass
 
-import configuration
-import utils
 from PIL import Image
+
+from . import configuration, utils
 
 
 @dataclass

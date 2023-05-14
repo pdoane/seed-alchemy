@@ -2,10 +2,8 @@ import os
 import warnings
 from abc import ABC, abstractmethod
 
-import configuration
 import numpy as np
 import torch
-import utils
 from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector,
                             LineartAnimeDetector, LineartDetector,
                             MidasDetector, MLSDdetector, NormalBaeDetector,
@@ -13,6 +11,8 @@ from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector,
 from controlnet_aux import util as controlnet_utils
 from PIL import Image
 from transformers import AutoImageProcessor, UperNetForSemanticSegmentation
+
+from . import configuration, utils
 
 
 class ProcessorBase(ABC):

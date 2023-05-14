@@ -6,7 +6,7 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        EulerAncestralDiscreteScheduler, EulerDiscreteScheduler,
                        HeunDiscreteScheduler, LMSDiscreteScheduler,
                        PNDMScheduler, SchedulerMixin, UniPCMultistepScheduler)
-from processors import (CannyProcessor, DepthProcessor, LineartAnimeProcessor,
+from .processors import (CannyProcessor, DepthProcessor, LineartAnimeProcessor,
                         LineartCoarseProcessor, LineartProcessor,
                         MlsdProcessor, NormalBaeProcessor,
                         OpenposeFullProcessor, OpenposeProcessor, HedProcessor,

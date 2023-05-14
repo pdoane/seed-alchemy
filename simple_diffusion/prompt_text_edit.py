@@ -1,13 +1,14 @@
 import os
 import re
 
-import configuration
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (QAction, QColor, QFontMetrics, QTextCharFormat,
                            QTextCursor)
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
 from spellchecker import SpellChecker
-from word_list_popup import WordListPopup
+
+from . import configuration
+from .word_list_popup import WordListPopup
 
 
 class PromptTextEdit(QPlainTextEdit):

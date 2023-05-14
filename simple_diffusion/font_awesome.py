@@ -1,6 +1,8 @@
-from PySide6.QtGui import QFontDatabase, QFont
-import configuration
 import os
+
+from PySide6.QtGui import QFont, QFontDatabase
+
+from . import configuration
 
 font_family: str = None
 font: QFont = None

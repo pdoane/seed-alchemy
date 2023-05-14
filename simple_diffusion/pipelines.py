@@ -5,15 +5,15 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable
 
-import configuration
-import lora
 import torch
 from compel.embeddings_provider import BaseTextualInversionManager
 from diffusers import ControlNetModel, DiffusionPipeline
 from diffusers.loaders import TextualInversionLoaderMixin
-from image_metadata import ImageMetadata
 from PIL import Image
-from stable_diffusion_pipeline import StableDiffusionPipeline
+
+from . import configuration, lora
+from .image_metadata import ImageMetadata
+from .stable_diffusion_pipeline import StableDiffusionPipeline
 
 
 class DiffusersTextualInversionManager(BaseTextualInversionManager):

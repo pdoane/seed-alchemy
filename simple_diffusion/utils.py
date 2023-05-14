@@ -5,12 +5,13 @@ import time
 from dataclasses import MISSING, fields, is_dataclass
 from typing import Callable
 
-import font_awesome as fa
 import requests
 from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QFrame
+
+from . import font_awesome as fa
 
 if sys.platform == 'darwin':
     from AppKit import NSURL, NSWorkspace
@@ -32,9 +33,6 @@ class Timer:
             print(f"{self.name} took {elapsed_time:.6f} seconds")
         else:
             print(f"Elapsed time: {elapsed_time:.6f} seconds")
-
-def resource_path(relative_path) -> str:
-    return os.path.join('simple_diffusion/resources', relative_path)
 
 def reveal_in_finder(path: str) -> None:
     if sys.platform == 'darwin':

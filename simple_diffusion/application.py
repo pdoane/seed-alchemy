@@ -1,13 +1,13 @@
 import os
 
-import configuration
-import font_awesome as fa
 import qdarktheme
-import utils
-from main_window import MainWindow
 from PySide6.QtCore import QEvent, QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
+
+from . import configuration
+from . import font_awesome as fa
+from .main_window import MainWindow
 
 
 class Application(QApplication):
