@@ -94,5 +94,5 @@ use_all = ActionDef('Use All', icon=fa.icon_star_of_life, use_fa=True, shortcut=
 toggle_metadata = ActionDef('Toggle Metadata', icon=fa.icon_circle_info, use_fa=True, shortcut=Qt.Key_I, checkable=True)
 toggle_preview = ActionDef('Toggle Preview', icon=fa.icon_magnifying_glass, use_fa=True, checkable=True)
 
-delete_image = ActionDef('Delete Image', icon=fa.icon_trash, use_fa=True, shortcut=Qt.Key_Delete)
+delete_image = ActionDef('Delete Image', icon=fa.icon_trash, use_fa=True, shortcut=Qt.CTRL | Qt.Key_Backspace)
 reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
