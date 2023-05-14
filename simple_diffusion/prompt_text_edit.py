@@ -3,16 +3,26 @@ import re
 
 import configuration
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QTextCharFormat, QTextCursor
+from PySide6.QtGui import (QAction, QColor, QFontMetrics, QTextCharFormat,
+                           QTextCursor)
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
 from spellchecker import SpellChecker
+from word_list_popup import WordListPopup
 
 
 class PromptTextEdit(QPlainTextEdit):
     return_pressed = Signal()
+    insert_textual_inversion_action: QAction
+    insert_lora_action: QAction
 
     def __init__(self, desired_lines, placeholder_text, parent=None):
         super().__init__(parent)
+
+        self.insert_textual_inversion_action = QAction("Insert Textual Inversion...")
+        self.insert_textual_inversion_action.triggered.connect(self.on_insert_textual_inversion)
+        self.insert_lora_action = QAction("Insert LoRA...")
+        self.insert_lora_action.triggered.connect(self.on_insert_lora)
+
         self.spell_checker = SpellChecker()
 
         custom_words = ['3d', 'useLora', 'withLora']
@@ -59,6 +69,55 @@ class PromptTextEdit(QPlainTextEdit):
     def setPlainText(self, str):
         super().setPlainText(str)
         self.highlight_misspelled_words()
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()
+        first_action = menu.actions()[0]
+        menu.insertAction(first_action, self.insert_textual_inversion_action)
+        menu.insertAction(first_action, self.insert_lora_action)
+        menu.insertSeparator(first_action)
+        menu.exec(event.globalPos())
+
+    def on_insert_textual_inversion(self):
+        popup = WordListPopup('Insert Textual Inversion', self)
+        popup.word_selected.connect(self.handle_textual_inversion)
+
+        valid_words = []
+        for entry in configuration.known_embeddings:
+            name, _ = os.path.splitext(entry)
+            valid_words.append(name)
+        popup.set_valid_words(valid_words)
+
+        pos = self.parentWidget().mapToGlobal(self.geometry().bottomLeft())
+        popup.move(pos)
+        popup.show()
+        popup.exec()
+
+    def handle_textual_inversion(self, selected_word):
+        cursor = self.textCursor()
+        cursor.insertText(selected_word)
+        self.setTextCursor(cursor)
+
+    def on_insert_lora(self):
+        popup = WordListPopup('Insert LoRA', self)
+        popup.word_selected.connect(self.handle_lora)
+
+        valid_words = []
+        for entry in configuration.known_loras:
+            name, _ = os.path.splitext(entry)
+            valid_words.append(name)
+        popup.set_valid_words(valid_words)
+
+        pos = self.parentWidget().mapToGlobal(self.geometry().bottomLeft())
+        popup.move(pos)
+        popup.show()
+        popup.exec()
+
+    def handle_lora(self, selected_word):
+        cursor = self.textCursor()
+        cursor.movePosition(QTextCursor.End)
+        cursor.insertText(' useLora({:s}, 1.0)'.format(selected_word))
+        self.setTextCursor(cursor)
 
     def highlight_misspelled_words(self):
         text = self.toPlainText()
