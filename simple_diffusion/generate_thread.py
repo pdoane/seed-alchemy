@@ -197,6 +197,17 @@ class GenerateThread(QThread):
                     high_res_req.negative_prompt_embeds = self.req.negative_prompt_embeds
                     high_res_req.callback = self.req.callback
 
+                    if self.req.image_metadata.control_net_enabled:
+                        high_res_req.controlnet_conditioning_images = []
+                        for controlnet_conditioning_image in self.req.controlnet_conditioning_images:
+                            controlnet_conditioning_image = controlnet_conditioning_image.resize((high_res_width, high_res_height))
+                            high_res_req.controlnet_conditioning_images.append(controlnet_conditioning_image)
+
+                        high_res_req.image_metadata.control_net_enabled = True
+                        high_res_req.image_metadata.control_net_guidance_start = self.req.image_metadata.control_net_guidance_start
+                        high_res_req.image_metadata.control_net_guidance_end = self.req.image_metadata.control_net_guidance_end
+                        high_res_req.image_metadata.control_nets = self.req.image_metadata.control_nets
+
                     image = pipeline(high_res_req)[0]
 
             # Output
