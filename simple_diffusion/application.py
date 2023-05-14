@@ -69,7 +69,7 @@ class Application(QApplication):
             self.collections = ['outputs']
 
         # QT configuration
-        self.setWindowIcon(QIcon(utils.resource_path('app_icon.png')))
+        self.setWindowIcon(QIcon(configuration.get_resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
         qdarktheme.setup_theme('auto', corner_shape='sharp')
         fa.load()

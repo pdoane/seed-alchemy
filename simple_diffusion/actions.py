@@ -24,7 +24,7 @@ class ActionDef:
             if self.use_fa:
                 action = QAction(QIcon(utils.create_fontawesome_icon(self.icon)), self.text, parent)
             else:
-                action = QAction(QIcon(utils.resource_path(self.icon)), self.text, parent)
+                action = QAction(QIcon(configuration.get_resource_path(self.icon)), self.text, parent)
         elif self.empty_icon:
             action = QAction(utils.empty_qicon(), self.text, parent)
         else:
@@ -44,7 +44,7 @@ class ActionDef:
                 button.setFont(fa.font)
                 #button.setIcon(utils.create_fontawesome_icon(self.icon))
             else:
-                button.setIcon(QIcon(utils.resource_path(self.icon)))
+                button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
                 button.setIconSize(configuration.ICON_SIZE)
                 button.setToolButtonStyle(Qt.ToolButtonIconOnly)
             button.setToolTip(self.text)
@@ -63,7 +63,7 @@ class ActionDef:
                 button.setFont(fa.font)
                 #button.setIcon(utils.create_fontawesome_icon(self.icon))
             else:
-                button.setIcon(QIcon(utils.resource_path(self.icon)))
+                button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
                 button.setIconSize(configuration.ICON_SIZE)
             button.setToolTip(self.text)
             button.setToolTipDuration(0)

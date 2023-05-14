@@ -1,5 +1,5 @@
 from PySide6.QtGui import QFontDatabase, QFont
-import utils
+import configuration
 import os
 
 font_family: str = None
@@ -8,7 +8,7 @@ font: QFont = None
 def load():
     global font_family, font
 
-    abs_path = os.path.abspath(utils.resource_path('fa-solid-900.ttf'))
+    abs_path = os.path.abspath(configuration.get_resource_path('fa-solid-900.ttf'))
     font_id = QFontDatabase.addApplicationFont(abs_path)
     font_families = QFontDatabase.applicationFontFamilies(font_id)
     font_family = font_families[0] if font_families else ""

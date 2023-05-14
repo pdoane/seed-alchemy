@@ -26,6 +26,7 @@ EMBEDDINGS_DIR = 'embeddings'
 LORA_DIR = 'lora'
 STABLE_DIFFUSION_DIR = 'stable_diffusion'
 
+resources_path: str
 local_models_path: str
 known_embeddings: list[str] = []
 known_loras: list[str] = []
@@ -134,3 +135,10 @@ def get_lora_path(str):
 
 def get_stable_diffusion_model_path(str):
     return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, str)
+
+def set_resources_path(str):
+    global resources_path
+    resources_path = str
+
+def get_resource_path(relative_path) -> str:
+    return os.path.join(resources_path, relative_path)

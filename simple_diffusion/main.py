@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--root')
     args = parser.parse_args()
 
+    configuration.set_resources_path(os.path.join(os.getcwd(), 'simple_diffusion/resources'))
     if args.root:
         os.chdir(os.path.expanduser(args.root))
 
