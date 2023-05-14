@@ -20,7 +20,6 @@ class ThumbnailViewer(QWidget):
 
         self.setAcceptDrops(True)
 
-        self.action_send_to_img2img = actions.send_to_img2img.create()
         self.action_use_prompt = actions.use_prompt.create()
         self.action_use_seed = actions.use_seed.create()
         self.action_use_all = actions.use_all.create()
@@ -67,7 +66,6 @@ class ThumbnailViewer(QWidget):
 
     def dragLeaveEvent(self, event):
         self.setStyleSheet('QListWidget {background-color: black;}')
-        pass
 
     def dropEvent(self, event):
         urls = event.mimeData().urls()
@@ -86,7 +84,10 @@ class ThumbnailViewer(QWidget):
         os.makedirs(os.path.join(configuration.THUMBNAILS_PATH, collection), exist_ok=True)
         image_files = sorted([file for file in os.listdir(os.path.join(configuration.IMAGES_PATH, collection)) if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
 
+        self.list_widget.blockSignals(True)
         self.list_widget.clear()
+        self.list_widget.blockSignals(False)
+
         for image_file in image_files:
             image_path = os.path.join(collection, image_file)
             self.add_image(image_path)

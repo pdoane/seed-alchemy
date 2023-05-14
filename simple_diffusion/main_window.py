@@ -378,7 +378,8 @@ class MainWindow(QMainWindow):
 
         # Image viewer
         self.image_viewer = ImageViewer()
-        self.image_viewer.send_to_img2img_button.setMenu(self.source_image_menu)
+        self.image_viewer.current_image_changed.connect(self.on_current_image_changed)
+        self.image_viewer.set_as_source_image_button.setMenu(self.source_image_menu)
         self.image_viewer.use_prompt_button.clicked.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
         self.image_viewer.use_seed_button.clicked.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
         self.image_viewer.use_source_images_button.clicked.connect(lambda: self.on_use_source_images(self.image_viewer.metadata))
@@ -396,7 +397,6 @@ class MainWindow(QMainWindow):
         self.thumbnail_viewer = ThumbnailViewer(self.settings, self.collections, self.source_image_menu)
         self.thumbnail_viewer.file_dropped.connect(self.on_thumbnail_file_dropped)
         self.thumbnail_viewer.list_widget.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
-        self.thumbnail_viewer.action_send_to_img2img.triggered.connect(lambda: self.on_send_to_img2img(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_seed.triggered.connect(lambda: self.on_use_seed(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_source_images.triggered.connect(lambda: self.on_use_source_images(self.thumbnail_viewer.get_current_metadata()))
@@ -694,6 +694,11 @@ class MainWindow(QMainWindow):
 
     def on_seed_random_clicked(self):
         self.randomize_seed()
+
+    def on_current_image_changed(self, path):
+        self.thumbnail_viewer.list_widget.itemSelectionChanged.disconnect()
+        self.thumbnail_viewer.select_image(path)
+        self.thumbnail_viewer.list_widget.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
 
     def on_thumbnail_file_dropped(self, source_path: str):
         collection = self.thumbnail_viewer.collection()

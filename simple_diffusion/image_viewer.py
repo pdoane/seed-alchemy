@@ -2,14 +2,15 @@ import json
 import os
 
 from PIL import Image
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap, QAction
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy,
                                QToolButton, QVBoxLayout, QWidget)
 
 from . import actions, configuration, utils
 from .image_metadata import ImageMetadata
 
+MAX_HISTORY = 10
 
 class MetadataRow:
     def __init__(self, label_text):
@@ -130,6 +131,10 @@ class ImageMetadataFrame(QFrame):
             self.high_res.frame.setVisible(False)
 
 class ImageViewer(QWidget):
+    current_image_changed = Signal(str)
+    history_stack = []
+    history_stack_index = -1    
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -150,8 +155,21 @@ class ImageViewer(QWidget):
         self.metadata_frame = ImageMetadataFrame(self)
         self.metadata_frame.setVisible(False)
 
-        self.send_to_img2img_button = actions.send_to_img2img.tool_button()
-        self.send_to_img2img_button.setPopupMode(QToolButton.InstantPopup)
+        self.back_menu = QMenu()
+        self.back_menu.aboutToShow.connect(self.populate_back_menu)
+        self.forward_menu = QMenu()
+        self.forward_menu.aboutToShow.connect(self.populate_forward_menu)
+
+        self.back_button = actions.back.tool_button()
+        self.back_button.setMenu(self.back_menu)
+        self.back_button.setPopupMode(QToolButton.DelayedPopup)
+        self.back_button.clicked.connect(self.navigate_back)
+        self.forward_button = actions.forward.tool_button()
+        self.forward_button.setMenu(self.forward_menu)
+        self.forward_button.setPopupMode(QToolButton.DelayedPopup)
+        self.forward_button.clicked.connect(self.navigate_forward)
+        self.set_as_source_image_button = actions.set_as_source_image.tool_button()
+        self.set_as_source_image_button.setPopupMode(QToolButton.InstantPopup)
         self.use_prompt_button = actions.use_prompt.tool_button()
         self.use_seed_button = actions.use_seed.tool_button()
         self.use_source_images_button = actions.use_source_images.tool_button()
@@ -163,21 +181,39 @@ class ImageViewer(QWidget):
         self.toggle_preview_button.toggled.connect(self.on_preview_button_changed)
         self.delete_button = actions.delete_image.tool_button()
 
+        group1 = QHBoxLayout()
+        group1.setSpacing(0)
+        group1.addWidget(self.back_button)
+        group1.addWidget(self.forward_button)
+
+        group2 = QHBoxLayout()
+        group2.setSpacing(0)
+        group2.addWidget(self.set_as_source_image_button)
+
+        group3 = QHBoxLayout()
+        group3.setSpacing(0)
+        group3.addWidget(self.use_prompt_button)
+        group3.addWidget(self.use_seed_button)
+        group3.addWidget(self.use_source_images_button)
+        group3.addWidget(self.use_all_button)
+
+        group4 = QHBoxLayout()
+        group4.setSpacing(0)
+        group4.addWidget(self.toggle_metadata_button)
+        group4.addWidget(self.toggle_preview_button)
+
+        group5 = QHBoxLayout()
+        group5.setSpacing(0)
+        group5.addWidget(self.delete_button)
+
         controls_layout = QHBoxLayout(self.controls_frame)
         controls_layout.setContentsMargins(0, 0, 0, 0)
-        controls_layout.setSpacing(0)
         controls_layout.addStretch()
-        controls_layout.addWidget(self.send_to_img2img_button)
-        controls_layout.addSpacing(8)
-        controls_layout.addWidget(self.use_prompt_button)
-        controls_layout.addWidget(self.use_seed_button)
-        controls_layout.addWidget(self.use_source_images_button)
-        controls_layout.addWidget(self.use_all_button)
-        controls_layout.addSpacing(8)
-        controls_layout.addWidget(self.toggle_metadata_button)
-        controls_layout.addWidget(self.toggle_preview_button)
-        controls_layout.addSpacing(8)
-        controls_layout.addWidget(self.delete_button)
+        controls_layout.addLayout(group1)
+        controls_layout.addLayout(group2)
+        controls_layout.addLayout(group3)
+        controls_layout.addLayout(group4)
+        controls_layout.addLayout(group5)
         controls_layout.addStretch()
 
         widget_layout = QVBoxLayout(self)
@@ -222,6 +258,24 @@ class ImageViewer(QWidget):
         self.metadata_frame.setGeometry(x, y, width, height)
 
     def set_image(self, path):
+        if self.history_stack_index >= 0:
+            current_path = self.history_stack[self.history_stack_index]
+            if path == current_path:
+                return
+
+        if self.history_stack_index < len(self.history_stack) - 1:
+            self.history_stack = self.history_stack[:self.history_stack_index + 1]
+        self.history_stack.append(path)
+        self.history_stack_index += 1
+
+        if len(self.history_stack) > MAX_HISTORY:
+            self.history_stack.pop(0)
+            self.history_stack_index -= 1
+
+        self.show_current()
+
+    def show_current(self):
+        path = self.history_stack[self.history_stack_index]
         full_path = os.path.join(configuration.IMAGES_PATH, path)
         try:
             with Image.open(full_path) as image:
@@ -238,6 +292,11 @@ class ImageViewer(QWidget):
         self.metadata_frame.update(self.metadata)
         self.update_images()
 
+        self.back_button.setEnabled(self.history_stack_index > 0)
+        self.forward_button.setEnabled(self.history_stack_index < len(self.history_stack) - 1)
+
+        self.current_image_changed.emit(path)
+
     def set_preview_image(self, preview_image):
         if preview_image is not None:
             self.preview_image = utils.pil_to_qimage(preview_image)
@@ -251,3 +310,34 @@ class ImageViewer(QWidget):
     def on_preview_button_changed(self, state):
         self.show_preview = state
         self.update_images()
+
+    def navigate_back(self):
+        if self.history_stack_index > 0:
+            self.history_stack_index -= 1
+            self.show_current()
+
+    def navigate_forward(self):
+        if self.history_stack_index < len(self.history_stack) - 1:
+            self.history_stack_index += 1
+            self.show_current()
+            
+    def populate_back_menu(self):
+        self.back_menu.clear()
+        for i in range(self.history_stack_index - 1, -1, -1):
+            path = self.history_stack[i]
+            action = QAction(path, self)
+            action.triggered.connect(lambda checked=False, i=i: self.go_to_index(i))
+            self.back_menu.addAction(action)
+
+    def populate_forward_menu(self):
+        self.forward_menu.clear()
+        for i in range(self.history_stack_index + 1, len(self.history_stack)):
+            path = self.history_stack[i]
+            action = QAction(path, self)
+            action.triggered.connect(lambda checked=False, i=i: self.go_to_index(i))
+            self.forward_menu.addAction(action)
+
+    def go_to_index(self, index):
+        if 0 <= index < len(self.history_stack):
+            self.history_stack_index = index
+            self.show_current()

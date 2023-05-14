@@ -13,19 +13,18 @@ from . import utils
 class ActionDef:
     text: str
     icon: str = None
+    fa_icon: str = None
     shortcut: QKeySequence.StandardKey = None
     checkable: bool = False
     auto_exclusive: bool = False
     empty_icon: bool = True
-    use_fa: bool = False
     role: QAction.MenuRole = None
 
     def create(self, parent: QObject = None):
-        if self.icon is not None:
-            if self.use_fa:
-                action = QAction(QIcon(utils.create_fontawesome_icon(self.icon)), self.text, parent)
-            else:
-                action = QAction(QIcon(configuration.get_resource_path(self.icon)), self.text, parent)
+        if self.fa_icon is not None:
+            action = QAction(QIcon(utils.create_fontawesome_icon(self.fa_icon)), self.text, parent)
+        elif self.icon is not None:
+            action = QAction(QIcon(configuration.get_resource_path(self.icon)), self.text, parent)
         elif self.empty_icon:
             action = QAction(utils.empty_qicon(), self.text, parent)
         else:
@@ -39,15 +38,16 @@ class ActionDef:
     
     def tool_button(self):
         button = QToolButton()
-        if self.icon is not None:
-            if self.use_fa:
-                button.setText(self.icon)
-                button.setFont(fa.font)
-                #button.setIcon(utils.create_fontawesome_icon(self.icon))
-            else:
-                button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
-                button.setIconSize(configuration.ICON_SIZE)
-                button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        if self.fa_icon is not None:
+            button.setText(self.fa_icon)
+            button.setFont(fa.font)
+            #button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
+            button.setToolTip(self.text)
+            button.setToolTipDuration(0)
+        elif self.icon is not None:
+            button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
+            button.setIconSize(configuration.ICON_SIZE)
+            button.setToolButtonStyle(Qt.ToolButtonIconOnly)
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         else:
@@ -58,14 +58,15 @@ class ActionDef:
     
     def push_button(self):
         button = QPushButton()
-        if self.icon is not None:
-            if self.use_fa:
-                button.setText(self.icon)
-                button.setFont(fa.font)
-                #button.setIcon(utils.create_fontawesome_icon(self.icon))
-            else:
-                button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
-                button.setIconSize(configuration.ICON_SIZE)
+        if self.fa_icon is not None:
+            button.setText(self.fa_icon)
+            button.setFont(fa.font)
+            #button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
+            button.setToolTip(self.text)
+            button.setToolTipDuration(0)
+        elif self.icon is not None:
+            button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
+            button.setIconSize(configuration.ICON_SIZE)
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         else:
@@ -81,19 +82,23 @@ preferences = ActionDef('Preferences', empty_icon=False, role=QAction.MenuRole.P
 # Modes
 image_mode = ActionDef('Image Generation', icon='img2img_icon.png', checkable=True, auto_exclusive=True)
 
+# Toolbar buttons
+back = ActionDef('Back', fa_icon=fa.icon_arrow_left)
+forward = ActionDef('Forward', fa_icon=fa.icon_arrow_right)
+
 # Image
 generate_image = ActionDef('Generate Image', shortcut=Qt.CTRL | Qt.Key_Return)
-cancel_generation = ActionDef('Cancel Generation', icon=fa.icon_ban, use_fa=True, shortcut=Qt.SHIFT | Qt.Key_X)
+cancel_generation = ActionDef('Cancel Generation', fa_icon=fa.icon_ban, shortcut=Qt.SHIFT | Qt.Key_X)
 
-locate_source = ActionDef('Locate Source Image', icon=fa.icon_compass, use_fa=True)
+locate_source = ActionDef('Locate Source Image', fa_icon=fa.icon_compass)
 
-send_to_img2img = ActionDef('Send to Image to Image', icon=fa.icon_share, use_fa=True)
-use_prompt = ActionDef('Use Prompt', icon=fa.icon_quote_left, use_fa=True, shortcut=Qt.Key_P)
-use_seed = ActionDef('Use Seed', icon=fa.icon_seedling, use_fa=True, shortcut=Qt.Key_S)
-use_source_images = ActionDef('Use Source Images', icon=fa.icon_image, use_fa=True)
-use_all = ActionDef('Use All', icon=fa.icon_star_of_life, use_fa=True, shortcut=Qt.Key_A)
-toggle_metadata = ActionDef('Toggle Metadata', icon=fa.icon_circle_info, use_fa=True, shortcut=Qt.Key_I, checkable=True)
-toggle_preview = ActionDef('Toggle Preview', icon=fa.icon_magnifying_glass, use_fa=True, checkable=True)
+set_as_source_image = ActionDef('Set as Source Image', fa_icon=fa.icon_share)
+use_prompt = ActionDef('Use Prompt', fa_icon=fa.icon_quote_left, shortcut=Qt.Key_P)
+use_seed = ActionDef('Use Seed', fa_icon=fa.icon_seedling, shortcut=Qt.Key_S)
+use_source_images = ActionDef('Use Source Images', fa_icon=fa.icon_image)
+use_all = ActionDef('Use All', fa_icon=fa.icon_star_of_life, shortcut=Qt.Key_A)
+toggle_metadata = ActionDef('Toggle Metadata', fa_icon=fa.icon_circle_info, shortcut=Qt.Key_I, checkable=True)
+toggle_preview = ActionDef('Toggle Preview', fa_icon=fa.icon_magnifying_glass, checkable=True)
 
-delete_image = ActionDef('Delete Image', icon=fa.icon_trash, use_fa=True, shortcut=Qt.CTRL | Qt.Key_Backspace)
+delete_image = ActionDef('Delete Image', fa_icon=fa.icon_trash, shortcut=Qt.CTRL | Qt.Key_Backspace)
 reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
