@@ -243,7 +243,7 @@ class MainWindow(QMainWindow):
         self.scheduler_combo_box.setCurrentText(self.settings.value('scheduler'))
 
         self.general_group_box = QGroupBox('General')
-        controls_grid = QGridLayout(self.general_group_box)
+        controls_grid = QGridLayout()
         controls_grid.setVerticalSpacing(2)
         controls_grid.setRowMinimumHeight(2, 10)
         controls_grid.addWidget(num_images_label, 0, 0)
@@ -259,6 +259,10 @@ class MainWindow(QMainWindow):
         controls_grid.addWidget(self.height_spin_box, 4, 1)
         controls_grid.addWidget(scheduler_label, 3, 2)
         controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
+
+        controls_vlayout = QVBoxLayout(self.general_group_box)
+        controls_vlayout.addWidget(self.model_combo_box)
+        controls_vlayout.addLayout(controls_grid)
 
         # Seed
         self.seed_lineedit = QLineEdit()
@@ -365,7 +369,6 @@ class MainWindow(QMainWindow):
         # Configuration
         config_layout = QVBoxLayout(self.config_frame)
         config_layout.setContentsMargins(0, 0, 0, 0)
-        config_layout.addWidget(self.model_combo_box)
         config_layout.addWidget(self.prompt_group_box)
         config_layout.addWidget(self.general_group_box)
         config_layout.addWidget(self.manual_seed_group_box)
