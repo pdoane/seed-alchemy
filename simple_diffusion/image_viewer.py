@@ -198,8 +198,8 @@ class ImageViewer(QWidget):
 
         use_preview_image = self.preview_image is not None and self.show_preview
         image = self.preview_image if use_preview_image else self.image
-        image_width = image.width()
-        image_height = image.height()
+        image_width = image.width() if image else 1
+        image_height = image.height() if image else 1
 
         width = image_width
         height = image_height

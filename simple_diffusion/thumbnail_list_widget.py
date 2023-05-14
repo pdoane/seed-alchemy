@@ -49,10 +49,13 @@ class ThumbnailListWidget(QListWidget):
         self.update_icon_size()
 
     def update_icon_size(self):
-        available_width = self.viewport().width() - self.spacing - 1
-        num_columns = int((available_width) / (self.min_thumbnail_size + self.spacing))
+        style = QApplication.instance().style()
+        scrollbar_width = style.pixelMetric(QStyle.PM_ScrollBarExtent, QStyleOptionSlider())
+        available_width = self.width() - scrollbar_width - 4
+
+        num_columns = int((available_width) / (self.min_thumbnail_size + self.spacing * 2))
         num_columns = max(1, num_columns)
-        new_icon_size = int((available_width - num_columns * self.spacing) / num_columns)
+        new_icon_size = int((available_width - num_columns * self.spacing * 2) / num_columns)
         new_icon_size = max(self.min_thumbnail_size, min(new_icon_size, self.max_thumbnail_size))
 
         size = QSize(new_icon_size, new_icon_size)

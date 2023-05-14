@@ -163,4 +163,5 @@ def set_current_data(widget, data):
 def deserialize_string_list(value):
     if isinstance(value, list):
         return [str(item) for item in value]
-    return []
+    else:
+        return [str(value)]
