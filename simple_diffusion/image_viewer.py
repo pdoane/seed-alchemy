@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy,
 from . import actions, configuration, utils
 from .image_metadata import ImageMetadata
 
-MAX_HISTORY = 10
+MAX_HISTORY = 100
 
 class MetadataRow:
     def __init__(self, label_text):

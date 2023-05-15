@@ -34,10 +34,7 @@ A native UI for Stable Diffusion using the `diffusers` library.  Developed and t
 
 Near-term:
 - Inpainting
-- Async thumbnail loading
-- Upscale/Restore Faces for existing images
 - ControlNet preprocessor arguments
-- Thumbnail paths by image hash 
 - Collapsing panels in UI
 
 Evaluate:

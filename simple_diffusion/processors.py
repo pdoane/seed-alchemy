@@ -326,7 +326,7 @@ class GFPGANProcessor(ProcessorBase):
     def load(self):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            from gfpgan_util import GFPGANer
+            from .gfpgan_util import GFPGANer
 
             if self.model_name == 'GFPGANv1.2':
                 url = 'https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.2.pth'

@@ -19,7 +19,6 @@ class Application(QApplication):
 
         # Directories
         os.makedirs(configuration.IMAGES_PATH, exist_ok=True)
-        os.makedirs(configuration.THUMBNAILS_PATH, exist_ok=True)
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)    
 
         # Settings

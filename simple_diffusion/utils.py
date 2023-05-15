@@ -79,9 +79,9 @@ def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, bac
             delay = initial_delay * (backoff_factor ** (current_retry - 1))
             time.sleep(delay)
 
-def create_thumbnail(image):
+def create_thumbnail(image, max_size):
     width, height = image.size
-    thumbnail_size = min(256, max(width, height))
+    thumbnail_size = min(max_size, max(width, height))
 
     aspect_ratio = float(width) / float(height)
     if aspect_ratio > 1:

@@ -24,6 +24,7 @@ from .image_viewer import ImageViewer
 from .preferences_dialog import PreferencesDialog
 from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
+from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_viewer import ThumbnailViewer
 from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox,
                       IntSliderSpinBox, ScrollArea, SpinBox)
@@ -50,6 +51,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: QSettings, collections: list[str]):
         super().__init__()
 
+        self.thumbnail_loader = ThumbnailLoader()
         self.settings = settings
         self.collections = collections
 
@@ -397,9 +399,9 @@ class MainWindow(QMainWindow):
         image_viewer_layout.addWidget(self.image_viewer)
 
         # Thumbnail viewer
-        self.thumbnail_viewer = ThumbnailViewer(self.settings, self.collections, self.source_image_menu)
+        self.thumbnail_viewer = ThumbnailViewer(self.thumbnail_loader, self.settings, self.collections, self.source_image_menu)
         self.thumbnail_viewer.file_dropped.connect(self.on_thumbnail_file_dropped)
-        self.thumbnail_viewer.list_widget.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
+        self.thumbnail_viewer.list_widget.image_selection_changed.connect(self.on_thumbnail_selection_change)
         self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_seed.triggered.connect(lambda: self.on_use_seed(self.thumbnail_viewer.get_current_metadata()))
         self.thumbnail_viewer.action_use_source_images.triggered.connect(lambda: self.on_use_source_images(self.thumbnail_viewer.get_current_metadata()))
@@ -441,7 +443,7 @@ class MainWindow(QMainWindow):
         # Update state
         self.set_type(self.settings.value('type'))
         self.update_source_image_menu()
-        self.on_thumbnail_selection_change()
+        self.image_viewer.set_image(self.thumbnail_viewer.list_widget.selected_image())
 
     def create_source_image_ui(self, text: str) -> SourceImageUI:
         source_image_ui = SourceImageUI()
@@ -563,21 +565,11 @@ class MainWindow(QMainWindow):
         self.update_source_image_menu()
 
     def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
-        rel_path = source_image_ui.line_edit.text()
-        image_path = os.path.join(configuration.IMAGES_PATH, rel_path)
-        if rel_path != '' and os.path.exists(image_path):
-            thumbnail_path = os.path.join(configuration.THUMBNAILS_PATH, rel_path)
-            if not os.path.exists(thumbnail_path):
-                with Image.open(image_path) as image:
-                    thumbnail_image = utils.create_thumbnail(image)
-                    thumbnail_image.save(thumbnail_path, 'WEBP')
+        image_path = source_image_ui.line_edit.text()
+        self.thumbnail_loader.get(image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap))
 
-            with Image.open(thumbnail_path) as image:
-                image = image.resize((96, 96))
-                pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
-                source_image_ui.label.setPixmap(pixmap)
-        else:
-            source_image_ui.label.clear()
+    def on_thumbnail_loaded(self, source_image_ui, pixmap):
+        source_image_ui.label.setPixmap(pixmap)
 
     def on_control_net_preview_preprocessor_button_clicked(self, control_net_frame: ControlNetFrame):
         source_path = control_net_frame.source_image_ui.line_edit.text()
@@ -699,9 +691,9 @@ class MainWindow(QMainWindow):
         self.randomize_seed()
 
     def on_current_image_changed(self, path):
-        self.thumbnail_viewer.list_widget.itemSelectionChanged.disconnect()
+        self.thumbnail_viewer.list_widget.image_selection_changed.disconnect()
         self.thumbnail_viewer.select_image(path)
-        self.thumbnail_viewer.list_widget.itemSelectionChanged.connect(self.on_thumbnail_selection_change)
+        self.thumbnail_viewer.list_widget.image_selection_changed.connect(self.on_thumbnail_selection_change)
 
     def on_thumbnail_file_dropped(self, source_path: str):
         collection = self.thumbnail_viewer.collection()
@@ -725,11 +717,8 @@ class MainWindow(QMainWindow):
 
         self.on_add_file(output_path)
 
-    def on_thumbnail_selection_change(self):
-        selected_items = self.thumbnail_viewer.list_widget.selectedItems()
-        for item in selected_items:
-            rel_path = item.data(Qt.UserRole)
-            self.image_viewer.set_image(rel_path)
+    def on_thumbnail_selection_change(self, image_path):
+        self.image_viewer.set_image(image_path)
 
     def on_set_as_source(self, source_image_ui: SourceImageUI):
         image_metadata = self.image_viewer.metadata
@@ -876,13 +865,9 @@ class MainWindow(QMainWindow):
             return
 
         self.thumbnail_viewer.add_image(path)
-        self.thumbnail_viewer.select_index_no_scroll(0)
         self.image_viewer.set_image(path)
 
     def on_remove_file(self, path):
-        full_thumbnail_path = os.path.join(configuration.THUMBNAILS_PATH, path)
-        os.remove(full_thumbnail_path)
-
         self.thumbnail_viewer.remove_image(path)
 
     def on_reveal_in_finder(self, image_metadata):
@@ -908,6 +893,7 @@ class MainWindow(QMainWindow):
             QApplication.instance().quit()
 
     def closeEvent(self, event):
+        self.thumbnail_loader.shutdown()
         if self.hide_if_thread_running():
             event.ignore()
         else:
