@@ -46,7 +46,6 @@ class PipelineCache:
 class PipelineBase(ABC):
     def __init__(self) -> None:
         self.dtype = torch.float32
-        self.device = 'mps'
 
     @abstractmethod
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
@@ -85,7 +84,7 @@ class ImagePipeline(PipelineBase):
             else:
                 print('Loading ControlNet', control_net_name)
                 control_net = ControlNetModel.from_pretrained(control_net_config.repo_id, subfolder=control_net_config.subfolder, torch_dtype=self.dtype)
-                control_net.to(self.device)
+                control_net.to(configuration.torch_device)
                 control_net.set_attention_slice('auto')
 
             self.control_nets.append(control_net)
@@ -112,7 +111,7 @@ class ImagePipeline(PipelineBase):
                 else:
                     self.pipe = StableDiffusionPipeline.from_pretrained(self.model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
 
-            self.pipe.to(self.device)
+            self.pipe.to(configuration.torch_device)
             self.pipe.enable_attention_slicing()
             self.pipe.backup_weights = {}
 
@@ -130,7 +129,7 @@ class ImagePipeline(PipelineBase):
         lora_multipliers = []
         for lora_model, lora_weight in loras:
             path = configuration.get_lora_path(lora_model)
-            lora_models.append(lora.load(path, self.device, self.dtype))
+            lora_models.append(lora.load(path, configuration.torch_device, self.dtype))
             lora_multipliers.append(lora_weight)
 
         lora.apply(self.pipe, lora_models, lora_multipliers)

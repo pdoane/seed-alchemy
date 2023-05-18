@@ -1,6 +1,7 @@
 import os
 
 from dataclasses import dataclass
+import torch
 
 from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        EulerAncestralDiscreteScheduler, EulerDiscreteScheduler,
@@ -25,6 +26,13 @@ MODELS_PATH = '.models'
 EMBEDDINGS_DIR = 'embeddings'
 LORA_DIR = 'lora'
 STABLE_DIFFUSION_DIR = 'stable_diffusion'
+
+if torch.cuda.is_available():
+    torch_device = 'cuda'
+elif torch.mps.is_available():
+    torch_device = 'mps'
+else:
+    torch_device = 'cpu'
 
 resources_path: str
 local_models_path: str

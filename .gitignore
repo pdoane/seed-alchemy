@@ -1,6 +1,6 @@
 .venv
 .DS_Store
 .models
+__pycache__
 images
-thumbnails
 settings.ini

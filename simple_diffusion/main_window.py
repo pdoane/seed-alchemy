@@ -443,7 +443,9 @@ class MainWindow(QMainWindow):
         # Update state
         self.set_type(self.settings.value('type'))
         self.update_source_image_menu()
-        self.image_viewer.set_image(self.thumbnail_viewer.list_widget.selected_image())
+        selected_image = self.thumbnail_viewer.list_widget.selected_image()
+        if selected_image is not None:
+            self.image_viewer.set_image(selected_image)
 
     def create_source_image_ui(self, text: str) -> SourceImageUI:
         source_image_ui = SourceImageUI()

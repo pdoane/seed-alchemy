@@ -1,21 +1,25 @@
 # SimpleDiffusion
 
-A native UI for Stable Diffusion using the `diffusers` library.  Developed and tested on macOS.  Other platforms could be supported with a small effort.
+A native UI for Stable Diffusion using the `diffusers` library.
 
 ![Screenshot](docs/screenshot.webp)
 
-### Installation
+### Installation on Windows
 
-1. Open Terminal.
-2. Navigate to the directory containing this project.
-3. Execute the install script (use this also to update when requirements/dependency versions change)
-    ```sh
-    ./install.sh
-    ```
-4. Run the application
-    ```sh
-    ./run.sh
-    ```
+1. Install [Python](https://www.python.org/downloads/windows/), checking "Add Python to PATH".
+2. Install [git](https://git-scm.com/download/win).
+3. Download this repository, for example by running `git clone https://github.com/pdoane/simple-diffusion.git`.
+4. Execute `install.bat` from Windows Explorer as normal, non-administrator, user.
+   Use this also to update when requirements/dependency versions change
+5. Execute `run.bat` from Windows Explorer as normal, non-administrator, user.
+
+### Installation on macOS
+
+1. Install MacOS Developer Tools
+2. Download this repository, for example by running `git clone https://github.com/pdoane/simple-diffusion.git`.
+3. Navigate to the directory containing this project.
+4. Execute `install.sh` (use this also to update when requirements/dependency versions change)
+5. Execute `run.sh`
 
 ### Features
 
