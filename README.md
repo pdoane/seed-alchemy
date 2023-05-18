@@ -25,6 +25,7 @@ A native UI for Stable Diffusion using the `diffusers` library.
 
 - Text to Image
 - Image to Image
+- Prompt Weighting using [Compel](https://github.com/damian0815/compel/blob/main/Reference.md)
 - ControlNet 1.1 (Base, Img2Img, Multi-model)
 - LoRA
 - Textual Inversion
