@@ -29,7 +29,7 @@ STABLE_DIFFUSION_DIR = 'stable_diffusion'
 
 if torch.cuda.is_available():
     torch_device = 'cuda'
-elif torch.mps.is_available():
+elif torch.backends.mps.is_available():
     torch_device = 'mps'
 else:
     torch_device = 'cpu'
