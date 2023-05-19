@@ -40,9 +40,6 @@ class PromptTextEdit(QPlainTextEdit):
         self.word_pattern = re.compile(r'\b(?:\w+(?:-\w+)*)\b')
 
         font = self.font()
-        font.setPointSize(14)
-        self.setFont(font)
-
         font_metrics = QFontMetrics(font)
         line_height = font_metrics.lineSpacing()
         margins = self.contentsMargins()

@@ -42,6 +42,7 @@ lora_dict: dict[str, str] = {}
 known_stable_diffusion_models: list[str] = []
 
 ICON_SIZE = QSize(24, 24)
+font_scale_factor = 1.0
 
 @dataclass
 class ControlNetConfig:

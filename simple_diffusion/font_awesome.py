@@ -1,6 +1,7 @@
 import os
 
 from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtWidgets import QApplication
 
 from . import configuration
 
@@ -14,7 +15,7 @@ def load():
     font_id = QFontDatabase.addApplicationFont(abs_path)
     font_families = QFontDatabase.applicationFontFamilies(font_id)
     font_family = font_families[0] if font_families else ""
-    font = QFont(font_family, 16)
+    font = QFont(font_family, 12 * configuration.font_scale_factor)
 
 icon_0 = '\u0030'
 icon_1 = '\u0031'
