@@ -6,7 +6,7 @@ import sys
 
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog,
                                QFrame, QGridLayout, QGroupBox, QHBoxLayout,
                                QLabel, QLineEdit, QMainWindow, QMenu, QMenuBar,
@@ -19,6 +19,7 @@ from . import utils
 from .about_dialog import AboutDialog
 from .delete_image_dialog import DeleteImageDialog
 from .generate_thread import GenerateThread
+from .image_history import ImageHistory
 from .image_metadata import ControlNetMetadata, ImageMetadata
 from .image_viewer import ImageViewer
 from .preferences_dialog import PreferencesDialog
@@ -51,9 +52,11 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: QSettings, collections: list[str]):
         super().__init__()
 
-        self.thumbnail_loader = ThumbnailLoader()
         self.settings = settings
         self.collections = collections
+        self.image_history = ImageHistory()
+        self.image_history.current_image_changed.connect(self.on_current_image_changed)
+        self.thumbnail_loader = ThumbnailLoader()
 
         self.generate_thread = None
         self.active_thread_count = 0
@@ -63,26 +66,11 @@ class MainWindow(QMainWindow):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
 
-        # Menubar
-        menu_bar = QMenuBar(self)
-
+        # Set as Source Menu
         self.source_image_menu = QMenu('Set as Source', self)
         self.source_image_menu.setIcon(QIcon(utils.create_fontawesome_icon(fa.icon_share)))
 
-        action_about = actions.about.create(self)
-        action_preferences = actions.preferences.create(self)
-
-        action_generate_image = actions.generate_image.create(self)
-        action_cancel_generation = actions.cancel_generation.create(self)
-        action_use_prompt = actions.use_prompt.create(self)
-        action_use_seed = actions.use_seed.create(self)
-        action_use_source_images = actions.use_source_images.create(self)
-        action_use_all = actions.use_all.create(self)
-        action_toggle_metadata = actions.toggle_metadata.create(self)
-        action_toggle_preview = actions.toggle_preview.create(self)
-        action_delete_image = actions.delete_image.create(self)
-        action_reveal_in_finder = actions.reveal_in_finder.create(self)
-
+        # Move To Menu
         move_image_menu = QMenu('Move To', self)
         move_image_menu.setIcon(utils.empty_qicon())
         for collection in self.collections:
@@ -90,13 +78,45 @@ class MainWindow(QMainWindow):
             item_action.triggered.connect(lambda checked=False, x=collection: self.on_move_image(self.image_viewer.metadata, x))
             move_image_menu.addAction(item_action)
 
+        # Application Menu
+        action_about = actions.about.create(self)
+        action_about.triggered.connect(self.show_about_dialog)
+        action_preferences = actions.preferences.create(self)
+        action_preferences.triggered.connect(self.show_preferences_dialog)
+
         app_menu = QMenu("Application", self)
-        menu_bar.addMenu(app_menu)
         app_menu.addAction(action_about)
         app_menu.addSeparator()
         app_menu.addAction(action_preferences)
 
-        image_menu = QMenu("Image", menu_bar)
+        # History Menu
+        history_menu = QMenu("History", self)
+        history_menu.addAction(QAction("Dummy...", self))
+        history_menu.aboutToShow.connect(lambda: self.image_history.populate_history_menu(history_menu))
+
+        # Image Menu
+        action_generate_image = actions.generate_image.create(self)
+        action_generate_image.triggered.connect(self.on_generate_image)
+        action_cancel_generation = actions.cancel_generation.create(self)
+        action_cancel_generation.triggered.connect(self.on_cancel_generation)
+        action_use_prompt = actions.use_prompt.create(self)
+        action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
+        action_use_seed = actions.use_seed.create(self)
+        action_use_seed.triggered.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
+        action_use_source_images = actions.use_source_images.create(self)
+        action_use_source_images.triggered.connect(lambda: self.on_use_source_images(self.image_viewer.metadata))
+        action_use_all = actions.use_all.create(self)
+        action_use_all.triggered.connect(lambda: self.on_use_all(self.image_viewer.metadata))
+        action_toggle_metadata = actions.toggle_metadata.create(self)
+        action_toggle_metadata.triggered.connect(lambda: self.image_viewer.toggle_metadata_button.toggle())
+        action_toggle_preview = actions.toggle_preview.create(self)
+        action_toggle_preview.triggered.connect(lambda: self.image_viewer.toggle_preview_button.toggle())
+        action_delete_image = actions.delete_image.create(self)
+        action_delete_image.triggered.connect(lambda: self.on_delete(self.image_viewer.metadata))
+        action_reveal_in_finder = actions.reveal_in_finder.create(self)
+        action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.image_viewer.metadata))
+
+        image_menu = QMenu("Image", self)
         image_menu.addAction(action_generate_image)
         image_menu.addAction(action_cancel_generation)
         image_menu.addSeparator()
@@ -116,24 +136,11 @@ class MainWindow(QMainWindow):
         image_menu.addAction(action_reveal_in_finder)
         image_menu.addSeparator()
 
-        action_about.triggered.connect(self.show_about_dialog)
-        action_preferences.triggered.connect(self.show_preferences_dialog)
-
-        action_generate_image.triggered.connect(self.on_generate_image)
-        action_cancel_generation.triggered.connect(self.on_cancel_generation)
-        action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
-        action_use_seed.triggered.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
-        action_use_source_images.triggered.connect(lambda: self.on_use_source_images(self.image_viewer.metadata))
-        action_use_all.triggered.connect(lambda: self.on_use_all(self.image_viewer.metadata))
-        action_toggle_metadata.triggered.connect(lambda: self.image_viewer.toggle_metadata_button.toggle())
-        action_toggle_preview.triggered.connect(lambda: self.image_viewer.toggle_preview_button.toggle())
-        action_delete_image.triggered.connect(lambda: self.on_delete(self.image_viewer.metadata))
-        action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.image_viewer.metadata))
-
-        # Add the menu to the menu bar
+        # Menu bar
+        menu_bar = QMenuBar(self)
+        menu_bar.addMenu(app_menu)
+        menu_bar.addMenu(history_menu)
         menu_bar.addMenu(image_menu)
-
-        # Set the menu bar to the main window
         self.setMenuBar(menu_bar)
 
         # Modes
@@ -382,8 +389,7 @@ class MainWindow(QMainWindow):
         config_layout.addStretch()
 
         # Image viewer
-        self.image_viewer = ImageViewer()
-        self.image_viewer.current_image_changed.connect(self.on_current_image_changed)
+        self.image_viewer = ImageViewer(self.image_history)
         self.image_viewer.set_as_source_image_button.setMenu(self.source_image_menu)
         self.image_viewer.use_prompt_button.clicked.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
         self.image_viewer.use_seed_button.clicked.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
@@ -445,7 +451,7 @@ class MainWindow(QMainWindow):
         self.update_source_image_menu()
         selected_image = self.thumbnail_viewer.list_widget.selected_image()
         if selected_image is not None:
-            self.image_viewer.set_image(selected_image)
+            self.image_history.visit(selected_image)
 
     def create_source_image_ui(self, text: str) -> SourceImageUI:
         source_image_ui = SourceImageUI()
@@ -596,7 +602,7 @@ class MainWindow(QMainWindow):
                 output_path = 'preprocessed.png'
                 full_path = os.path.join(configuration.IMAGES_PATH, output_path)
                 source_image.save(full_path)
-                self.image_viewer.set_image(output_path)
+                self.image_viewer.set_current_image(output_path)
 
     def on_generate_image(self):
         if not self.manual_seed_group_box.isChecked():
@@ -693,6 +699,7 @@ class MainWindow(QMainWindow):
         self.randomize_seed()
 
     def on_current_image_changed(self, path):
+        self.image_viewer.set_current_image(path)
         self.thumbnail_viewer.list_widget.image_selection_changed.disconnect()
         self.thumbnail_viewer.select_image(path)
         self.thumbnail_viewer.list_widget.image_selection_changed.connect(self.on_thumbnail_selection_change)
@@ -720,7 +727,7 @@ class MainWindow(QMainWindow):
         self.on_add_file(output_path)
 
     def on_thumbnail_selection_change(self, image_path):
-        self.image_viewer.set_image(image_path)
+        self.image_history.visit(image_path)
 
     def on_set_as_source(self, source_image_ui: SourceImageUI):
         image_metadata = self.image_viewer.metadata
@@ -867,7 +874,7 @@ class MainWindow(QMainWindow):
             return
 
         self.thumbnail_viewer.add_image(path)
-        self.image_viewer.set_image(path)
+        self.image_history.visit(path)
 
     def on_remove_file(self, path):
         self.thumbnail_viewer.remove_image(path)

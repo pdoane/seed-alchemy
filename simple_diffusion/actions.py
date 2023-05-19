@@ -82,9 +82,9 @@ preferences = ActionDef('Preferences', empty_icon=False, role=QAction.MenuRole.P
 # Modes
 image_mode = ActionDef('Image Generation', icon='img2img_icon.png', checkable=True, auto_exclusive=True)
 
-# Toolbar buttons
-back = ActionDef('Back', fa_icon=fa.icon_arrow_left)
-forward = ActionDef('Forward', fa_icon=fa.icon_arrow_right)
+# History
+back = ActionDef('Back', fa_icon=fa.icon_arrow_left, shortcut=Qt.CTRL | Qt.Key_BracketLeft)
+forward = ActionDef('Forward', fa_icon=fa.icon_arrow_right, shortcut=Qt.CTRL | Qt.Key_BracketRight)
 
 # Image
 generate_image = ActionDef('Generate Image', shortcut=Qt.CTRL | Qt.Key_Return)
