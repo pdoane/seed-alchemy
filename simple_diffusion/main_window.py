@@ -78,16 +78,16 @@ class MainWindow(QMainWindow):
             item_action.triggered.connect(lambda checked=False, x=collection: self.on_move_image(self.image_viewer.metadata, x))
             move_image_menu.addAction(item_action)
 
-        # Application Menu
-        action_about = actions.about.create(self)
-        action_about.triggered.connect(self.show_about_dialog)
+        # File Menu
         action_preferences = actions.preferences.create(self)
         action_preferences.triggered.connect(self.show_preferences_dialog)
+        action_exit = actions.exit.create(self)
+        action_exit.triggered.connect(self.close)
 
-        app_menu = QMenu("Application", self)
-        app_menu.addAction(action_about)
-        app_menu.addSeparator()
+        app_menu = QMenu("File", self)
         app_menu.addAction(action_preferences)
+        app_menu.addSeparator()
+        app_menu.addAction(action_exit)
 
         # History Menu
         history_menu = QMenu("History", self)
@@ -136,11 +136,19 @@ class MainWindow(QMainWindow):
         image_menu.addAction(action_reveal_in_finder)
         image_menu.addSeparator()
 
+        # Help Menu
+        action_about = actions.about.create(self)
+        action_about.triggered.connect(self.show_about_dialog)
+
+        help_menu = QMenu('Help', self)
+        help_menu.addAction(action_about)
+
         # Menu bar
         menu_bar = QMenuBar(self)
         menu_bar.addMenu(app_menu)
         menu_bar.addMenu(history_menu)
         menu_bar.addMenu(image_menu)
+        menu_bar.addMenu(help_menu)
         self.setMenuBar(menu_bar)
 
         # Modes

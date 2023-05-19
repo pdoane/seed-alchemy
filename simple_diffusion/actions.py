@@ -75,9 +75,9 @@ class ActionDef:
         button.setAutoExclusive(self.auto_exclusive)
         return button
 
-# Application
-about = ActionDef('About', empty_icon=False)
-preferences = ActionDef('Preferences', empty_icon=False, role=QAction.MenuRole.PreferencesRole)
+# File
+preferences = ActionDef('Preferences...', empty_icon=False, role=QAction.MenuRole.PreferencesRole)
+exit = ActionDef('Exit', empty_icon=False, role=QAction.MenuRole.QuitRole)
 
 # Modes
 image_mode = ActionDef('Image Generation', icon='img2img_icon.png', checkable=True, auto_exclusive=True)
@@ -102,3 +102,6 @@ toggle_preview = ActionDef('Toggle Preview', fa_icon=fa.icon_magnifying_glass, c
 
 delete_image = ActionDef('Delete Image', fa_icon=fa.icon_trash, shortcut=Qt.CTRL | Qt.Key_Backspace)
 reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
+
+# Help
+about = ActionDef('About', empty_icon=False, role=QAction.MenuRole.AboutRole)
