@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QFrame
 
+from . import configuration
 from . import font_awesome as fa
 
 if sys.platform == 'darwin':
@@ -105,12 +106,14 @@ def empty_qicon():
         empty_icon = QIcon(empty_pixmap)
     return empty_icon
 
-def create_fontawesome_icon(icon_code, size=16, color=Qt.white):
+def create_fontawesome_icon(icon_code, color=Qt.white):
     app_instance = QApplication.instance()
     device_pixel_ratio = app_instance.devicePixelRatio()
     
-    font = QFont(fa.font_family, size * device_pixel_ratio)
-    pixmap = QPixmap(size * device_pixel_ratio, size * device_pixel_ratio)
+    font_size = 12 * configuration.font_scale_factor * device_pixel_ratio
+    pixmap_size = 16 * device_pixel_ratio
+    font = QFont(fa.font_family, font_size)
+    pixmap = QPixmap(pixmap_size, pixmap_size)
     pixmap.fill(Qt.transparent)
 
     painter = QPainter(pixmap)
@@ -122,6 +125,8 @@ def create_fontawesome_icon(icon_code, size=16, color=Qt.white):
 
     painter.drawText(pixmap.rect(), Qt.AlignCenter, icon_code)
     painter.end()
+
+    pixmap.setDevicePixelRatio(device_pixel_ratio)
 
     return QIcon(pixmap)
 
