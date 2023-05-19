@@ -12,6 +12,7 @@ PySide6==6.5.0
 pyspellchecker==0.7.2
 realesrgan==0.3.0
 safetensors==0.3.1
+send2trash==1.8.2
 torch==2.0.1 ; sys_platform == 'darwin'
 torch==2.0.1+cu117 ; sys_platform == 'win32'
 urllib3<2.0.0

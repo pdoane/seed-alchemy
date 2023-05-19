@@ -1,3 +1,4 @@
+import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Qt
@@ -101,7 +102,10 @@ toggle_metadata = ActionDef('Toggle Metadata', fa_icon=fa.icon_circle_info, shor
 toggle_preview = ActionDef('Toggle Preview', fa_icon=fa.icon_magnifying_glass, checkable=True)
 
 delete_image = ActionDef('Delete Image', fa_icon=fa.icon_trash, shortcut=Qt.CTRL | Qt.Key_Backspace)
-reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
+if sys.platform == 'darwin':
+    reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
+elif sys.platform == 'win32':
+    reveal_in_finder = ActionDef('Reveal in File Explorer', shortcut=Qt.SHIFT | Qt.ALT | Qt.Key_R)
 
 # Help
 about = ActionDef('About', empty_icon=False, role=QAction.MenuRole.AboutRole)

@@ -1,11 +1,13 @@
 import os
 import re
+import subprocess
 import sys
 import time
 from dataclasses import MISSING, fields, is_dataclass
 from typing import Callable
 
 import requests
+import send2trash
 from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QIcon, QImage, QPainter, QPixmap
@@ -39,13 +41,11 @@ def reveal_in_finder(path: str) -> None:
     if sys.platform == 'darwin':
         url = NSURL.fileURLWithPath_(path)
         NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_([url])
+    elif sys.platform == 'win32':
+        subprocess.run(['explorer', '/select,', path])
 
 def recycle_file(path: str) -> None:
-    if sys.platform == 'darwin':
-        url = NSURL.fileURLWithPath_(path)
-        NSWorkspace.sharedWorkspace().recycleURLs_completionHandler_([url], None)
-    else:
-        os.remove(full_path)
+    send2trash.send2trash(path)
 
 def download_file(url: str, output_path: str) -> None:
     with requests.get(url, stream=True) as response:
