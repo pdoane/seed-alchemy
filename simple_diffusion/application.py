@@ -73,7 +73,7 @@ class Application(QApplication):
         # QT configuration
         self.setWindowIcon(QIcon(configuration.get_resource_path('app_icon.png')))
         self.setApplicationName(configuration.APP_NAME)
-        qdarktheme.setup_theme('auto', corner_shape='sharp')
+        qdarktheme.setup_theme('auto', corner_shape='sharp', additional_qss='QToolTip { border: 0px; }')
         fa.load()
 
         # Main window
