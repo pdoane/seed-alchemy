@@ -1,7 +1,8 @@
-from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel, QStyle,
-                               QScrollArea, QSlider, QSpinBox,
-                               QStyleOptionSlider, QWidget)
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel,
+                               QScrollArea, QSlider, QSpinBox, QStyle,
+                               QStyleOptionSlider, QToolButton, QWidget)
+
 
 def round_to_step(num, step):
     return round(num / step) * step
@@ -53,6 +54,17 @@ class SpinBox(QSpinBox):
         else:
             super().keyPressEvent(event)
 
+class ToolButton(QToolButton):
+    about_to_show_menu = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def mousePressEvent(self, event):
+        if self.popupMode() == QToolButton.InstantPopup:
+            self.about_to_show_menu.emit()
+        super().mousePressEvent(event)
+
 class FloatSliderSpinBox(QWidget):
     def __init__(self, name, initial_value, parent=None, minimum=0.0, maximum=1.0, single_step=0.01):
         super().__init__(parent)
@@ -85,10 +97,6 @@ class FloatSliderSpinBox(QWidget):
         hlayout.addWidget(label)
         hlayout.addWidget(self.slider)
         hlayout.addWidget(self.spin_box)
-
-    def on_check_box_changed(self, state):
-        self.slider.setEnabled(state)
-        self.spin_box.setEnabled(state)
 
     def on_slider_changed(self, value):
         self.spin_box.setValue(self._from_slider_value(value))
@@ -131,10 +139,6 @@ class IntSliderSpinBox(QWidget):
         hlayout.addWidget(label)
         hlayout.addWidget(self.slider)
         hlayout.addWidget(self.spin_box)
-
-    def on_check_box_changed(self, state):
-        self.slider.setEnabled(state)
-        self.spin_box.setEnabled(state)
 
     def on_slider_changed(self, value):
         self.spin_box.setValue(value)

@@ -3,11 +3,12 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Qt
 from PySide6.QtGui import QAction, QIcon, QKeySequence
-from PySide6.QtWidgets import QPushButton, QToolButton
+from PySide6.QtWidgets import QPushButton
 
 from . import configuration
 from . import font_awesome as fa
 from . import utils
+from .widgets import ToolButton
 
 
 @dataclass
@@ -38,7 +39,7 @@ class ActionDef:
         return action
     
     def tool_button(self):
-        button = QToolButton()
+        button = ToolButton()
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
             button.setFont(fa.font)

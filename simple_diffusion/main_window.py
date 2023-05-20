@@ -34,9 +34,10 @@ if sys.platform == 'darwin':
     from AppKit import NSApplication
 
 class SourceImageUI:
-    frame: QFrame = None
-    label: QLabel = None
-    line_edit: QLineEdit = None
+    frame: QFrame
+    label: QLabel
+    line_edit: QLineEdit
+    context_menu: QMenu
 
 class ControlNetFrame(QFrame):
     model_combo_box: ComboBox = None
@@ -67,15 +68,17 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Set as Source Menu
-        self.source_image_menu = QMenu('Set as Source', self)
-        self.source_image_menu.setIcon(QIcon(utils.create_fontawesome_icon(fa.icon_share)))
+        self.set_as_source_menu = QMenu('Set as Source', self)
+        self.set_as_source_menu.setIcon(QIcon(utils.create_fontawesome_icon(fa.icon_share)))
+        self.set_as_source_menu.addAction(QAction("Dummy...", self))
+        self.set_as_source_menu.aboutToShow.connect(self.populate_set_as_source_menu)
 
         # Move To Menu
         move_image_menu = QMenu('Move To', self)
         move_image_menu.setIcon(utils.empty_qicon())
         for collection in self.collections:
             item_action = QAction(collection, self)
-            item_action.triggered.connect(lambda checked=False, x=collection: self.on_move_image(self.image_viewer.metadata, x))
+            item_action.triggered.connect(lambda checked=False, collection=collection: self.on_move_image(collection))
             move_image_menu.addAction(item_action)
 
         # File Menu
@@ -100,27 +103,28 @@ class MainWindow(QMainWindow):
         action_cancel_generation = actions.cancel_generation.create(self)
         action_cancel_generation.triggered.connect(self.on_cancel_generation)
         action_use_prompt = actions.use_prompt.create(self)
-        action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
+        action_use_prompt.triggered.connect(self.on_use_prompt)
         action_use_seed = actions.use_seed.create(self)
-        action_use_seed.triggered.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
+        action_use_seed.triggered.connect(self.on_use_seed)
         action_use_source_images = actions.use_source_images.create(self)
-        action_use_source_images.triggered.connect(lambda: self.on_use_source_images(self.image_viewer.metadata))
+        action_use_source_images.triggered.connect(self.on_use_source_images)
         action_use_all = actions.use_all.create(self)
-        action_use_all.triggered.connect(lambda: self.on_use_all(self.image_viewer.metadata))
+        action_use_all.triggered.connect(self.on_use_all)
         action_toggle_metadata = actions.toggle_metadata.create(self)
         action_toggle_metadata.triggered.connect(lambda: self.image_viewer.toggle_metadata_button.toggle())
         action_toggle_preview = actions.toggle_preview.create(self)
         action_toggle_preview.triggered.connect(lambda: self.image_viewer.toggle_preview_button.toggle())
         action_delete_image = actions.delete_image.create(self)
-        action_delete_image.triggered.connect(lambda: self.on_delete(self.image_viewer.metadata))
+        action_delete_image.triggered.connect(self.on_delete)
         action_reveal_in_finder = actions.reveal_in_finder.create(self)
-        action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.image_viewer.metadata))
+        action_reveal_in_finder.triggered.connect(self.on_reveal_in_finder)
 
         image_menu = QMenu("Image", self)
+        image_menu.aboutToShow.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
         image_menu.addAction(action_generate_image)
         image_menu.addAction(action_cancel_generation)
         image_menu.addSeparator()
-        image_menu.addMenu(self.source_image_menu)
+        image_menu.addMenu(self.set_as_source_menu)
         image_menu.addSeparator()
         image_menu.addAction(action_use_prompt)
         image_menu.addAction(action_use_seed)
@@ -398,12 +402,19 @@ class MainWindow(QMainWindow):
 
         # Image viewer
         self.image_viewer = ImageViewer(self.image_history)
-        self.image_viewer.set_as_source_image_button.setMenu(self.source_image_menu)
-        self.image_viewer.use_prompt_button.clicked.connect(lambda: self.on_use_prompt(self.image_viewer.metadata))
-        self.image_viewer.use_seed_button.clicked.connect(lambda: self.on_use_seed(self.image_viewer.metadata))
-        self.image_viewer.use_source_images_button.clicked.connect(lambda: self.on_use_source_images(self.image_viewer.metadata))
-        self.image_viewer.use_all_button.clicked.connect(lambda: self.on_use_all(self.image_viewer.metadata))
-        self.image_viewer.delete_button.clicked.connect(lambda: self.on_delete(self.image_viewer.metadata))
+        self.image_viewer.set_as_source_image_button.about_to_show_menu.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
+        self.image_viewer.use_prompt_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
+        self.image_viewer.use_seed_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
+        self.image_viewer.use_source_images_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
+        self.image_viewer.use_all_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
+        self.image_viewer.delete_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
+
+        self.image_viewer.set_as_source_image_button.setMenu(self.set_as_source_menu)
+        self.image_viewer.use_prompt_button.clicked.connect(self.on_use_prompt)
+        self.image_viewer.use_seed_button.clicked.connect(self.on_use_seed)
+        self.image_viewer.use_source_images_button.clicked.connect(self.on_use_source_images)
+        self.image_viewer.use_all_button.clicked.connect(self.on_use_all)
+        self.image_viewer.delete_button.clicked.connect(self.on_delete)
 
         image_viewer_frame = QFrame()
         image_viewer_frame.setFrameShape(QFrame.Panel)
@@ -413,15 +424,36 @@ class MainWindow(QMainWindow):
         image_viewer_layout.addWidget(self.image_viewer)
 
         # Thumbnail viewer
-        self.thumbnail_viewer = ThumbnailViewer(self.thumbnail_loader, self.settings, self.collections, self.source_image_menu)
+        thumbnail_use_prompt_action = actions.use_prompt.create(self)
+        thumbnail_use_prompt_action.triggered.connect(self.on_use_prompt)
+        thumbnail_use_seed_action = actions.use_seed.create(self)
+        thumbnail_use_seed_action.triggered.connect(self.on_use_seed)
+        thumbnail_use_source_images_action = actions.use_source_images.create(self)
+        thumbnail_use_source_images_action.triggered.connect(self.on_use_source_images)
+        thumbnail_use_all_action = actions.use_all.create(self)
+        thumbnail_use_all_action.triggered.connect(self.on_use_all)
+        thumbnail_delete_action = actions.delete_image.create(self)
+        thumbnail_delete_action.triggered.connect(self.on_delete)
+        thumbnail_reveal_in_finder_action = actions.reveal_in_finder.create(self)
+        thumbnail_reveal_in_finder_action.triggered.connect(self.on_reveal_in_finder)
+
+        thumbnail_menu = QMenu(self)
+        thumbnail_menu.aboutToShow.connect(lambda: self.set_current_metadata(self.thumbnail_viewer.get_current_metadata()))
+        thumbnail_menu.addMenu(self.set_as_source_menu)
+        thumbnail_menu.addSeparator()
+        thumbnail_menu.addAction(thumbnail_use_prompt_action)
+        thumbnail_menu.addAction(thumbnail_use_seed_action)
+        thumbnail_menu.addAction(thumbnail_use_source_images_action)
+        thumbnail_menu.addAction(thumbnail_use_all_action)
+        thumbnail_menu.addSeparator()
+        thumbnail_menu.addMenu(move_image_menu)
+        thumbnail_menu.addAction(thumbnail_delete_action)
+        thumbnail_menu.addSeparator()
+        thumbnail_menu.addAction(thumbnail_reveal_in_finder_action)
+
+        self.thumbnail_viewer = ThumbnailViewer(self.thumbnail_loader, self.settings, self.collections, thumbnail_menu)
         self.thumbnail_viewer.file_dropped.connect(self.on_thumbnail_file_dropped)
         self.thumbnail_viewer.list_widget.image_selection_changed.connect(self.on_thumbnail_selection_change)
-        self.thumbnail_viewer.action_use_prompt.triggered.connect(lambda: self.on_use_prompt(self.thumbnail_viewer.get_current_metadata()))
-        self.thumbnail_viewer.action_use_seed.triggered.connect(lambda: self.on_use_seed(self.thumbnail_viewer.get_current_metadata()))
-        self.thumbnail_viewer.action_use_source_images.triggered.connect(lambda: self.on_use_source_images(self.thumbnail_viewer.get_current_metadata()))
-        self.thumbnail_viewer.action_use_all.triggered.connect(lambda: self.on_use_all(self.thumbnail_viewer.get_current_metadata()))
-        self.thumbnail_viewer.action_delete.triggered.connect(lambda: self.on_delete(self.thumbnail_viewer.get_current_metadata()))
-        self.thumbnail_viewer.action_reveal_in_finder.triggered.connect(lambda: self.on_reveal_in_finder(self.thumbnail_viewer.get_current_metadata()))
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(image_viewer_frame)
@@ -456,10 +488,12 @@ class MainWindow(QMainWindow):
 
         # Update state
         self.set_type(self.settings.value('type'))
-        self.update_source_image_menu()
         selected_image = self.thumbnail_viewer.list_widget.selected_image()
         if selected_image is not None:
             self.image_history.visit(selected_image)
+
+    def set_current_metadata(self, metadata):
+        self.current_metadata = metadata
 
     def create_source_image_ui(self, text: str) -> SourceImageUI:
         source_image_ui = SourceImageUI()
@@ -468,23 +502,48 @@ class MainWindow(QMainWindow):
         source_image_ui.frame.setContentsMargins(0, 0, 0, 0)
 
         source_image_ui.label = QLabel()
+        source_image_ui.label.setContextMenuPolicy(Qt.CustomContextMenu)
+        source_image_ui.label.customContextMenuRequested.connect(lambda point: self.show_source_image_context_menu(source_image_ui, point))
 
         source_image_ui.line_edit = QLineEdit()
         source_image_ui.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         source_image_ui.line_edit.textChanged.connect(lambda: self.on_source_image_ui_text_changed(source_image_ui))
         source_image_ui.line_edit.setText(text)
 
-        locate_button = actions.locate_source.push_button()
-        locate_button.clicked.connect(lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text()))
+        locate_source_action = actions.locate_source.create(self)
+        locate_source_action.triggered.connect(lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text()))
+
+        source_image_ui.context_menu = QMenu(self)
+        source_image_ui.context_menu.aboutToShow.connect(lambda: self.set_current_metadata(self.get_source_image_metadata(source_image_ui)))
+        source_image_ui.context_menu.addAction(locate_source_action)
+        source_image_ui.context_menu.addSeparator()
+        source_image_ui.context_menu.addMenu(self.set_as_source_menu)
 
         hlayout = QHBoxLayout(source_image_ui.frame)
         hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.setSpacing(2)
         hlayout.addWidget(source_image_ui.line_edit)
-        hlayout.addWidget(locate_button)
         hlayout.addWidget(source_image_ui.label)
 
         return source_image_ui
+        
+    def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
+        image_path = source_image_ui.line_edit.text()
+        self.thumbnail_loader.get(image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap))
+
+    def get_source_image_metadata(self, source_image_ui: SourceImageUI):
+        image_path = source_image_ui.line_edit.text()
+        if image_path:
+            full_path = os.path.join(configuration.IMAGES_PATH, image_path)
+            with Image.open(full_path) as image:
+                metadata = ImageMetadata()
+                metadata.path = image_path
+                metadata.load_from_image(image)
+                return metadata
+        return None
+
+    def show_source_image_context_menu(self, source_image_ui: SourceImageUI, point):
+        source_image_ui.context_menu.exec(source_image_ui.label.mapToGlobal(point))
 
     def create_control_net_frame(self, control_net_meta: ControlNetMetadata) -> ControlNetFrame:
         control_net_frame = ControlNetFrame()
@@ -529,17 +588,34 @@ class MainWindow(QMainWindow):
         control_net_layout.addWidget(control_net_frame.scale)
         return control_net_frame
     
-    def update_source_image_menu(self):
-        self.source_image_menu.clear()
+    def populate_set_as_source_menu(self):
+        self.set_as_source_menu.clear()
         action = QAction('Image to Image', self)
         action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_ui))
-        self.source_image_menu.addAction(action)
+        self.set_as_source_menu.addAction(action)
 
         for i, control_net_frame in enumerate(self.control_net_frames):
             action = QAction('Control Net {:d}'.format(i + 1), self)
-            action.triggered.connect(lambda: self.on_set_as_source(control_net_frame.source_image_ui))
-            self.source_image_menu.addAction(action)
+            action.triggered.connect(lambda checked=False, control_net_frame=control_net_frame: self.on_set_as_source(control_net_frame.source_image_ui))
+            self.set_as_source_menu.addAction(action)
+        
+        self.set_as_source_menu.addSeparator()
 
+        action = QAction('New Control Net Condition', self)
+        action.triggered.connect(lambda: self.on_set_as_source(self.on_add_control_net().source_image_ui))
+        self.set_as_source_menu.addAction(action)
+    
+    def on_set_as_source(self, source_image_ui: SourceImageUI):
+        image_metadata = self.current_metadata
+        if image_metadata is not None:
+            source_image_ui.line_edit.setText(image_metadata.path)
+            if source_image_ui == self.img2img_source_ui:
+                self.img2img_group_box.setChecked(True)
+                self.width_spin_box.setValue(image_metadata.width)
+                self.height_spin_box.setValue(image_metadata.height)
+            else:
+                self.control_net_group_box.setChecked(True)
+    
     def show_about_dialog(self):
         about_dialog = AboutDialog()
         about_dialog.exec()
@@ -570,7 +646,7 @@ class MainWindow(QMainWindow):
         self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_frame)
         self.control_net_frames.append(control_net_frame)
         self.config_frame.adjustSize()
-        self.update_source_image_menu()
+        return control_net_frame
 
     def on_remove_control_net(self, widgetToRemove):
         index = self.control_net_group_box_layout.indexOf(widgetToRemove) - self.control_net_dynamic_index
@@ -578,11 +654,6 @@ class MainWindow(QMainWindow):
         self.control_net_group_box_layout.removeWidget(widgetToRemove)
         widgetToRemove.setParent(None)
         self.config_frame.adjustSize()
-        self.update_source_image_menu()
-
-    def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
-        image_path = source_image_ui.line_edit.text()
-        self.thumbnail_loader.get(image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap))
 
     def on_thumbnail_loaded(self, source_image_ui, pixmap):
         source_image_ui.label.setPixmap(pixmap)
@@ -737,25 +808,20 @@ class MainWindow(QMainWindow):
     def on_thumbnail_selection_change(self, image_path):
         self.image_history.visit(image_path)
 
-    def on_set_as_source(self, source_image_ui: SourceImageUI):
-        image_metadata = self.image_viewer.metadata
-        if image_metadata is not None:
-            source_image_ui.line_edit.setText(image_metadata.path)
-            if source_image_ui == self.img2img_source_ui:
-                self.width_spin_box.setValue(image_metadata.width)
-                self.height_spin_box.setValue(image_metadata.height)
-    
-    def on_use_prompt(self, image_metadata):
+    def on_use_prompt(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             self.prompt_edit.setPlainText(image_metadata.prompt)
             self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
 
-    def on_use_seed(self, image_metadata):
+    def on_use_seed(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             self.manual_seed_group_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
 
-    def on_use_general(self, image_metadata):
+    def on_use_general(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
             self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
@@ -763,7 +829,8 @@ class MainWindow(QMainWindow):
             self.height_spin_box.setValue(image_metadata.height)
             self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
 
-    def on_use_source_images(self, image_metadata):
+    def on_use_source_images(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             self.img2img_source_ui.line_edit.setText(image_metadata.img2img_source)
 
@@ -774,7 +841,8 @@ class MainWindow(QMainWindow):
                 control_net_frame = self.control_net_frames[i]
                 control_net_frame.source_image_ui.line_edit.setText(control_net_meta.image_source)
 
-    def on_use_img2img(self, image_metadata):
+    def on_use_img2img(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             if image_metadata.img2img_enabled:
                 self.img2img_group_box.setChecked(True)
@@ -783,7 +851,8 @@ class MainWindow(QMainWindow):
             else:
                 self.img2img_group_box.setChecked(False)
 
-    def on_use_controlnet(self, image_metadata):
+    def on_use_controlnet(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             for control_net_frame in self.control_net_frames:
                 self.control_net_group_box_layout.removeWidget(control_net_frame)
@@ -803,9 +872,8 @@ class MainWindow(QMainWindow):
             else:
                 self.control_net_group_box.setChecked(False)
 
-            self.update_source_image_menu()
-
-    def on_use_post_processing(self, image_metadata):
+    def on_use_post_processing(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             if image_metadata.upscale_enabled:
                 self.upscale_group_box.setChecked(True)
@@ -830,21 +898,23 @@ class MainWindow(QMainWindow):
             else:
                 self.high_res_group_box.setChecked(False)
  
-    def on_use_all(self, image_metadata):
+    def on_use_all(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
-            self.on_use_prompt(image_metadata)
-            self.on_use_seed(image_metadata)
-            self.on_use_general(image_metadata)
-            self.on_use_img2img(image_metadata)
-            self.on_use_controlnet(image_metadata)
-            self.on_use_post_processing(image_metadata)
-            self.on_use_source_images(image_metadata)
+            self.on_use_prompt()
+            self.on_use_seed()
+            self.on_use_general()
+            self.on_use_img2img()
+            self.on_use_controlnet()
+            self.on_use_post_processing()
+            self.on_use_source_images()
 
-    def on_move_image(self, image_metadata: ImageMetadata, collection: str):
+    def on_move_image(self, collection: str):
         current_collection = self.thumbnail_viewer.collection()
         if collection == current_collection:
             return
 
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             source_path = image_metadata.path
 
@@ -863,7 +933,8 @@ class MainWindow(QMainWindow):
             self.on_remove_file(image_metadata.path)
             self.on_add_file(output_path)
 
-    def on_delete(self, image_metadata):
+    def on_delete(self):
+        image_metadata = self.current_metadata
         if image_metadata is not None:
             full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
             dialog = DeleteImageDialog(full_path)
@@ -874,6 +945,12 @@ class MainWindow(QMainWindow):
                 self.on_remove_file(image_metadata.path)
             if focused_widget:
                 focused_widget.setFocus()
+
+    def on_reveal_in_finder(self):
+        image_metadata = self.current_metadata
+        if image_metadata is not None:
+            full_path = os.path.abspath(os.path.join(configuration.IMAGES_PATH, image_metadata.path))
+            utils.reveal_in_finder(full_path)
 
     def on_add_file(self, path):
         collection = os.path.dirname(path)
@@ -886,11 +963,6 @@ class MainWindow(QMainWindow):
 
     def on_remove_file(self, path):
         self.thumbnail_viewer.remove_image(path)
-
-    def on_reveal_in_finder(self, image_metadata):
-        if image_metadata is not None:
-            full_path = os.path.abspath(os.path.join(configuration.IMAGES_PATH, image_metadata.path))
-            utils.reveal_in_finder(full_path)
 
     def hide_if_thread_running(self):
         if self.generate_thread:

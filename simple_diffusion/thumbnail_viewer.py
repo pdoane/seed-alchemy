@@ -14,17 +14,10 @@ from .thumbnail_loader import ThumbnailLoader
 class ThumbnailViewer(QWidget):
     file_dropped = Signal(str)
 
-    def __init__(self, loader: ThumbnailLoader, settings: QSettings, collections: list[str], source_image_menu, parent=None):
+    def __init__(self, loader: ThumbnailLoader, settings: QSettings, collections: list[str], context_menu: QMenu, parent=None):
         super().__init__(parent)
 
         self.setAcceptDrops(True)
-
-        self.action_use_prompt = actions.use_prompt.create()
-        self.action_use_seed = actions.use_seed.create()
-        self.action_use_all = actions.use_all.create()
-        self.action_use_source_images = actions.use_source_images.create()
-        self.action_delete = actions.delete_image.create()
-        self.action_reveal_in_finder = actions.reveal_in_finder.create()
 
         self.collection_combobox = QComboBox()
 
@@ -36,17 +29,7 @@ class ThumbnailViewer(QWidget):
         thumbnail_layout.addWidget(self.collection_combobox)
         thumbnail_layout.addWidget(self.list_widget)
 
-        self.menu = QMenu()
-        self.menu.addMenu(source_image_menu)
-        self.menu.addSeparator()
-        self.menu.addAction(self.action_use_prompt)
-        self.menu.addAction(self.action_use_seed)
-        self.menu.addAction(self.action_use_source_images)
-        self.menu.addAction(self.action_use_all)
-        self.menu.addSeparator()
-        self.menu.addAction(self.action_delete)
-        self.menu.addSeparator()
-        self.menu.addAction(self.action_reveal_in_finder)
+        self.menu = context_menu
 
         # Gather collections
         self.collection_combobox.addItems(collections)
@@ -135,4 +118,4 @@ class ThumbnailViewer(QWidget):
         return None
 
     def show_context_menu(self, point):
-        self.menu.exec(self.mapToGlobal(point))
+        self.menu.exec(self.list_widget.mapToGlobal(point))
