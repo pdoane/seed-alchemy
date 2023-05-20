@@ -49,7 +49,7 @@ class MainWindow(QMainWindow):
     preview_preprocessor: ProcessorBase = None
     img2img_source_ui: SourceImageUI = None
     control_net_frames: list[ControlNetFrame] = []
-    override_metadata = None
+    pending_metadata = None
 
     def __init__(self, settings: QSettings, collections: list[str]):
         super().__init__()
@@ -485,13 +485,15 @@ class MainWindow(QMainWindow):
             self.image_history.visit(selected_image)
 
     def get_current_metadata(self):
-        if self.override_metadata is not None:
-            return self.override_metadata
+        if self.pending_metadata is not None:
+            result = self.pending_metadata
+            self.pending_metadata = None
+            return result 
         else:
             return self.image_viewer.metadata
 
-    def set_override_metadata(self, metadata):
-        self.override_metadata = metadata
+    def set_pending_metadata(self, metadata):
+        self.pending_metadata = metadata
 
     def create_source_image_ui(self, text: str) -> SourceImageUI:
         source_image_ui = SourceImageUI()
@@ -512,8 +514,7 @@ class MainWindow(QMainWindow):
         locate_source_action.triggered.connect(lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text()))
 
         source_image_ui.context_menu = QMenu(self)
-        source_image_ui.context_menu.aboutToShow.connect(lambda: self.set_override_metadata(self.get_source_image_metadata(source_image_ui)))
-        source_image_ui.context_menu.aboutToHide.connect(lambda: self.set_override_metadata(None))
+        source_image_ui.context_menu.aboutToShow.connect(lambda: self.set_pending_metadata(self.get_source_image_metadata(source_image_ui)))
         source_image_ui.context_menu.addAction(locate_source_action)
         source_image_ui.context_menu.addSeparator()
         source_image_ui.context_menu.addMenu(self.set_as_source_menu)
