@@ -49,6 +49,7 @@ class MainWindow(QMainWindow):
     preview_preprocessor: ProcessorBase = None
     img2img_source_ui: SourceImageUI = None
     control_net_frames: list[ControlNetFrame] = []
+    override_metadata = None
 
     def __init__(self, settings: QSettings, collections: list[str]):
         super().__init__()
@@ -120,7 +121,6 @@ class MainWindow(QMainWindow):
         action_reveal_in_finder.triggered.connect(self.on_reveal_in_finder)
 
         image_menu = QMenu("Image", self)
-        image_menu.aboutToShow.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
         image_menu.addAction(action_generate_image)
         image_menu.addAction(action_cancel_generation)
         image_menu.addSeparator()
@@ -402,13 +402,6 @@ class MainWindow(QMainWindow):
 
         # Image viewer
         self.image_viewer = ImageViewer(self.image_history)
-        self.image_viewer.set_as_source_image_button.about_to_show_menu.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
-        self.image_viewer.use_prompt_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
-        self.image_viewer.use_seed_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
-        self.image_viewer.use_source_images_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
-        self.image_viewer.use_all_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
-        self.image_viewer.delete_button.pressed.connect(lambda: self.set_current_metadata(self.image_viewer.metadata))
-
         self.image_viewer.set_as_source_image_button.setMenu(self.set_as_source_menu)
         self.image_viewer.use_prompt_button.clicked.connect(self.on_use_prompt)
         self.image_viewer.use_seed_button.clicked.connect(self.on_use_seed)
@@ -438,7 +431,6 @@ class MainWindow(QMainWindow):
         thumbnail_reveal_in_finder_action.triggered.connect(self.on_reveal_in_finder)
 
         thumbnail_menu = QMenu(self)
-        thumbnail_menu.aboutToShow.connect(lambda: self.set_current_metadata(self.thumbnail_viewer.get_current_metadata()))
         thumbnail_menu.addMenu(self.set_as_source_menu)
         thumbnail_menu.addSeparator()
         thumbnail_menu.addAction(thumbnail_use_prompt_action)
@@ -492,8 +484,14 @@ class MainWindow(QMainWindow):
         if selected_image is not None:
             self.image_history.visit(selected_image)
 
-    def set_current_metadata(self, metadata):
-        self.current_metadata = metadata
+    def get_current_metadata(self):
+        if self.override_metadata is not None:
+            return self.override_metadata
+        else:
+            return self.image_viewer.metadata
+
+    def set_override_metadata(self, metadata):
+        self.override_metadata = metadata
 
     def create_source_image_ui(self, text: str) -> SourceImageUI:
         source_image_ui = SourceImageUI()
@@ -514,7 +512,8 @@ class MainWindow(QMainWindow):
         locate_source_action.triggered.connect(lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text()))
 
         source_image_ui.context_menu = QMenu(self)
-        source_image_ui.context_menu.aboutToShow.connect(lambda: self.set_current_metadata(self.get_source_image_metadata(source_image_ui)))
+        source_image_ui.context_menu.aboutToShow.connect(lambda: self.set_override_metadata(self.get_source_image_metadata(source_image_ui)))
+        source_image_ui.context_menu.aboutToHide.connect(lambda: self.set_override_metadata(None))
         source_image_ui.context_menu.addAction(locate_source_action)
         source_image_ui.context_menu.addSeparator()
         source_image_ui.context_menu.addMenu(self.set_as_source_menu)
@@ -606,7 +605,7 @@ class MainWindow(QMainWindow):
         self.set_as_source_menu.addAction(action)
     
     def on_set_as_source(self, source_image_ui: SourceImageUI):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             source_image_ui.line_edit.setText(image_metadata.path)
             if source_image_ui == self.img2img_source_ui:
@@ -809,19 +808,19 @@ class MainWindow(QMainWindow):
         self.image_history.visit(image_path)
 
     def on_use_prompt(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.prompt_edit.setPlainText(image_metadata.prompt)
             self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
 
     def on_use_seed(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.manual_seed_group_box.setChecked(True)
             self.seed_lineedit.setText(str(image_metadata.seed))
 
     def on_use_general(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
             self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
@@ -830,7 +829,7 @@ class MainWindow(QMainWindow):
             self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
 
     def on_use_source_images(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.img2img_source_ui.line_edit.setText(image_metadata.img2img_source)
 
@@ -842,7 +841,7 @@ class MainWindow(QMainWindow):
                 control_net_frame.source_image_ui.line_edit.setText(control_net_meta.image_source)
 
     def on_use_img2img(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             if image_metadata.img2img_enabled:
                 self.img2img_group_box.setChecked(True)
@@ -852,7 +851,7 @@ class MainWindow(QMainWindow):
                 self.img2img_group_box.setChecked(False)
 
     def on_use_controlnet(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             for control_net_frame in self.control_net_frames:
                 self.control_net_group_box_layout.removeWidget(control_net_frame)
@@ -873,7 +872,7 @@ class MainWindow(QMainWindow):
                 self.control_net_group_box.setChecked(False)
 
     def on_use_post_processing(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             if image_metadata.upscale_enabled:
                 self.upscale_group_box.setChecked(True)
@@ -899,7 +898,7 @@ class MainWindow(QMainWindow):
                 self.high_res_group_box.setChecked(False)
  
     def on_use_all(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             self.on_use_prompt()
             self.on_use_seed()
@@ -914,7 +913,7 @@ class MainWindow(QMainWindow):
         if collection == current_collection:
             return
 
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             source_path = image_metadata.path
 
@@ -934,7 +933,7 @@ class MainWindow(QMainWindow):
             self.on_add_file(output_path)
 
     def on_delete(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
             dialog = DeleteImageDialog(full_path)
@@ -947,7 +946,7 @@ class MainWindow(QMainWindow):
                 focused_widget.setFocus()
 
     def on_reveal_in_finder(self):
-        image_metadata = self.current_metadata
+        image_metadata = self.get_current_metadata()
         if image_metadata is not None:
             full_path = os.path.abspath(os.path.join(configuration.IMAGES_PATH, image_metadata.path))
             utils.reveal_in_finder(full_path)

@@ -106,16 +106,5 @@ class ThumbnailViewer(QWidget):
         if next_row < self.list_widget.count():
             self.list_widget.select_index(next_row)
 
-    def get_current_metadata(self):
-        rel_path = self.list_widget.selected_image()
-        if rel_path:
-            full_path = os.path.join(configuration.IMAGES_PATH, rel_path)
-            with Image.open(full_path) as image:
-                metadata = ImageMetadata()
-                metadata.path = rel_path
-                metadata.load_from_image(image)
-                return metadata
-        return None
-
     def show_context_menu(self, point):
         self.menu.exec(self.list_widget.mapToGlobal(point))
