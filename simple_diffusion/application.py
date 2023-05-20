@@ -1,6 +1,7 @@
 import os
 
 import qdarktheme
+import torch
 from PySide6.QtCore import QEvent, QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
@@ -29,6 +30,7 @@ class Application(QApplication):
         self.set_default_setting('local_models_path', '')
         self.set_default_setting('reduce_memory', True)
         self.set_default_setting('safety_checker', True)
+        self.set_default_setting('float32', False if torch.cuda.is_available() else True)
         self.set_default_setting('collection', 'outputs')
         self.set_default_setting('type', 'image')
         self.set_default_setting('scheduler', 'k_euler_a')

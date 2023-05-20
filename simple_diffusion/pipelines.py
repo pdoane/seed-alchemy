@@ -15,7 +15,6 @@ from . import configuration, lora
 from .image_metadata import ImageMetadata
 from .stable_diffusion_pipeline import StableDiffusionPipeline
 
-
 class DiffusersTextualInversionManager(BaseTextualInversionManager):
     def __init__(self, pipe):
         self.pipe = pipe
@@ -44,9 +43,6 @@ class PipelineCache:
         self.pipeline = None
 
 class PipelineBase(ABC):
-    def __init__(self) -> None:
-        self.dtype = torch.float32
-
     @abstractmethod
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
         pass
@@ -83,7 +79,10 @@ class ImagePipeline(PipelineBase):
                 control_net = prev_control_nets[control_net_name]
             else:
                 print('Loading ControlNet', control_net_name)
-                control_net = ControlNetModel.from_pretrained(control_net_config.repo_id, subfolder=control_net_config.subfolder, torch_dtype=self.dtype)
+                control_net = ControlNetModel.from_pretrained(
+                    control_net_config.repo_id,
+                    subfolder=control_net_config.subfolder,
+                    torch_dtype=configuration.torch_dtype)
                 control_net.to(configuration.torch_device)
                 control_net.set_attention_slice('auto')
 
@@ -107,9 +106,15 @@ class ImagePipeline(PipelineBase):
                 print('Loading Stable Diffusion Pipeline', image_metadata.model)
 
                 if image_metadata.safety_checker:
-                    self.pipe = StableDiffusionPipeline.from_pretrained(self.model, torch_dtype=self.dtype)
+                    self.pipe = StableDiffusionPipeline.from_pretrained(
+                        self.model,
+                        torch_dtype=configuration.torch_dtype)
                 else:
-                    self.pipe = StableDiffusionPipeline.from_pretrained(self.model, torch_dtype=self.dtype, safety_checker=None, requires_safety_checker=False)
+                    self.pipe = StableDiffusionPipeline.from_pretrained(
+                        self.model,
+                        torch_dtype=configuration.torch_dtype,
+                        safety_checker=None,
+                        requires_safety_checker=False)
 
             self.pipe.to(configuration.torch_device)
             self.pipe.enable_attention_slicing()
@@ -129,7 +134,7 @@ class ImagePipeline(PipelineBase):
         lora_multipliers = []
         for lora_model, lora_weight in loras:
             path = configuration.get_lora_path(lora_model)
-            lora_models.append(lora.load(path, configuration.torch_device, self.dtype))
+            lora_models.append(lora.load(path, configuration.torch_device, configuration.torch_dtype))
             lora_multipliers.append(lora_weight)
 
         lora.apply(self.pipe, lora_models, lora_multipliers)

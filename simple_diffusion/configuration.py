@@ -33,6 +33,7 @@ elif torch.backends.mps.is_available():
     torch_device = 'mps'
 else:
     torch_device = 'cpu'
+torch_dtype = torch.float32
 
 resources_path: str
 local_models_path: str
@@ -88,6 +89,9 @@ schedulers: dict[str, SchedulerMixin] = {
 }
 
 def load_from_settings(settings: QSettings):
+    global torch_dtype
+    torch_dtype = torch.float32 if settings.value('float32', type=bool) else torch.float16
+
     global local_models_path
     local_models_path = settings.value('local_models_path')
 
