@@ -38,15 +38,20 @@ A native UI for Stable Diffusion using the `diffusers` library.
 ### Roadmap
 
 Near-term:
-- Inpainting
 - ControlNet preprocessor arguments
+- Openpose variants
+- Inpainting
 - Collapsing panels in UI
 
 Evaluate:
 - Self-Attention Guidance
 - MultiDiffusion
 - Long Prompt Weighting
-- ControlNet Guess Mode
+- ControlNet Control Mode (previously Guess Mode)
+- ControlNet Mediapipe Face
+- ControlNet Reference-Only control
+- ControlNet T2I-Adapter
+- ControlNet High-resolution control image sampling
 
 Requires new versions of dependencies:
 - torch
