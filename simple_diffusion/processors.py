@@ -35,8 +35,6 @@ class CannyProcessor(ProcessorBase):
         return image
 
 class DepthMidasProcessor(ProcessorBase):
-    bg_th=0.1
-
     def __init__(self) -> None:
         super().__init__()
         self.midas = None
@@ -44,7 +42,7 @@ class DepthMidasProcessor(ProcessorBase):
     def __call__(self, image: Image.Image) -> Image.Image:
         if self.midas is None:
             self.midas = MidasDetector.from_pretrained('lllyasviel/Annotators')
-        image = self.midas(image, bg_th=self.bg_th)
+        image = self.midas(image)
         return image
     
 class DepthZoeProcessor(ProcessorBase):
@@ -102,6 +100,19 @@ class NormalBaeProcessor(ProcessorBase):
         image = self.normal_bae(image)
         return image
 
+class NormalMidasProcessor(ProcessorBase):
+    bg_th=0.1
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.midas = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.midas is None:
+            self.midas = MidasDetector.from_pretrained('lllyasviel/Annotators')
+        _,image = self.midas(image, bg_th=self.bg_th, depth_and_normal=True)
+        return image
+    
 class MlsdProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()

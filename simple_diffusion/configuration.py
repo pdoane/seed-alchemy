@@ -12,11 +12,12 @@ from .processors import (CannyProcessor, DepthMidasProcessor,
                          DepthZoeProcessor, LineartAnimeProcessor,
                          LineartCoarseProcessor, LineartProcessor,
                          MlsdProcessor, NormalBaeProcessor,
-                         OpenposeFullProcessor, OpenposeProcessor,
-                         ProcessorBase, ScribbleHEDProcessor,
-                         ScribblePIDIProcessor, SegProcessor, ShuffleProcessor,
-                         SoftEdgeHEDProcessor, SoftEdgeHEDSafeProcessor,
-                         SoftEdgePIDIProcessor, SoftEdgePIDISafeProcessor)
+                         NormalMidasProcessor, OpenposeFullProcessor,
+                         OpenposeProcessor, ProcessorBase,
+                         ScribbleHEDProcessor, ScribblePIDIProcessor,
+                         SegProcessor, ShuffleProcessor, SoftEdgeHEDProcessor,
+                         SoftEdgeHEDSafeProcessor, SoftEdgePIDIProcessor,
+                         SoftEdgePIDISafeProcessor)
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
@@ -57,6 +58,7 @@ controlnet_preprocessors: dict[str, ProcessorBase] = {
     'lineart_realistic': LineartProcessor,
     'mlsd': MlsdProcessor,
     'normal_bae': NormalBaeProcessor,
+    'normal_midas': NormalMidasProcessor,
     'openpose_full': OpenposeFullProcessor,
     'openpose': OpenposeProcessor,
     'scribble_hed': ScribbleHEDProcessor,
@@ -69,7 +71,18 @@ controlnet_preprocessors: dict[str, ProcessorBase] = {
     'softedge_pidsafe': SoftEdgePIDISafeProcessor,
 }
 
-controlnet_models: list[str] = [
+controlnet10_models: list[str] = [
+    'lllyasviel/sd-controlnet-canny',
+    'lllyasviel/sd-controlnet-depth',
+    'lllyasviel/sd-controlnet-hed',
+    'lllyasviel/sd-controlnet-mlsd',
+    'lllyasviel/sd-controlnet-normal',
+    'lllyasviel/sd-controlnet-openpose',
+    'lllyasviel/sd-controlnet-scribble',
+    'lllyasviel/sd-controlnet-seg',
+]
+
+controlnet11_models: list[str] = [
     'lllyasviel/control_v11p_sd15_canny',
     'lllyasviel/control_v11f1p_sd15_depth',
     #'lllyasviel/control_v11p_sd15_inpaint',

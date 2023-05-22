@@ -578,8 +578,12 @@ class MainWindow(QMainWindow):
         model_label.setAlignment(Qt.AlignCenter)
         controlnet_ui.model_combo_box = ComboBox()
         controlnet_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        for repo_id in configuration.controlnet_models:
-            controlnet_ui.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
+        if self.settings.value('huggingface_controlnet11', type=bool):
+            for repo_id in configuration.controlnet11_models:
+                controlnet_ui.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
+        if self.settings.value('huggingface_controlnet10', type=bool):
+            for repo_id in configuration.controlnet10_models:
+                controlnet_ui.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
         controlnet_ui.model_combo_box.setCurrentText(control_net_meta.model)
 
         preprocessor_label = QLabel('Preprocessor')
