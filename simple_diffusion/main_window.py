@@ -7,11 +7,12 @@ import sys
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QDialog,
-                               QFrame, QGridLayout, QGroupBox, QHBoxLayout,
-                               QLabel, QLineEdit, QMainWindow, QMenu, QMenuBar,
-                               QProgressBar, QPushButton, QSizePolicy,
-                               QSplitter, QToolBar, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
+                               QGridLayout, QGroupBox, QHBoxLayout, QLabel,
+                               QLineEdit, QMainWindow, QMenu, QMenuBar,
+                               QMessageBox, QProgressBar, QPushButton,
+                               QSizePolicy, QSplitter, QToolBar, QVBoxLayout,
+                               QWidget)
 
 from . import actions, configuration
 from . import font_awesome as fa
@@ -27,8 +28,9 @@ from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
 from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_viewer import ThumbnailViewer
-from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox, FrameWithCloseButton,
-                      IntSliderSpinBox, ScrollArea, SpinBox)
+from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox,
+                      FrameWithCloseButton, IntSliderSpinBox, ScrollArea,
+                      SpinBox)
 
 if sys.platform == 'darwin':
     from AppKit import NSApplication
@@ -595,6 +597,11 @@ class MainWindow(QMainWindow):
 
         controlnet_ui.source_image_ui = self.create_source_image_ui(control_net_meta.image_source)
 
+        sync_button = QPushButton(fa.icon_arrows_down_to_line)
+        sync_button.setFont(fa.font)
+        sync_button.setToolTip('Synchronize Model')
+        sync_button.clicked.connect(lambda: self.on_control_net_sync_button_clicked(controlnet_ui))
+
         preview_preprocessor_button = QPushButton(fa.icon_eye)
         preview_preprocessor_button.setFont(fa.font)
         preview_preprocessor_button.setToolTip('Preview')
@@ -611,6 +618,7 @@ class MainWindow(QMainWindow):
         preprocessor_hlayout = QHBoxLayout()
         preprocessor_hlayout.setContentsMargins(0, 0, 0, 0)
         preprocessor_hlayout.addWidget(controlnet_ui.preprocessor_combo_box)
+        preprocessor_hlayout.addWidget(sync_button)
         preprocessor_hlayout.addWidget(preview_preprocessor_button)
 
         preprocessor_vlayout = QVBoxLayout()
@@ -695,6 +703,27 @@ class MainWindow(QMainWindow):
 
     def on_thumbnail_loaded(self, source_image_ui, pixmap):
         source_image_ui.label.setPixmap(pixmap)
+
+    def on_control_net_sync_button_clicked(self, controlnet_ui: ControlnetUI):
+        preprocessor = controlnet_ui.preprocessor_combo_box.currentText()
+        models = configuration.controlnet_preprocessors_to_models.get(preprocessor, [])
+        found = False
+        for model in models:
+            index = controlnet_ui.model_combo_box.findData(model)
+            if index != -1:
+                controlnet_ui.model_combo_box.setCurrentIndex(index)
+                found = True
+                break
+        
+        if not found:
+            message_box = QMessageBox()
+            message_box.setText('No Model Found')
+            message_box.setInformativeText("The '{:s}' preprocessor is not supported by any enabled ControlNet model.".format(
+                preprocessor
+            ))
+            message_box.setIcon(QMessageBox.Warning)
+            message_box.addButton(QMessageBox.Ok)
+            message_box.exec()
 
     def on_control_net_preview_preprocessor_button_clicked(self, controlnet_ui: ControlnetUI):
         source_path = controlnet_ui.source_image_ui.line_edit.text()

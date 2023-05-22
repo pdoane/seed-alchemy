@@ -71,6 +71,29 @@ controlnet_preprocessors: dict[str, ProcessorBase] = {
     'softedge_pidsafe': SoftEdgePIDISafeProcessor,
 }
 
+controlnet_preprocessors_to_models: dict[str, list[str]] = {
+    'none': [],
+    'canny': ['lllyasviel/control_v11p_sd15_canny','lllyasviel/sd-controlnet-canny'],
+    'depth_midas': ['lllyasviel/control_v11f1p_sd15_depth','lllyasviel/sd-controlnet-depth'],
+    'depth_zoe': ['lllyasviel/control_v11f1p_sd15_depth'],
+    'lineart_anime': ['lllyasviel/control_v11p_sd15s2_lineart_anime'],
+    'lineart_coarse': ['lllyasviel/control_v11p_sd15_lineart'],
+    'lineart_realistic': ['lllyasviel/control_v11p_sd15_lineart'],
+    'mlsd': ['lllyasviel/control_v11p_sd15_mlsd','lllyasviel/sd-controlnet-mlsd'],
+    'normal_bae': ['lllyasviel/control_v11p_sd15_normalbae'],
+    'normal_midas': ['lllyasviel/sd-controlnet-normal'],
+    'openpose_full': ['lllyasviel/control_v11p_sd15_openpose'],
+    'openpose': ['lllyasviel/control_v11p_sd15_openpose','lllyasviel/sd-controlnet-openpose'],
+    'scribble_hed': ['lllyasviel/control_v11p_sd15_scribble','lllyasviel/sd-controlnet-scribble'],
+    'scribble_pidinet': ['lllyasviel/control_v11p_sd15_scribble','lllyasviel/sd-controlnet-scribble'],
+    'seg_ofade20k': ['lllyasviel/control_v11p_sd15_seg','lllyasviel/sd-controlnet-seg'],
+    'shuffle': ['lllyasviel/control_v11e_sd15_shuffle'],
+    'softedge_hed': ['lllyasviel/control_v11p_sd15_softedge','lllyasviel/sd-controlnet-hed'],
+    'softedge_hedsafe': ['lllyasviel/control_v11p_sd15_softedge','lllyasviel/sd-controlnet-hed'],
+    'softedge_pidinet': ['lllyasviel/control_v11p_sd15_softedge','lllyasviel/sd-controlnet-hed'],
+    'softedge_pidsafe': ['lllyasviel/control_v11p_sd15_softedge','lllyasviel/sd-controlnet-hed'],
+ }
+
 controlnet10_models: list[str] = [
     'lllyasviel/sd-controlnet-canny',
     'lllyasviel/sd-controlnet-depth',
