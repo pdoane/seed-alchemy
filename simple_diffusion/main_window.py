@@ -683,6 +683,9 @@ class MainWindow(QMainWindow):
                 self.image_viewer.set_current_image(output_path)
 
     def on_generate_image(self):
+        if self.generate_thread:
+            return
+
         if not self.manual_seed_group_box.isChecked():
             self.randomize_seed()
 
