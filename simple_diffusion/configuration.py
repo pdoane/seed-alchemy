@@ -48,7 +48,7 @@ known_stable_diffusion_models: list[str] = []
 ICON_SIZE = QSize(24, 24)
 font_scale_factor = 1.0
 
-controlnet_preprocessors: dict[str, ProcessorBase] = {
+control_net_preprocessors: dict[str, ProcessorBase] = {
     'none': None,
     'canny': CannyProcessor,
     'depth_midas': DepthMidasProcessor,
@@ -71,7 +71,30 @@ controlnet_preprocessors: dict[str, ProcessorBase] = {
     'softedge_pidsafe': SoftEdgePIDISafeProcessor,
 }
 
-controlnet_preprocessors_to_models: dict[str, list[str]] = {
+@dataclass
+class ControlNetParameter:
+    type: type
+    name: str
+    min: float
+    max: float
+    value: float
+    step: float = 1
+
+control_net_parameters: dict[str, list[ControlNetParameter]] = {
+    'canny': [
+        ControlNetParameter(type=int, name='Low', min=1, max=255, value=100),
+        ControlNetParameter(type=int, name='High', min=1, max=255, value=200),
+    ],
+    'mlsd': [
+        ControlNetParameter(type=float, name='Value', min=0.01, max=2.0, value=0.1, step=0.01),
+        ControlNetParameter(type=float, name='Distance', min=0.01, max=20.0, value=0.1, step=0.01),
+    ],
+    'normal_midas': [
+        ControlNetParameter(type=float, name='Background', min=0.0, max=1.0, value=0.4, step=0.01)
+    ],
+}
+
+control_net_preprocessors_to_models: dict[str, list[str]] = {
     'none': [],
     'canny': ['lllyasviel/control_v11p_sd15_canny','lllyasviel/sd-controlnet-canny'],
     'depth_midas': ['lllyasviel/control_v11f1p_sd15_depth','lllyasviel/sd-controlnet-depth'],
@@ -94,7 +117,7 @@ controlnet_preprocessors_to_models: dict[str, list[str]] = {
     'softedge_pidsafe': ['lllyasviel/control_v11p_sd15_softedge','lllyasviel/sd-controlnet-hed'],
  }
 
-controlnet10_models: list[str] = [
+control_net10_models: list[str] = [
     'lllyasviel/sd-controlnet-canny',
     'lllyasviel/sd-controlnet-depth',
     'lllyasviel/sd-controlnet-hed',
@@ -105,7 +128,7 @@ controlnet10_models: list[str] = [
     'lllyasviel/sd-controlnet-seg',
 ]
 
-controlnet11_models: list[str] = [
+control_net11_models: list[str] = [
     'lllyasviel/control_v11p_sd15_canny',
     'lllyasviel/control_v11f1p_sd15_depth',
     #'lllyasviel/control_v11p_sd15_inpaint',

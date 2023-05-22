@@ -101,21 +101,21 @@ class ToolButton(QToolButton):
         super().mousePressEvent(event)
 
 class FloatSliderSpinBox(QWidget):
-    def __init__(self, name, initial_value, parent=None, minimum=0.0, maximum=1.0, single_step=0.01):
+    def __init__(self, name, value, minimum=0.0, maximum=1.0, single_step=0.01, parent=None):
         super().__init__(parent)
 
         self.single_step = single_step
 
-        label = QLabel(name)
-        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label = QLabel(name)
+        self.label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.slider = Slider(Qt.Horizontal)
         style_option = QStyleOptionSlider()
         self.slider.initStyleOption(style_option)
         thumb_size = self.slider.style().pixelMetric(QStyle.PM_SliderLength, style_option, self.slider)
         self.slider.setRange(int(minimum * 100.0), int(maximum * 100.0))
-        self.slider.setValue(self._to_slider_value(initial_value))
+        self.slider.setValue(self._to_slider_value(value))
         self.slider.setSingleStep(int(single_step * 100.0))
-        self.slider.setPageStep((int(maximum - minimum) * 10.0))
+        self.slider.setPageStep(int(single_step * 1000.0))
         self.slider.setFixedWidth(101 + thumb_size)
         self.slider.valueChanged.connect(self.on_slider_changed)
         self.spin_box = DoubleSpinBox()
@@ -124,14 +124,23 @@ class FloatSliderSpinBox(QWidget):
         self.spin_box.setRange(minimum, maximum)
         self.spin_box.setSingleStep(single_step)
         self.spin_box.setDecimals(2)
-        self.spin_box.setValue(initial_value)
+        self.spin_box.setValue(value)
         self.spin_box.valueChanged.connect(self.on_spin_box_changed)
 
         hlayout = QHBoxLayout(self)
         hlayout.setContentsMargins(0, 0, 0, 0)
-        hlayout.addWidget(label)
+        hlayout.addWidget(self.label)
         hlayout.addWidget(self.slider)
         hlayout.addWidget(self.spin_box)
+
+    def set_all(self, name, value, minimum, maximum, single_step):
+        self.label.setText(name)
+        self.slider.setRange(int(minimum * 100.0), int(maximum * 100.0))
+        self.slider.setSingleStep(int(single_step * 100.0))
+        self.slider.setPageStep(int(single_step * 1000.0))
+        self.spin_box.setRange(minimum, maximum)
+        self.spin_box.setSingleStep(single_step)
+        self.spin_box.setValue(value)
 
     def on_slider_changed(self, value):
         self.spin_box.setValue(self._from_slider_value(value))
@@ -146,34 +155,43 @@ class FloatSliderSpinBox(QWidget):
         return round_to_step(value / 100.0, self.single_step)
 
 class IntSliderSpinBox(QWidget):
-    def __init__(self, name, initial_value, parent=None, minimum=0, maximum=100):
+    def __init__(self, name, value, minimum=0, maximum=100, single_step=1, parent=None):
         super().__init__(parent)
 
-        label = QLabel(name)
-        label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.label = QLabel(name)
+        self.label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         self.slider = Slider(Qt.Horizontal)
         style_option = QStyleOptionSlider()
         self.slider.initStyleOption(style_option)
         thumb_size = self.slider.style().pixelMetric(QStyle.PM_SliderLength, style_option, self.slider)
         self.slider.setRange(minimum, maximum)
-        self.slider.setValue(initial_value)
-        self.slider.setSingleStep(1)
-        self.slider.setPageStep(10)
+        self.slider.setValue(value)
+        self.slider.setSingleStep(single_step)
+        self.slider.setPageStep(single_step * 10)
         self.slider.setFixedWidth(101 + thumb_size)
         self.slider.valueChanged.connect(self.on_slider_changed)
         self.spin_box = SpinBox()
         self.spin_box.setAlignment(Qt.AlignCenter)
         self.spin_box.setFixedWidth(60)
         self.spin_box.setRange(minimum, maximum)
-        self.spin_box.setSingleStep(1)
-        self.spin_box.setValue(initial_value)
+        self.spin_box.setSingleStep(single_step)
+        self.spin_box.setValue(value)
         self.spin_box.valueChanged.connect(self.on_spin_box_changed)
 
         hlayout = QHBoxLayout(self)
         hlayout.setContentsMargins(0, 0, 0, 0)
-        hlayout.addWidget(label)
+        hlayout.addWidget(self.label)
         hlayout.addWidget(self.slider)
         hlayout.addWidget(self.spin_box)
+
+    def set_all(self, name, value, minimum, maximum, single_step):
+        self.label.setText(name)
+        self.slider.setRange(minimum, maximum)
+        self.slider.setSingleStep(single_step)
+        self.slider.setPageStep(single_step * 10)
+        self.spin_box.setRange(minimum, maximum)
+        self.spin_box.setSingleStep(single_step)
+        self.spin_box.setValue(value)
 
     def on_slider_changed(self, value):
         self.spin_box.setValue(value)

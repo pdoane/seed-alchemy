@@ -38,8 +38,8 @@ A native UI for Stable Diffusion using the `diffusers` library.
 ### Roadmap
 
 Near-term:
-- ControlNet preprocessor arguments
 - Openpose variants
+- Scribble extended difference of gaussians
 - Inpainting
 - Collapsing panels in UI
 

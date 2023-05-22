@@ -1,25 +1,22 @@
 import json
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, field
+from typing import List, Optional
 
+from dataclasses_json import dataclass_json
 from PIL import Image
 
-from . import configuration, utils
+from . import configuration
 
 
+@dataclass_json
 @dataclass
 class ControlNetMetadata:
     model: str = ''
     image_source: str = ''
-    preprocessor: str = None
+    preprocessor: Optional[str] = None
+    params: Optional[List[float]] = field(default_factory=list)
     scale: float = 1.0
-
-    def to_dict(self):
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict):
-        return utils.from_dict(cls, data)
     
 class ImageMetadata:
     model: str = 'stabilityai/stable-diffusion-2-1-base'

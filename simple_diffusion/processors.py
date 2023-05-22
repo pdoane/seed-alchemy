@@ -17,21 +17,18 @@ from . import configuration, utils
 
 class ProcessorBase(ABC):
     @abstractmethod
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         pass
 
 class CannyProcessor(ProcessorBase):
-    low_threshold = 100
-    high_threshold = 200
-
     def __init__(self) -> None:
         super().__init__()
         self.canny = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.canny is None:
             self.canny = CannyDetector()
-        image = self.canny(image, self.low_threshold, self.high_threshold)
+        image = self.canny(image, params[0], params[1])
         return image
 
 class DepthMidasProcessor(ProcessorBase):
@@ -39,7 +36,7 @@ class DepthMidasProcessor(ProcessorBase):
         super().__init__()
         self.midas = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.midas is None:
             self.midas = MidasDetector.from_pretrained('lllyasviel/Annotators')
         image = self.midas(image)
@@ -50,7 +47,7 @@ class DepthZoeProcessor(ProcessorBase):
         super().__init__()
         self.zoe = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.zoe is None:
             self.zoe = ZoeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.zoe(image)
@@ -61,7 +58,7 @@ class LineartProcessor(ProcessorBase):
         super().__init__()
         self.lineart = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.lineart is None:
             self.lineart = LineartDetector.from_pretrained('lllyasviel/Annotators')
         image = self.lineart(image)
@@ -72,7 +69,7 @@ class LineartCoarseProcessor(ProcessorBase):
         super().__init__()
         self.lineart = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.lineart is None:
             self.lineart = LineartDetector.from_pretrained('lllyasviel/Annotators')
         image = self.lineart(image, coarse=True)
@@ -83,7 +80,7 @@ class LineartAnimeProcessor(ProcessorBase):
         super().__init__()
         self.lineart_anime = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.lineart_anime is None:
             self.lineart_anime = LineartAnimeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.lineart_anime(image)
@@ -94,23 +91,21 @@ class NormalBaeProcessor(ProcessorBase):
         super().__init__()
         self.normal_bae = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.normal_bae is None:
             self.normal_bae = NormalBaeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.normal_bae(image)
         return image
 
 class NormalMidasProcessor(ProcessorBase):
-    bg_th=0.1
-
     def __init__(self) -> None:
         super().__init__()
         self.midas = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.midas is None:
             self.midas = MidasDetector.from_pretrained('lllyasviel/Annotators')
-        _,image = self.midas(image, bg_th=self.bg_th, depth_and_normal=True)
+        _,image = self.midas(image, bg_th=params[0], depth_and_normal=True)
         return image
     
 class MlsdProcessor(ProcessorBase):
@@ -118,10 +113,10 @@ class MlsdProcessor(ProcessorBase):
         super().__init__()
         self.mlsd = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.mlsd is None:
             self.mlsd = MLSDdetector.from_pretrained('lllyasviel/Annotators')
-        image = self.mlsd(image)
+        image = self.mlsd(image, params[0], params[1])
         return image
 
 class OpenposeProcessor(ProcessorBase):
@@ -129,7 +124,7 @@ class OpenposeProcessor(ProcessorBase):
         super().__init__()
         self.openpose = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.openpose(image)
@@ -140,7 +135,7 @@ class OpenposeFullProcessor(ProcessorBase):
         super().__init__()
         self.openpose = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.openpose(image, hand_and_face=True)
@@ -151,7 +146,7 @@ class ScribbleHEDProcessor(ProcessorBase):
         super().__init__()
         self.hed = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.hed is None:
             self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
         image = self.hed(image, scribble=True)
@@ -162,7 +157,7 @@ class ScribblePIDIProcessor(ProcessorBase):
         super().__init__()
         self.pidi = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
         image = self.pidi(image, scribble=True)
@@ -173,7 +168,7 @@ class ShuffleProcessor(ProcessorBase):
         super().__init__()
         self.content = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.content is None:
             self.content = ContentShuffleDetector()
         image = self.content(image)
@@ -185,7 +180,7 @@ class SegProcessor(ProcessorBase):
         self.image_processor = None
         self.image_segmentor = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.image_processor is None:
             self.image_processor = AutoImageProcessor.from_pretrained('openmmlab/upernet-convnext-small')
         if self.image_segmentor is None:
@@ -207,7 +202,7 @@ class SoftEdgeHEDProcessor(ProcessorBase):
         super().__init__()
         self.hed = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.hed is None:
             self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
         image = self.hed(image)
@@ -218,7 +213,7 @@ class SoftEdgeHEDSafeProcessor(ProcessorBase):
         super().__init__()
         self.hed = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.hed is None:
             self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
         image = self.hed(image, safe=True)
@@ -229,7 +224,7 @@ class SoftEdgePIDIProcessor(ProcessorBase):
         super().__init__()
         self.pidi = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
         image = self.pidi(image)
@@ -240,7 +235,7 @@ class SoftEdgePIDISafeProcessor(ProcessorBase):
         super().__init__()
         self.pidi = None
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
         image = self.pidi(image, safe=True)
@@ -321,7 +316,7 @@ class ESRGANProcessor(ProcessorBase):
                 pre_pad=self.pre_pad,
                 half=not self.float32)
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.esrgan is None:
             self.load()
 
@@ -386,7 +381,7 @@ class GFPGANProcessor(ProcessorBase):
                 bg_upsampler=self.esrgan,
                 model_rootpath=os.path.join(configuration.MODELS_PATH, 'gfpgan'))
 
-    def __call__(self, image: Image.Image) -> Image.Image:
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.gfpgan is None:
             self.load()
 

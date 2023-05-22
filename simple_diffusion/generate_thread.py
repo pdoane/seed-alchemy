@@ -109,11 +109,11 @@ class GenerateThread(QThread):
                     controlnet_conditioning_image = image.copy()
 
                 if control_net_meta.preprocessor is not None:
-                    preprocessor_type = configuration.controlnet_preprocessors.get(control_net_meta.preprocessor)
+                    preprocessor_type = configuration.control_net_preprocessors.get(control_net_meta.preprocessor)
                     if preprocessor_type:
                         if not isinstance(generate_preprocessor, preprocessor_type):
                             generate_preprocessor = preprocessor_type()
-                        controlnet_conditioning_image = generate_preprocessor(controlnet_conditioning_image)
+                        controlnet_conditioning_image = generate_preprocessor(controlnet_conditioning_image, control_net_meta.params)
                         if self.reduce_memory:
                             generate_preprocessor = None
                 
@@ -158,7 +158,7 @@ class GenerateThread(QThread):
                     esrgan.upscale_factor = self.req.image_metadata.upscale_factor
                     esrgan.denoising_strength = self.req.image_metadata.upscale_denoising_strength
                     esrgan.blend_strength = self.req.image_metadata.upscale_blend_strength
-                    upscaled_image = esrgan(image)
+                    upscaled_image = esrgan(image, [])
                     self.next_step()
                 else:
                     upscaled_image = image
@@ -169,7 +169,7 @@ class GenerateThread(QThread):
                     gfpgan.upscale_factor = self.req.image_metadata.upscale_factor
                     gfpgan.upscaled_image = upscaled_image
                     gfpgan.blend_strength = self.req.image_metadata.face_blend_strength
-                    image = gfpgan(image)
+                    image = gfpgan(image, [])
                     self.next_step()
                 else:
                     image = upscaled_image

@@ -140,24 +140,6 @@ def pil_to_qimage(pil_image: Image.Image):
     qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
     return qimage
 
-def from_dict(dataclass_type, data: dict):
-    if not is_dataclass(dataclass_type):
-        raise ValueError(f"{dataclass_type} is not a dataclass")
-
-    filtered_data = {}
-
-    for field in fields(dataclass_type):
-        if field.name in data and isinstance(data[field.name], field.type):
-            filtered_data[field.name] = data[field.name]
-        elif field.default != field.default_factory:
-            filtered_data[field.name] = field.default
-        elif field.default_factory != MISSING:
-            filtered_data[field.name] = field.default_factory()
-        else:
-            raise ValueError(f"Missing value for field {field.name}")
-
-    return dataclass_type(**filtered_data)
-
 def set_current_data(widget, data):
     index = widget.findData(data)
     if index != -1:
@@ -168,3 +150,9 @@ def deserialize_string_list(value):
         return [str(item) for item in value]
     else:
         return [str(value)]
+
+def list_get(l, index, default=None):
+    try:
+        return l[index]
+    except IndexError:
+        return default
