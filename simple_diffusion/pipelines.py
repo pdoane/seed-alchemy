@@ -69,19 +69,16 @@ class ImagePipeline(PipelineBase):
         self.control_nets = []
         self.control_net_names = []
         for control_net_meta in image_metadata.control_nets:
-            control_net_config = configuration.control_net_models[control_net_meta.name]
-            if control_net_config.subfolder is not None:
-                control_net_name = '{:s}/{:s}'.format(control_net_config.repo_id, control_net_config.subfolder)
-            else:
-                control_net_name = control_net_config.repo_id
+            repo_id = control_net_meta.model
+            control_net_name = repo_id
 
             if control_net_name in prev_control_nets:
                 control_net = prev_control_nets[control_net_name]
             else:
                 print('Loading ControlNet', control_net_name)
                 control_net = ControlNetModel.from_pretrained(
-                    control_net_config.repo_id,
-                    subfolder=control_net_config.subfolder,
+                    repo_id,
+                    subfolder=None,
                     torch_dtype=configuration.torch_dtype)
                 control_net.to(configuration.torch_device)
                 control_net.set_attention_slice('auto')

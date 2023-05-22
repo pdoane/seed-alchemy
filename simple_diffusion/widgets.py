@@ -1,7 +1,10 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QHBoxLayout, QLabel,
-                               QScrollArea, QSlider, QSpinBox, QStyle,
-                               QStyleOptionSlider, QToolButton, QWidget)
+from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
+                               QLabel, QPushButton, QScrollArea, QSizePolicy,
+                               QSlider, QSpinBox, QStyle, QStyleOptionSlider,
+                               QToolButton, QWidget)
+
+from . import font_awesome as fa
 
 
 def round_to_step(num, step):
@@ -25,6 +28,38 @@ class DoubleSpinBox(QDoubleSpinBox):
             self.clearFocus()
         else:
             super().keyPressEvent(event)
+
+class FrameWithCloseButton(QFrame):
+    closed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameStyle(QFrame.Box)
+        self.close_button = None
+
+    def showEvent(self, event):
+        if self.close_button is None:
+            self.close_button = QPushButton(self)
+            self.close_button.setText(fa.icon_xmark)
+            self.close_button.setFont(fa.font)
+            self.close_button.setToolTip('Remove')
+            self.close_button.setFixedSize(self.close_button.sizeHint())
+            self.close_button.clicked.connect(self._emit_closed)
+
+            self._move()
+            self.close_button.show()
+        super().showEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._move()
+
+    def _move(self):
+        if self.close_button:
+            self.close_button.move(self.width() - self.close_button.width(), 0)
+
+    def _emit_closed(self):
+        self.closed.emit()
 
 class ScrollArea(QScrollArea):
     def __init__(self, parent=None):

@@ -108,16 +108,14 @@ class GenerateThread(QThread):
                     image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
                     controlnet_conditioning_image = image.copy()
 
-                if control_net_meta.preprocess:
-                    control_net_config = configuration.control_net_models[control_net_meta.name]
-                    if control_net_config:
-                        preprocessor_type = control_net_config.preprocessor
-                        if preprocessor_type:
-                            if not isinstance(generate_preprocessor, preprocessor_type):
-                                generate_preprocessor = preprocessor_type()
-                            controlnet_conditioning_image = generate_preprocessor(controlnet_conditioning_image)
-                            if self.reduce_memory:
-                                generate_preprocessor = None
+                if control_net_meta.preprocessor is not None:
+                    preprocessor_type = configuration.controlnet_preprocessors.get(control_net_meta.preprocessor)
+                    if preprocessor_type:
+                        if not isinstance(generate_preprocessor, preprocessor_type):
+                            generate_preprocessor = preprocessor_type()
+                        controlnet_conditioning_image = generate_preprocessor(controlnet_conditioning_image)
+                        if self.reduce_memory:
+                            generate_preprocessor = None
                 
                 self.req.controlnet_conditioning_images.append(controlnet_conditioning_image)
 

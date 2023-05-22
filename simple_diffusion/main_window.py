@@ -27,7 +27,7 @@ from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
 from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_viewer import ThumbnailViewer
-from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox,
+from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox, FrameWithCloseButton,
                       IntSliderSpinBox, ScrollArea, SpinBox)
 
 if sys.platform == 'darwin':
@@ -39,16 +39,17 @@ class SourceImageUI:
     line_edit: QLineEdit
     context_menu: QMenu
 
-class ControlNetFrame(QFrame):
-    model_combo_box: ComboBox = None
-    source_image_ui: SourceImageUI = None
-    preprocess_check_box: QCheckBox = None
-    scale: FloatSliderSpinBox = None
+class ControlnetUI:
+    frame: FrameWithCloseButton
+    model_combo_box: ComboBox
+    preprocessor_combo_box: ComboBox
+    source_image_ui: SourceImageUI
+    scale: FloatSliderSpinBox
 
 class MainWindow(QMainWindow):
     preview_preprocessor: ProcessorBase = None
     img2img_source_ui: SourceImageUI = None
-    control_net_frames: list[ControlNetFrame] = []
+    controlnet_uis: list[ControlnetUI] = []
     override_metadata = None
 
     def __init__(self, settings: QSettings, collections: list[str]):
@@ -194,6 +195,8 @@ class MainWindow(QMainWindow):
         config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
         # Model
+        model_label = QLabel('Stable Diffusion Model')
+        model_label.setAlignment(Qt.AlignCenter)
         self.model_combo_box = ComboBox()
         for model in configuration.known_stable_diffusion_models:
             self.model_combo_box.addItem(model, configuration.get_stable_diffusion_model_path(model))
@@ -264,6 +267,13 @@ class MainWindow(QMainWindow):
         self.scheduler_combo_box.setCurrentText(self.settings.value('scheduler'))
 
         self.general_group_box = QGroupBox('General')
+
+        model_vlayout = QVBoxLayout()
+        model_vlayout.setContentsMargins(0, 0, 0, 0)
+        model_vlayout.setSpacing(2)
+        model_vlayout.addWidget(model_label)
+        model_vlayout.addWidget(self.model_combo_box)
+
         controls_grid = QGridLayout()
         controls_grid.setVerticalSpacing(2)
         controls_grid.setRowMinimumHeight(2, 10)
@@ -282,7 +292,7 @@ class MainWindow(QMainWindow):
         controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
 
         controls_vlayout = QVBoxLayout(self.general_group_box)
-        controls_vlayout.addWidget(self.model_combo_box)
+        controls_vlayout.addLayout(model_vlayout)
         controls_vlayout.addLayout(controls_grid)
 
         # Seed
@@ -312,6 +322,7 @@ class MainWindow(QMainWindow):
         self.img2img_group_box = QGroupBox('Image to Image')
         self.img2img_group_box.setCheckable(True)
         self.img2img_group_box.setChecked(self.settings.value('img2img_enabled', type=bool))
+
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
         img2img_group_box_layout.addWidget(self.img2img_source_ui.frame)
         img2img_group_box_layout.addWidget(self.img2img_strength)
@@ -334,9 +345,9 @@ class MainWindow(QMainWindow):
 
         control_net_metas = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value('control_nets'))]
         for i, control_net_meta in enumerate(control_net_metas):
-            control_net_frame = self.create_control_net_frame(control_net_meta)
-            self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_frame)
-            self.control_net_frames.append(control_net_frame)
+            controlnet_ui = self.create_controlnet_ui(control_net_meta)
+            self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, controlnet_ui.frame)
+            self.controlnet_uis.append(controlnet_ui)
 
         # Upscale
         upscale_factor_label = QLabel('Factor: ')
@@ -499,13 +510,19 @@ class MainWindow(QMainWindow):
         source_image_ui.frame = QFrame()
         source_image_ui.frame.setContentsMargins(0, 0, 0, 0)
 
+        source_label = QLabel('Source')
+        source_label.setAlignment(Qt.AlignCenter)
+
         source_image_ui.label = QLabel()
+        source_image_ui.label.setFrameStyle(QFrame.Box)
         source_image_ui.label.setContextMenuPolicy(Qt.CustomContextMenu)
+        source_image_ui.label.setFixedSize(96, 96)
         source_image_ui.label.customContextMenuRequested.connect(lambda point: self.show_source_image_context_menu(source_image_ui, point))
 
         source_image_ui.line_edit = QLineEdit()
         source_image_ui.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         source_image_ui.line_edit.textChanged.connect(lambda: self.on_source_image_ui_text_changed(source_image_ui))
+        source_image_ui.line_edit.setPlaceholderText('Image Path')
         source_image_ui.line_edit.setText(text)
 
         locate_source_action = actions.locate_source.create(self)
@@ -518,10 +535,18 @@ class MainWindow(QMainWindow):
         source_image_ui.context_menu.addSeparator()
         source_image_ui.context_menu.addMenu(self.set_as_source_menu)
 
+        vlayout = QVBoxLayout()
+        vlayout.setContentsMargins(0, 0, 0, 0)
+        vlayout.setSpacing(2)
+        vlayout.addStretch(1)
+        vlayout.addWidget(source_label)
+        vlayout.addWidget(source_image_ui.line_edit)
+        vlayout.addStretch(2)
+
         hlayout = QHBoxLayout(source_image_ui.frame)
         hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.setSpacing(2)
-        hlayout.addWidget(source_image_ui.line_edit)
+        hlayout.addLayout(vlayout)
         hlayout.addWidget(source_image_ui.label)
 
         return source_image_ui
@@ -544,48 +569,58 @@ class MainWindow(QMainWindow):
     def show_source_image_context_menu(self, source_image_ui: SourceImageUI, point):
         source_image_ui.context_menu.exec(source_image_ui.label.mapToGlobal(point))
 
-    def create_control_net_frame(self, control_net_meta: ControlNetMetadata) -> ControlNetFrame:
-        control_net_frame = ControlNetFrame()
-        control_net_frame.setFrameStyle(QFrame.Box)
+    def create_controlnet_ui(self, control_net_meta: ControlNetMetadata) -> ControlnetUI:
+        controlnet_ui = ControlnetUI()
+        controlnet_ui.frame = FrameWithCloseButton()
+        controlnet_ui.frame.closed.connect(lambda: self.on_remove_control_net(controlnet_ui))
 
-        control_net_frame.model_combo_box = ComboBox()
-        control_net_frame.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        control_net_frame.model_combo_box.addItems(configuration.control_net_models.keys())
-        control_net_frame.model_combo_box.setCurrentText(control_net_meta.name)
+        model_label = QLabel('Model')
+        model_label.setAlignment(Qt.AlignCenter)
+        controlnet_ui.model_combo_box = ComboBox()
+        controlnet_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        for repo_id in configuration.controlnet_models:
+            controlnet_ui.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
+        controlnet_ui.model_combo_box.setCurrentText(control_net_meta.model)
 
-        remove_button = QPushButton()
-        remove_button.setText(fa.icon_xmark)
-        remove_button.setFont(fa.font)
-        remove_button.setToolTip('Remove')
-        remove_button.clicked.connect(lambda: self.on_remove_control_net(control_net_frame))
+        preprocessor_label = QLabel('Preprocessor')
+        preprocessor_label.setAlignment(Qt.AlignCenter)
+        controlnet_ui.preprocessor_combo_box = ComboBox()
+        controlnet_ui.preprocessor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        controlnet_ui.preprocessor_combo_box.addItems(configuration.controlnet_preprocessors.keys())
+        controlnet_ui.preprocessor_combo_box.setCurrentText(control_net_meta.preprocessor)
 
-        control_net_frame.source_image_ui = self.create_source_image_ui(control_net_meta.image_source)
+        controlnet_ui.source_image_ui = self.create_source_image_ui(control_net_meta.image_source)
 
-        control_net_frame.preprocess_check_box = QCheckBox('Preprocess')
-        control_net_frame.preprocess_check_box.setChecked(control_net_meta.preprocess)
-        preview_preprocessor_button = QPushButton('Preview')
-        preview_preprocessor_button.clicked.connect(lambda: self.on_control_net_preview_preprocessor_button_clicked(control_net_frame))
+        preview_preprocessor_button = QPushButton(fa.icon_eye)
+        preview_preprocessor_button.setFont(fa.font)
+        preview_preprocessor_button.setToolTip('Preview')
+        preview_preprocessor_button.clicked.connect(lambda: self.on_control_net_preview_preprocessor_button_clicked(controlnet_ui))
 
-        control_net_frame.scale = FloatSliderSpinBox('Scale', control_net_meta.scale, maximum=2.0)
+        controlnet_ui.scale = FloatSliderSpinBox('Scale', control_net_meta.scale, maximum=2.0)
 
-        model_hlayout = QHBoxLayout()
-        model_hlayout.setContentsMargins(0, 0, 0, 0)
-        model_hlayout.setSpacing(0)
-        model_hlayout.addWidget(control_net_frame.model_combo_box)
-        model_hlayout.addSpacing(2)
-        model_hlayout.addWidget(remove_button)
+        model_vlayout = QVBoxLayout()
+        model_vlayout.setContentsMargins(0, 0, 0, 0)
+        model_vlayout.setSpacing(2)
+        model_vlayout.addWidget(model_label)
+        model_vlayout.addWidget(controlnet_ui.model_combo_box)
 
-        preprocess_hlayout = QHBoxLayout()
-        preprocess_hlayout.setContentsMargins(0, 0, 0, 0)
-        preprocess_hlayout.addWidget(control_net_frame.preprocess_check_box)
-        preprocess_hlayout.addWidget(preview_preprocessor_button)
+        preprocessor_hlayout = QHBoxLayout()
+        preprocessor_hlayout.setContentsMargins(0, 0, 0, 0)
+        preprocessor_hlayout.addWidget(controlnet_ui.preprocessor_combo_box)
+        preprocessor_hlayout.addWidget(preview_preprocessor_button)
 
-        control_net_layout = QVBoxLayout(control_net_frame)
-        control_net_layout.addLayout(model_hlayout)
-        control_net_layout.addWidget(control_net_frame.source_image_ui.frame)
-        control_net_layout.addLayout(preprocess_hlayout)
-        control_net_layout.addWidget(control_net_frame.scale)
-        return control_net_frame
+        preprocessor_vlayout = QVBoxLayout()
+        preprocessor_vlayout.setContentsMargins(0, 0, 0, 0)
+        preprocessor_vlayout.setSpacing(2)
+        preprocessor_vlayout.addWidget(preprocessor_label)
+        preprocessor_vlayout.addLayout(preprocessor_hlayout)
+
+        control_net_layout = QVBoxLayout(controlnet_ui.frame)
+        control_net_layout.addLayout(preprocessor_vlayout)
+        control_net_layout.addLayout(model_vlayout)
+        control_net_layout.addWidget(controlnet_ui.source_image_ui.frame)
+        control_net_layout.addWidget(controlnet_ui.scale)
+        return controlnet_ui
     
     def populate_set_as_source_menu(self):
         self.set_as_source_menu.clear()
@@ -593,9 +628,9 @@ class MainWindow(QMainWindow):
         action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_ui))
         self.set_as_source_menu.addAction(action)
 
-        for i, control_net_frame in enumerate(self.control_net_frames):
+        for i, controlnet_ui in enumerate(self.controlnet_uis):
             action = QAction('Control Net {:d}'.format(i + 1), self)
-            action.triggered.connect(lambda checked=False, control_net_frame=control_net_frame: self.on_set_as_source(control_net_frame.source_image_ui))
+            action.triggered.connect(lambda checked=False, controlnet_ui=controlnet_ui: self.on_set_as_source(controlnet_ui.source_image_ui))
             self.set_as_source_menu.addAction(action)
         
         self.set_as_source_menu.addSeparator()
@@ -640,25 +675,25 @@ class MainWindow(QMainWindow):
 
     def on_add_control_net(self):
         control_net_meta = ControlNetMetadata()
-        i = len(self.control_net_frames)
-        control_net_frame = self.create_control_net_frame(control_net_meta)
-        self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_frame)
-        self.control_net_frames.append(control_net_frame)
+        i = len(self.controlnet_uis)
+        controlnet_ui = self.create_controlnet_ui(control_net_meta)
+        self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, controlnet_ui.frame)
+        self.controlnet_uis.append(controlnet_ui)
         self.config_frame.adjustSize()
-        return control_net_frame
+        return controlnet_ui
 
-    def on_remove_control_net(self, widgetToRemove):
-        index = self.control_net_group_box_layout.indexOf(widgetToRemove) - self.control_net_dynamic_index
-        del self.control_net_frames[index]
-        self.control_net_group_box_layout.removeWidget(widgetToRemove)
-        widgetToRemove.setParent(None)
+    def on_remove_control_net(self, controlnet_ui: ControlnetUI):
+        index = self.control_net_group_box_layout.indexOf(controlnet_ui.frame) - self.control_net_dynamic_index
+        del self.controlnet_uis[index]
+        self.control_net_group_box_layout.removeWidget(controlnet_ui.frame)
+        controlnet_ui.frame.setParent(None)
         self.config_frame.adjustSize()
 
     def on_thumbnail_loaded(self, source_image_ui, pixmap):
         source_image_ui.label.setPixmap(pixmap)
 
-    def on_control_net_preview_preprocessor_button_clicked(self, control_net_frame: ControlNetFrame):
-        source_path = control_net_frame.source_image_ui.line_edit.text()
+    def on_control_net_preview_preprocessor_button_clicked(self, controlnet_ui: ControlnetUI):
+        source_path = controlnet_ui.source_image_ui.line_edit.text()
         width = self.width_spin_box.value()
         height = self.height_spin_box.value()
 
@@ -668,19 +703,17 @@ class MainWindow(QMainWindow):
             image = image.resize((width, height))
             source_image = image.copy()
 
-        control_net_config = configuration.control_net_models[control_net_frame.model_combo_box.currentText()]
-        if control_net_config:
-            preprocessor_type = control_net_config.preprocessor
-            if preprocessor_type:
-                if not isinstance(self.preview_preprocessor, preprocessor_type):
-                    self.preview_preprocessor = preprocessor_type()
-                source_image = self.preview_preprocessor(source_image)
-                if self.settings.value('reduce_memory', type=bool):
-                    self.preview_preprocessor = None
-                output_path = 'preprocessed.png'
-                full_path = os.path.join(configuration.IMAGES_PATH, output_path)
-                source_image.save(full_path)
-                self.image_viewer.set_current_image(output_path)
+        preprocessor_type = configuration.controlnet_preprocessors[controlnet_ui.preprocessor_combo_box.currentText()]
+        if preprocessor_type:
+            if not isinstance(self.preview_preprocessor, preprocessor_type):
+                self.preview_preprocessor = preprocessor_type()
+            source_image = self.preview_preprocessor(source_image)
+            if self.settings.value('reduce_memory', type=bool):
+                self.preview_preprocessor = None
+            output_path = 'preprocessed.png'
+            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+            source_image.save(full_path)
+            self.image_viewer.set_current_image(output_path)
 
     def on_generate_image(self):
         if self.generate_thread:
@@ -690,12 +723,12 @@ class MainWindow(QMainWindow):
             self.randomize_seed()
 
         control_net_metas = []
-        for control_net_frame in self.control_net_frames:
+        for controlnet_ui in self.controlnet_uis:
             control_net_meta = ControlNetMetadata()
-            control_net_meta.name = control_net_frame.model_combo_box.currentText()
-            control_net_meta.image_source = control_net_frame.source_image_ui.line_edit.text()
-            control_net_meta.preprocess = control_net_frame.preprocess_check_box.isChecked()
-            control_net_meta.scale = control_net_frame.scale.spin_box.value()
+            control_net_meta.model = controlnet_ui.model_combo_box.currentData()
+            control_net_meta.preprocessor = controlnet_ui.preprocessor_combo_box.currentText()
+            control_net_meta.image_source = controlnet_ui.source_image_ui.line_edit.text()
+            control_net_meta.scale = controlnet_ui.scale.spin_box.value()
             control_net_metas.append(control_net_meta)
 
         self.settings.setValue('collection', self.thumbnail_viewer.collection())
@@ -836,12 +869,12 @@ class MainWindow(QMainWindow):
         if image_metadata is not None:
             self.img2img_source_ui.line_edit.setText(image_metadata.img2img_source)
 
-            while len(self.control_net_frames) < len(image_metadata.control_nets):
+            while len(self.controlnet_uis) < len(image_metadata.control_nets):
                 self.on_add_control_net()
             
             for i, control_net_meta in enumerate(image_metadata.control_nets):
-                control_net_frame = self.control_net_frames[i]
-                control_net_frame.source_image_ui.line_edit.setText(control_net_meta.image_source)
+                controlnet_ui = self.controlnet_uis[i]
+                controlnet_ui.source_image_ui.line_edit.setText(control_net_meta.image_source)
 
     def on_use_img2img(self):
         image_metadata = self.get_current_metadata()
@@ -852,15 +885,16 @@ class MainWindow(QMainWindow):
                 self.img2img_strength.spin_box.setValue(image_metadata.img2img_strength)
             else:
                 self.img2img_group_box.setChecked(False)
+                self.img2img_source_ui.line_edit.setText('')
 
     def on_use_controlnet(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            for control_net_frame in self.control_net_frames:
-                self.control_net_group_box_layout.removeWidget(control_net_frame)
-                control_net_frame.setParent(None)
+            for controlnet_ui in self.controlnet_uis:
+                self.control_net_group_box_layout.removeWidget(controlnet_ui.frame)
+                controlnet_ui.frame.setParent(None)
 
-            self.control_net_frames = []
+            self.controlnet_uis = []
 
             if image_metadata.control_net_enabled:
                 self.control_net_group_box.setChecked(True)
@@ -868,9 +902,9 @@ class MainWindow(QMainWindow):
                 self.control_net_guidance_end.spin_box.setValue(image_metadata.control_net_guidance_end)
 
                 for i, control_net_meta in enumerate(image_metadata.control_nets):
-                    control_net_frame = self.create_control_net_frame(control_net_meta)
-                    self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_frame)
-                    self.control_net_frames.append(control_net_frame)
+                    controlnet_ui = self.create_controlnet_ui(control_net_meta)
+                    self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, controlnet_ui.frame)
+                    self.controlnet_uis.append(controlnet_ui)
             else:
                 self.control_net_group_box.setChecked(False)
 

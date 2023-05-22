@@ -1,20 +1,20 @@
 import os
-
 from dataclasses import dataclass
-import torch
 
+import torch
 from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        EulerAncestralDiscreteScheduler, EulerDiscreteScheduler,
                        HeunDiscreteScheduler, LMSDiscreteScheduler,
                        PNDMScheduler, SchedulerMixin, UniPCMultistepScheduler)
-from .processors import (CannyProcessor, DepthProcessor, LineartAnimeProcessor,
-                        LineartCoarseProcessor, LineartProcessor,
-                        MlsdProcessor, NormalBaeProcessor,
-                        OpenposeFullProcessor, OpenposeProcessor, HedProcessor,
-                        ProcessorBase, ScribbleHEDProcessor,
-                        ScribblePIDIProcessor, SegProcessor, ShuffleProcessor,
-                        SoftEdgeHEDProcessor, SoftEdgePIDIProcessor)
-from PySide6.QtCore import QSize, QSettings
+from PySide6.QtCore import QSettings, QSize
+
+from .processors import (CannyProcessor, DepthProcessor, HedProcessor,
+                         LineartAnimeProcessor, LineartCoarseProcessor,
+                         LineartProcessor, MlsdProcessor, NormalBaeProcessor,
+                         OpenposeFullProcessor, OpenposeProcessor,
+                         ProcessorBase, ScribbleHEDProcessor,
+                         ScribblePIDIProcessor, SegProcessor, ShuffleProcessor,
+                         SoftEdgeHEDProcessor, SoftEdgePIDIProcessor)
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
@@ -45,32 +45,41 @@ known_stable_diffusion_models: list[str] = []
 ICON_SIZE = QSize(24, 24)
 font_scale_factor = 1.0
 
-@dataclass
-class ControlNetConfig:
-    repo_id: str
-    subfolder: str
-    preprocessor: ProcessorBase
-
-control_net_models: dict[str, ControlNetConfig] = {
-    'Canny': ControlNetConfig('lllyasviel/control_v11p_sd15_canny', None, CannyProcessor),
-    'Depth Midas': ControlNetConfig('lllyasviel/control_v11f1p_sd15_depth', None, DepthProcessor),
-    # 'Inpaint': ControlNetConfig('lllyasviel/control_v11p_sd15_inpaint', None, None),
-    'Instruct Pix2Pix': ControlNetConfig('lllyasviel/control_v11e_sd15_ip2p', None, None),
-    'Lineart': ControlNetConfig('lllyasviel/control_v11p_sd15_lineart', None, LineartProcessor),
-    'Lineart Coarse': ControlNetConfig('lllyasviel/control_v11p_sd15_lineart', None, LineartCoarseProcessor),
-    'Lineart Anime': ControlNetConfig('lllyasviel/control_v11p_sd15s2_lineart_anime', None, LineartAnimeProcessor),
-    'M-LSD Lines': ControlNetConfig('lllyasviel/control_v11p_sd15_mlsd', None, MlsdProcessor),
-    'Normal BAE': ControlNetConfig('lllyasviel/control_v11p_sd15_normalbae', None, NormalBaeProcessor),
-    'OpenPose': ControlNetConfig('lllyasviel/control_v11p_sd15_openpose', None, OpenposeProcessor),
-    'OpenPose Full': ControlNetConfig('lllyasviel/control_v11p_sd15_openpose', None, OpenposeFullProcessor),
-    'Scribble HED': ControlNetConfig('takuma104/control_v11', 'control_v11p_sd15_scribble', ScribbleHEDProcessor),
-    'Scribble PIDI': ControlNetConfig('takuma104/control_v11', 'control_v11p_sd15_scribble', ScribblePIDIProcessor),
-    'Segmentation': ControlNetConfig('lllyasviel/control_v11p_sd15_seg', None, SegProcessor),
-    'Shuffle': ControlNetConfig('lllyasviel/control_v11e_sd15_shuffle', None, ShuffleProcessor), 
-    'Soft Edge HED': ControlNetConfig('lllyasviel/control_v11p_sd15_softedge', None, SoftEdgeHEDProcessor),
-    'Soft Edge PIDI': ControlNetConfig('lllyasviel/control_v11p_sd15_softedge', None, SoftEdgePIDIProcessor),
-    # 'Tile': ControlNetConfig('lllyasviel/control_v11u_sd15_tile', None, None),
+controlnet_preprocessors: dict[str, ProcessorBase] = {
+    'none': None,
+    'canny': CannyProcessor,
+    'depth_midas': DepthProcessor,
+    'lineart_anime': LineartAnimeProcessor,
+    'lineart_coarse': LineartCoarseProcessor,
+    'lineart_realistic': LineartProcessor,
+    'mlsd': MlsdProcessor,
+    'normal_bae': NormalBaeProcessor,
+    'openpose_full': OpenposeFullProcessor,
+    'openpose': OpenposeProcessor,
+    'scribble_hed': ScribbleHEDProcessor,
+    'scribble_pidinet': ScribblePIDIProcessor,
+    'seg_ofade20k': SegProcessor,
+    'shuffle': ShuffleProcessor,
+    'softedge_hed': SoftEdgeHEDProcessor,
+    'softedge_pidinet': SoftEdgePIDIProcessor,
 }
+
+controlnet_models: list[str] = [
+    'lllyasviel/control_v11p_sd15_canny',
+    'lllyasviel/control_v11f1p_sd15_depth',
+    #'lllyasviel/control_v11p_sd15_inpaint',
+    'lllyasviel/control_v11e_sd15_ip2p',
+    'lllyasviel/control_v11p_sd15_lineart',
+    'lllyasviel/control_v11p_sd15s2_lineart_anime',
+    'lllyasviel/control_v11p_sd15_mlsd',
+    'lllyasviel/control_v11p_sd15_normalbae',
+    'lllyasviel/control_v11p_sd15_openpose',
+    'lllyasviel/control_v11p_sd15_scribble',
+    'lllyasviel/control_v11p_sd15_seg',
+    'lllyasviel/control_v11e_sd15_shuffle',
+    'lllyasviel/control_v11p_sd15_softedge',
+    #'lllyasviel/control_v11u_sd15_tile',
+]
 
 schedulers: dict[str, SchedulerMixin] = {
     'ddim': DDIMScheduler,

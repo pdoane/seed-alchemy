@@ -9,9 +9,9 @@ from . import configuration, utils
 
 @dataclass
 class ControlNetMetadata:
-    name: str = ''
+    model: str = ''
     image_source: str = ''
-    preprocess: bool = True
+    preprocessor: str = None
     scale: float = 1.0
 
     def to_dict(self):
