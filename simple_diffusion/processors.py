@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
-from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector,
+from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector, ZoeDetector,
                             LineartAnimeDetector, LineartDetector,
                             MidasDetector, MLSDdetector, NormalBaeDetector,
                             OpenposeDetector, PidiNetDetector)
@@ -34,7 +34,7 @@ class CannyProcessor(ProcessorBase):
         image = self.canny(image, self.low_threshold, self.high_threshold)
         return image
 
-class DepthProcessor(ProcessorBase):
+class DepthMidasProcessor(ProcessorBase):
     bg_th=0.1
 
     def __init__(self) -> None:
@@ -47,6 +47,17 @@ class DepthProcessor(ProcessorBase):
         image = self.midas(image, bg_th=self.bg_th)
         return image
     
+class DepthZoeProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.zoe = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.zoe is None:
+            self.zoe = ZoeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.zoe(image)
+        return image
+
 class LineartProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
@@ -89,17 +100,6 @@ class NormalBaeProcessor(ProcessorBase):
         if self.normal_bae is None:
             self.normal_bae = NormalBaeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.normal_bae(image)
-        return image
-
-class HedProcessor(ProcessorBase):
-    def __init__(self) -> None:
-        super().__init__()
-        self.hed = None
-
-    def __call__(self, image: Image.Image) -> Image.Image:
-        if self.hed is None:
-            self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
-        image = self.hed(image)
         return image
 
 class MlsdProcessor(ProcessorBase):
@@ -202,6 +202,17 @@ class SoftEdgeHEDProcessor(ProcessorBase):
         image = self.hed(image)
         return image
 
+class SoftEdgeHEDSafeProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.hed = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.hed is None:
+            self.hed = HEDdetector.from_pretrained('lllyasviel/Annotators')
+        image = self.hed(image, safe=True)
+        return image
+
 class SoftEdgePIDIProcessor(ProcessorBase):
     def __init__(self) -> None:
         super().__init__()
@@ -211,6 +222,17 @@ class SoftEdgePIDIProcessor(ProcessorBase):
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
         image = self.pidi(image)
+        return image
+
+class SoftEdgePIDISafeProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.pidi = None
+
+    def __call__(self, image: Image.Image) -> Image.Image:
+        if self.pidi is None:
+            self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.pidi(image, safe=True)
         return image
 
 class ESRGANProcessor(ProcessorBase):

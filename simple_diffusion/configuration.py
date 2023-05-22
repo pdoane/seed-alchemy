@@ -8,13 +8,15 @@ from diffusers import (DDIMScheduler, DDPMScheduler, DEISMultistepScheduler,
                        PNDMScheduler, SchedulerMixin, UniPCMultistepScheduler)
 from PySide6.QtCore import QSettings, QSize
 
-from .processors import (CannyProcessor, DepthProcessor, HedProcessor,
-                         LineartAnimeProcessor, LineartCoarseProcessor,
-                         LineartProcessor, MlsdProcessor, NormalBaeProcessor,
+from .processors import (CannyProcessor, DepthMidasProcessor,
+                         DepthZoeProcessor, LineartAnimeProcessor,
+                         LineartCoarseProcessor, LineartProcessor,
+                         MlsdProcessor, NormalBaeProcessor,
                          OpenposeFullProcessor, OpenposeProcessor,
                          ProcessorBase, ScribbleHEDProcessor,
                          ScribblePIDIProcessor, SegProcessor, ShuffleProcessor,
-                         SoftEdgeHEDProcessor, SoftEdgePIDIProcessor)
+                         SoftEdgeHEDProcessor, SoftEdgeHEDSafeProcessor,
+                         SoftEdgePIDIProcessor, SoftEdgePIDISafeProcessor)
 
 APP_NAME = 'SimpleDiffusion'
 APP_VERSION = 0.1
@@ -48,7 +50,8 @@ font_scale_factor = 1.0
 controlnet_preprocessors: dict[str, ProcessorBase] = {
     'none': None,
     'canny': CannyProcessor,
-    'depth_midas': DepthProcessor,
+    'depth_midas': DepthMidasProcessor,
+    'depth_zoe': DepthZoeProcessor,
     'lineart_anime': LineartAnimeProcessor,
     'lineart_coarse': LineartCoarseProcessor,
     'lineart_realistic': LineartProcessor,
@@ -61,7 +64,9 @@ controlnet_preprocessors: dict[str, ProcessorBase] = {
     'seg_ofade20k': SegProcessor,
     'shuffle': ShuffleProcessor,
     'softedge_hed': SoftEdgeHEDProcessor,
+    'softedge_hedsafe': SoftEdgeHEDSafeProcessor,
     'softedge_pidinet': SoftEdgePIDIProcessor,
+    'softedge_pidsafe': SoftEdgePIDISafeProcessor,
 }
 
 controlnet_models: list[str] = [
