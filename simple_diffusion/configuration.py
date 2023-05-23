@@ -86,7 +86,7 @@ control_net_preprocessors_to_models: dict[str, list[str]] = {
     'lineart_anime': ['control_v11p_sd15s2_lineart_anime'],
     'lineart_coarse': ['control_v11p_sd15_lineart'],
     'lineart_realistic': ['control_v11p_sd15_lineart'],
-    'mediapipe_face': ['control_v2p_sd21_mediapipe_face'],
+    'mediapipe_face': ['control_v2p_sd15_mediapipe_face'],
     'mlsd': ['control_v11p_sd15_mlsd','control_sd15_mlsd'],
     'normal_bae': ['control_v11p_sd15_normalbae'],
     'normal_midas': ['control_sd15_normal'],
@@ -136,7 +136,7 @@ control_net_models: dict[str, ControlNetModel] = {
     'control_v11p_sd15_softedge': ControlNetModel(repo_id='lllyasviel/control_v11p_sd15_softedge'),
     #'control_v11u_sd15_tile': ControlNetModel(repo_id='lllyasviel/control_v11u_sd15_tile'),
 
-    'control_v2p_sd21_mediapipe_face': ControlNetModel(repo_id='CrucibleAI/ControlNetMediaPipeFace', subfolder='diffusion_sd15')
+    'control_v2p_sd15_mediapipe_face': ControlNetModel(repo_id='CrucibleAI/ControlNetMediaPipeFace', subfolder='diffusion_sd15')
 }
 
 control_net_v10_models: list[str] = [
@@ -168,7 +168,7 @@ control_net_v11_models: list[str] = [
 ]
 
 control_net_mediapipe_v2_models: list[str] = {
-    'control_v2p_sd21_mediapipe_face'
+    'control_v2p_sd15_mediapipe_face'
 }
 
 schedulers: dict[str, SchedulerMixin] = {

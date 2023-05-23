@@ -46,8 +46,8 @@ class ControlNetUI:
     model_combo_box: ComboBox
     preprocessor_combo_box: ComboBox
     source_image_ui: SourceImageUI
-    int_params: list[IntSliderSpinBox] 
-    float_params: list[FloatSliderSpinBox] 
+    params_layout_index: int
+    params: list[QWidget]
     scale: FloatSliderSpinBox
 
 class MainWindow(QMainWindow):
@@ -65,6 +65,7 @@ class MainWindow(QMainWindow):
         self.image_history.current_image_changed.connect(self.on_current_image_changed)
         self.thumbnail_loader = ThumbnailLoader()
 
+        self.scheduled_update = False
         self.generate_thread = None
         self.active_thread_count = 0
 
@@ -191,12 +192,12 @@ class MainWindow(QMainWindow):
         self.config_frame = QFrame()
         self.config_frame.setContentsMargins(0, 0, 2, 0)
 
-        config_scroll_area = ScrollArea()
-        config_scroll_area.setFrameStyle(QFrame.NoFrame)
-        config_scroll_area.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
-        config_scroll_area.setWidgetResizable(True)
-        config_scroll_area.setWidget(self.config_frame)
-        config_scroll_area.setFocusPolicy(Qt.NoFocus)
+        self.config_scroll_area = ScrollArea()
+        self.config_scroll_area.setFrameStyle(QFrame.NoFrame)
+        self.config_scroll_area.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+        self.config_scroll_area.setWidgetResizable(True)
+        self.config_scroll_area.setWidget(self.config_frame)
+        self.config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
         # Model
         model_label = QLabel('Stable Diffusion Model')
@@ -476,7 +477,7 @@ class MainWindow(QMainWindow):
 
         config_vlayout = QVBoxLayout()
         config_vlayout.addLayout(generate_hlayout)
-        config_vlayout.addWidget(config_scroll_area)
+        config_vlayout.addWidget(self.config_scroll_area)
 
         hlayout = QHBoxLayout()
         hlayout.setContentsMargins(8, 2, 8, 8)
@@ -498,6 +499,22 @@ class MainWindow(QMainWindow):
         selected_image = self.thumbnail_viewer.list_widget.selected_image()
         if selected_image is not None:
             self.image_history.visit(selected_image)
+
+    def update_config_frame_size(self):
+        if not self.scheduled_update:
+            self.scheduled_update = True
+            QTimer.singleShot(0, self.deferred_size_update)
+    
+    def deferred_size_update(self):
+        self.scheduled_update = False
+        self.config_frame.adjustSize()
+
+        # Workaround QT issue where the size of QScrollArea.widget() is cached and not updated
+        scroll_pos = self.config_scroll_area.verticalScrollBar().value()
+        self.config_scroll_area.takeWidget()
+        self.config_scroll_area.setWidget(self.config_frame)
+        self.config_scroll_area.updateGeometry()
+        self.config_scroll_area.verticalScrollBar().setValue(scroll_pos)
 
     def get_current_metadata(self):
         if self.override_metadata is not None:
@@ -612,16 +629,7 @@ class MainWindow(QMainWindow):
         preview_preprocessor_button.setToolTip('Preview')
         preview_preprocessor_button.clicked.connect(lambda: self.on_control_net_preview_preprocessor_button_clicked(control_net_ui))
 
-        control_net_ui.int_params = []
-        control_net_ui.float_params = []
-        for i in range(2):
-            control_net_ui.int_params.append(IntSliderSpinBox('', 0))
-            control_net_ui.float_params.append(FloatSliderSpinBox('', 0))
-
         control_net_ui.scale = FloatSliderSpinBox('Scale', control_net_meta.scale, maximum=2.0)
-
-        control_net_ui.preprocessor_combo_box.setCurrentText(control_net_meta.preprocessor)
-        self.set_control_net_param_values(control_net_ui, control_net_meta)
 
         model_vlayout = QVBoxLayout()
         model_vlayout.setContentsMargins(0, 0, 0, 0)
@@ -645,11 +653,13 @@ class MainWindow(QMainWindow):
         control_net_layout.addLayout(preprocessor_vlayout)
         control_net_layout.addLayout(model_vlayout)
         control_net_layout.addWidget(control_net_ui.source_image_ui.frame)
-        for param in control_net_ui.int_params:
-            control_net_layout.addWidget(param)
-        for param in control_net_ui.float_params:
-            control_net_layout.addWidget(param)
+        control_net_ui.params_layout_index = control_net_layout.count()
         control_net_layout.addWidget(control_net_ui.scale)
+
+        control_net_ui.params = []
+        control_net_ui.preprocessor_combo_box.setCurrentText(control_net_meta.preprocessor)
+        self.set_control_net_param_values(control_net_ui, control_net_meta)
+
         return control_net_ui
     
     def populate_set_as_source_menu(self):
@@ -709,7 +719,7 @@ class MainWindow(QMainWindow):
         control_net_ui = self.create_control_net_ui(control_net_meta)
         self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_ui.frame)
         self.control_net_uis.append(control_net_ui)
-        self.config_frame.adjustSize()
+        self.update_config_frame_size()
         return control_net_ui
 
     def on_remove_control_net(self, control_net_ui: ControlNetUI):
@@ -717,83 +727,53 @@ class MainWindow(QMainWindow):
         del self.control_net_uis[index]
         self.control_net_group_box_layout.removeWidget(control_net_ui.frame)
         control_net_ui.frame.setParent(None)
-        self.config_frame.adjustSize()
+        self.update_config_frame_size()
 
     def on_thumbnail_loaded(self, source_image_ui, pixmap):
         source_image_ui.label.setPixmap(pixmap)
 
     def get_control_net_param_values(self, control_net_ui: ControlNetUI) -> list[float]:
+        result = []
+
         preprocessor = control_net_ui.preprocessor_combo_box.currentText()
         preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
-        if not preprocessor_type:
-            return []
-
-        int_index = 0
-        float_index = 0
-        result = []
-        for param in preprocessor_type.params:
-            if param.type == int:
-                param_ui = control_net_ui.int_params[int_index]
-                int_index += 1
-            elif param.type == float:
-                param_ui = control_net_ui.float_params[float_index]
-                float_index += 1
-            else:
-                raise RuntimeError('Fatal error: Invalid type')
-
-            result.append(param_ui.spin_box.value())
+        if preprocessor_type:
+            for param_ui in control_net_ui.params:
+                result.append(param_ui.spin_box.value())
 
         return result
 
     def set_control_net_param_values(self, control_net_ui: ControlNetUI, control_net_meta: ControlNetMetadata) -> None:
         preprocessor = control_net_ui.preprocessor_combo_box.currentText()
         preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
-        if not preprocessor_type:
-            return
-
-        int_index = 0
-        float_index = 0
-        for i, param in enumerate(preprocessor_type.params):
-            if param.type == int:
-                param_ui = control_net_ui.int_params[int_index]
-                int_index += 1
-            elif param.type == float:
-                param_ui = control_net_ui.float_params[float_index]
-                float_index += 1
-            else:
-                raise RuntimeError('Fatal error: Invalid type')
-            
-            value = utils.list_get(control_net_meta.params, i)
-            if value:
-                param_ui.spin_box.setValue(value)
+        if preprocessor_type:
+            for i, param_ui in enumerate(control_net_ui.params):
+                value = utils.list_get(control_net_meta.params, i)
+                if value:
+                    param_ui.spin_box.setValue(value)
 
     def on_control_net_preprocessor_combo_box_changed(self, control_net_ui: ControlNetUI, text: str):
-        for param in control_net_ui.int_params:
-            param.setVisible(False)
-        for param in control_net_ui.float_params:
-            param.setVisible(False)
+        layout = control_net_ui.frame.layout()
+        for param in control_net_ui.params:
+            layout.removeWidget(param)
+            param.setParent(None)
+
+        control_net_ui.params = []
 
         preprocessor_type = configuration.control_net_preprocessors.get(text)
-        if not preprocessor_type:
-            return
+        if preprocessor_type:
+            for i, param in enumerate(preprocessor_type.params):
+                if param.type == int:
+                    param_ui = IntSliderSpinBox(param.name, param.value, param.min, param.max, param.step)
+                elif param.type == float:
+                    param_ui = FloatSliderSpinBox(param.name, param.value, param.min, param.max, param.step)
+                else:
+                    raise RuntimeError('Fatal error: Invalid type')
 
-        int_index = 0
-        float_index = 0
+                layout.insertWidget(control_net_ui.params_layout_index + i, param_ui)
+                control_net_ui.params.append(param_ui)
 
-        for param in preprocessor_type.params:
-            if param.type == int:
-                param_ui = control_net_ui.int_params[int_index]
-                int_index += 1
-            elif param.type == float:
-                param_ui = control_net_ui.float_params[float_index]
-                float_index += 1
-            else:
-                raise RuntimeError('Fatal error: Invalid type')
-
-            param_ui.setVisible(True)
-            param_ui.set_all(param.name, param.value, param.min, param.max, param.step)
-
-        self.config_frame.adjustSize()
+        self.update_config_frame_size()
 
     def on_control_net_sync_button_clicked(self, control_net_ui: ControlNetUI):
         preprocessor = control_net_ui.preprocessor_combo_box.currentText()
@@ -1034,6 +1014,8 @@ class MainWindow(QMainWindow):
                     self.control_net_uis.append(control_net_ui)
             else:
                 self.control_net_group_box.setChecked(False)
+
+            self.update_config_frame_size()
 
     def on_use_post_processing(self):
         image_metadata = self.get_current_metadata()
