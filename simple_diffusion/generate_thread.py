@@ -105,7 +105,7 @@ class GenerateThread(QThread):
                 full_path = os.path.join(configuration.IMAGES_PATH, source_path)
                 with Image.open(full_path) as image:
                     image = image.convert('RGB')
-                    image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+                    image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS)
                     controlnet_conditioning_image = image.copy()
 
                 if control_net_meta.preprocessor is not None:
@@ -145,7 +145,7 @@ class GenerateThread(QThread):
             images = [self.req.source_image]
         else:
             if self.req.source_image is not None:
-                self.req.source_image = self.req.source_image.resize((self.req.image_metadata.width, self.req.image_metadata.height))
+                self.req.source_image = self.req.source_image.resize((self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS)
             images = pipeline(self.req)
 
         for image in images:
@@ -178,7 +178,7 @@ class GenerateThread(QThread):
                 if i == 0 and self.req.image_metadata.high_res_enabled:
                     high_res_width = align_down(int(self.req.image_metadata.width * self.req.image_metadata.high_res_factor), 8)
                     high_res_height = align_down(int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8)
-                    source_image = image.resize((high_res_width, high_res_height))
+                    source_image = image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
 
                     high_res_req = GenerateRequest()
                     high_res_req.image_metadata = ImageMetadata()
@@ -198,7 +198,7 @@ class GenerateThread(QThread):
                     if self.req.image_metadata.control_net_enabled:
                         high_res_req.controlnet_conditioning_images = []
                         for controlnet_conditioning_image in self.req.controlnet_conditioning_images:
-                            controlnet_conditioning_image = controlnet_conditioning_image.resize((high_res_width, high_res_height))
+                            controlnet_conditioning_image = controlnet_conditioning_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
                             high_res_req.controlnet_conditioning_images.append(controlnet_conditioning_image)
 
                         high_res_req.image_metadata.control_net_enabled = True

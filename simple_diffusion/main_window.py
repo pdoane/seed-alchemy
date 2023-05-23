@@ -824,7 +824,7 @@ class MainWindow(QMainWindow):
         full_path = os.path.join(configuration.IMAGES_PATH, source_path)
         with Image.open(full_path) as image:
             image = image.convert('RGB')
-            image = image.resize((width, height))
+            image = image.resize((width, height), Image.Resampling.LANCZOS)
             source_image = image.copy()
 
         preprocessor_type = configuration.control_net_preprocessors[control_net_ui.preprocessor_combo_box.currentText()]

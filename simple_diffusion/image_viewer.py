@@ -235,8 +235,8 @@ class ImageViewer(QWidget):
 
         use_preview_image = self.preview_image is not None and self.show_preview
         image = self.preview_image if use_preview_image else self.image
-        image_width = image.width() if image else 1
-        image_height = image.height() if image else 1
+        image_width = image.width if image else 1
+        image_height = image.height if image else 1
 
         width = image_width
         height = image_height
@@ -250,7 +250,8 @@ class ImageViewer(QWidget):
             width = int(image_width * (height / image_height))
 
         if image is not None:
-            pixmap = QPixmap.fromImage(image).scaled(width, height, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            resized_image = image.resize((width, height), Image.Resampling.LANCZOS)
+            pixmap = QPixmap.fromImage(utils.pil_to_qimage(resized_image))
             self.label.setPixmap(pixmap)
 
         x = (widget_width - width) // 2
@@ -268,7 +269,7 @@ class ImageViewer(QWidget):
                 self.metadata.load_from_image(image)
 
                 self.image_path_ = path
-                self.image = utils.pil_to_qimage(image)
+                self.image = image.copy()
         except (IOError, OSError):
             self.image_path_ = ''
             self.image = None
@@ -281,7 +282,7 @@ class ImageViewer(QWidget):
 
     def set_preview_image(self, preview_image):
         if preview_image is not None:
-            self.preview_image = utils.pil_to_qimage(preview_image)
+            self.preview_image = preview_image
         else:
             self.preview_image = None
         self.update_images()

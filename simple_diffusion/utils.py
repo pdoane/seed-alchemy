@@ -92,7 +92,7 @@ def create_thumbnail(image, max_size):
         new_height = thumbnail_size
         new_width = int(thumbnail_size * aspect_ratio)
 
-    scaled_image = image.resize((new_width, new_height), Image.ANTIALIAS)
+    scaled_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     thumbnail = Image.new('RGBA', (thumbnail_size, thumbnail_size), (0, 0, 0, 0))
     position = ((thumbnail_size - new_width) // 2, (thumbnail_size - new_height) // 2)
     thumbnail.paste(scaled_image, position)

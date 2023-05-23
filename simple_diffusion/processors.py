@@ -433,7 +433,7 @@ class ESRGANProcessor(ProcessorBase):
 
         if self.blend_strength < 1.0:
             if image2.size != image.size:
-                image = image.resize(image2.size)
+                image = image.resize(image2.size, Image.Resampling.LANCZOS)
             image = Image.blend(image, image2, self.blend_strength)
         else:
             image = image2
@@ -509,7 +509,7 @@ class GFPGANProcessor(ProcessorBase):
         # Blend with upscaled image
         if self.blend_strength < 1.0:
             if image2.size != image.size:
-                image = image.resize(image2.size)
+                image = image.resize(image2.size, Image.Resampling.LANCZOS)
             image = Image.blend(image, image2, self.blend_strength)
         else:
             image = image2
