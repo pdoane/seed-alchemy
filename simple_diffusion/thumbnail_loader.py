@@ -46,15 +46,11 @@ class ThumbnailRunnable(QRunnable):
         self.signals.thumbnail_loaded.emit(image_path, pixmap)
         self.signals.thumbnail_loaded.disconnect(callback)
 
-        with QMutexLocker(self.loader.mutex):
-            self.loader.pending.remove(image_path)
-
 class ThumbnailLoader(QObject):
     def __init__(self):
         super().__init__()
         self.thread_pool = QThreadPool()
         self.requests = deque()
-        self.pending = set()
         self.mutex = QMutex()
         self.wait_condition = QWaitCondition()
         self.is_shutting_down = False
@@ -71,7 +67,5 @@ class ThumbnailLoader(QObject):
 
     def get(self, image_path, max_size, callback):
         with QMutexLocker(self.mutex):
-            if image_path not in self.pending:
-                self.pending.add(image_path)
-                self.requests.append((image_path, max_size, callback))
-                self.wait_condition.wakeOne()
+            self.requests.append((image_path, max_size, callback))
+            self.wait_condition.wakeOne()

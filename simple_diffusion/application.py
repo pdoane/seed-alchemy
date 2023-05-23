@@ -63,8 +63,9 @@ class Application(QApplication):
         self.set_default_setting('high_res_noise', 0.5)
         self.set_default_setting('high_res_steps', 30)
 
-        self.set_default_setting('huggingface_controlnet10', False)
-        self.set_default_setting('huggingface_controlnet11', True)
+        self.set_default_setting('install_control_net_v10', 'False')
+        self.set_default_setting('install_control_net_v11', 'True')
+        self.set_default_setting('install_control_net_mediapipe_v2', 'True')
         self.set_default_setting('huggingface_models', ['runwayml/stable-diffusion-v1-5'])
 
         configuration.load_from_settings(self.settings)

@@ -1,14 +1,17 @@
 import os
 import warnings
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 
+import cv2
 import numpy as np
 import torch
-from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector, ZoeDetector,
+from controlnet_aux import (CannyDetector, ContentShuffleDetector, HEDdetector,
                             LineartAnimeDetector, LineartDetector,
-                            MidasDetector, MLSDdetector, NormalBaeDetector,
-                            OpenposeDetector, PidiNetDetector)
-from controlnet_aux import util as controlnet_utils
+                            MediapipeFaceDetector, MidasDetector, MLSDdetector,
+                            NormalBaeDetector, OpenposeDetector,
+                            PidiNetDetector, ZoeDetector)
+from controlnet_aux.util import HWC3, ade_palette, resize_image
 from PIL import Image
 from transformers import AutoImageProcessor, UperNetForSemanticSegmentation
 
@@ -16,11 +19,27 @@ from . import configuration, utils
 
 
 class ProcessorBase(ABC):
+    params = []
+
     @abstractmethod
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         pass
 
+@dataclass
+class ProcessorParameter:
+    type: type
+    name: str
+    min: float
+    max: float
+    value: float
+    step: float = 1
+
 class CannyProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=int, name='Low', min=1, max=255, value=100),
+        ProcessorParameter(type=int, name='High', min=1, max=255, value=200),
+    ]
+
     def __init__(self) -> None:
         super().__init__()
         self.canny = None
@@ -85,6 +104,39 @@ class LineartAnimeProcessor(ProcessorBase):
             self.lineart_anime = LineartAnimeDetector.from_pretrained('lllyasviel/Annotators')
         image = self.lineart_anime(image)
         return image
+    
+class MediapipeFaceProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=int, name='Max Faces', min=1, max=10, value=1),
+        ProcessorParameter(type=float, name='Confidence', min=0.01, max=1.0, value=0.5, step=0.01),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.face_detector = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.face_detector is None:
+            self.face_detector = MediapipeFaceDetector()
+        image = self.face_detector(image, max_faces=params[0], min_confidence=params[1])
+        return image
+
+
+class MlsdProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=float, name='Value', min=0.01, max=2.0, value=0.1, step=0.01),
+        ProcessorParameter(type=float, name='Distance', min=0.01, max=20.0, value=0.1, step=0.01),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.mlsd = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.mlsd is None:
+            self.mlsd = MLSDdetector.from_pretrained('lllyasviel/Annotators')
+        image = self.mlsd(image, thr_v=params[0], thr_d=params[1])
+        return image
 
 class NormalBaeProcessor(ProcessorBase):
     def __init__(self) -> None:
@@ -98,6 +150,10 @@ class NormalBaeProcessor(ProcessorBase):
         return image
 
 class NormalMidasProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=float, name='Background', min=0.0, max=1.0, value=0.4, step=0.01)
+    ]
+
     def __init__(self) -> None:
         super().__init__()
         self.midas = None
@@ -106,17 +162,6 @@ class NormalMidasProcessor(ProcessorBase):
         if self.midas is None:
             self.midas = MidasDetector.from_pretrained('lllyasviel/Annotators')
         _,image = self.midas(image, bg_th=params[0], depth_and_normal=True)
-        return image
-    
-class MlsdProcessor(ProcessorBase):
-    def __init__(self) -> None:
-        super().__init__()
-        self.mlsd = None
-
-    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
-        if self.mlsd is None:
-            self.mlsd = MLSDdetector.from_pretrained('lllyasviel/Annotators')
-        image = self.mlsd(image, params[0], params[1])
         return image
 
 class OpenposeProcessor(ProcessorBase):
@@ -127,7 +172,29 @@ class OpenposeProcessor(ProcessorBase):
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
-        image = self.openpose(image)
+        image = self.openpose(image, include_body=True, include_hand=False, include_face=False)
+        return image
+
+class OpenposeFaceProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.openpose = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.openpose is None:
+            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.openpose(image, include_body=True, include_hand=False, include_face=True)
+        return image
+
+class OpenposeFaceOnlyProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.openpose = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.openpose is None:
+            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.openpose(image, include_body=False, include_hand=False, include_face=True)
         return image
 
 class OpenposeFullProcessor(ProcessorBase):
@@ -138,7 +205,18 @@ class OpenposeFullProcessor(ProcessorBase):
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
-        image = self.openpose(image, hand_and_face=True)
+        image = self.openpose(image, include_body=True, include_hand=True, include_face=True)
+        return image
+
+class OpenposeHandProcessor(ProcessorBase):
+    def __init__(self) -> None:
+        super().__init__()
+        self.openpose = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.openpose is None:
+            self.openpose = OpenposeDetector.from_pretrained('lllyasviel/Annotators')
+        image = self.openpose(image, include_body=True, include_hand=True, include_face=False)
         return image
 
 class ScribbleHEDProcessor(ProcessorBase):
@@ -162,6 +240,30 @@ class ScribblePIDIProcessor(ProcessorBase):
             self.pidi = PidiNetDetector.from_pretrained('lllyasviel/Annotators')
         image = self.pidi(image, scribble=True)
         return image
+    
+class ScribbleXDoGProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=int, name='Threshold', min=1, max=64, value=32)
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        thr = params[0]
+
+        img = np.array(image)
+        img = HWC3(img)
+
+        g1 = cv2.GaussianBlur(img.astype(np.float32), (0, 0), 0.5)
+        g2 = cv2.GaussianBlur(img.astype(np.float32), (0, 0), 5.0)
+        dog = (255 - np.min(g2 - g1, axis=2)).clip(0, 255).astype(np.uint8)
+        result = np.zeros_like(img, dtype=np.uint8)
+        result[2 * (255 - dog) > thr] = 255
+
+        img = Image.fromarray(result)
+        img = img.convert("RGB")
+        return img
 
 class ShuffleProcessor(ProcessorBase):
     def __init__(self) -> None:
@@ -190,7 +292,7 @@ class SegProcessor(ProcessorBase):
             outputs = self.image_segmentor(pixel_values)
         seg = self.image_processor.post_process_semantic_segmentation(outputs, target_sizes=[image.size[::-1]])[0]
         color_seg = np.zeros((seg.shape[0], seg.shape[1], 3), dtype=np.uint8)
-        palette = np.array(controlnet_utils.ade_palette())
+        palette = np.array(ade_palette())
         for label, color in enumerate(palette):
             color_seg[seg == label, :] = color
         color_seg = color_seg.astype(np.uint8)

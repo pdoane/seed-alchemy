@@ -38,8 +38,6 @@ A native UI for Stable Diffusion using the `diffusers` library.
 ### Roadmap
 
 Near-term:
-- Openpose variants
-- Scribble extended difference of gaussians
 - Inpainting
 - Collapsing panels in UI
 
@@ -48,7 +46,6 @@ Evaluate:
 - MultiDiffusion
 - Long Prompt Weighting
 - ControlNet Control Mode (previously Guess Mode)
-- ControlNet Mediapipe Face
 - ControlNet Reference-Only control
 - ControlNet T2I-Adapter
 - ControlNet High-resolution control image sampling

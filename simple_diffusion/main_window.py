@@ -347,7 +347,6 @@ class MainWindow(QMainWindow):
         self.control_net_dynamic_index = self.control_net_group_box_layout.count()
         self.control_net_group_box_layout.addWidget(self.control_net_add_button)
 
-        print(json.loads(settings.value('control_nets')))
         control_net_metas = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value('control_nets'))]
         for i, control_net_meta in enumerate(control_net_metas):
             control_net_ui = self.create_control_net_ui(control_net_meta)
@@ -583,13 +582,16 @@ class MainWindow(QMainWindow):
         model_label.setAlignment(Qt.AlignCenter)
         control_net_ui.model_combo_box = ComboBox()
         control_net_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        if self.settings.value('huggingface_controlnet11', type=bool):
-            for repo_id in configuration.control_net11_models:
-                control_net_ui.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
-        if self.settings.value('huggingface_controlnet10', type=bool):
-            for repo_id in configuration.control_net10_models:
-                control_net_ui.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
-        utils.set_current_data(control_net_ui.model_combo_box, control_net_meta.model)
+
+        control_net_models = []
+        if self.settings.value('install_control_net_v10', type=bool):
+            control_net_models += configuration.control_net_v0_models
+        if self.settings.value('install_control_net_v11', type=bool):
+            control_net_models += configuration.control_net_v11_models
+        if self.settings.value('install_control_net_mediapipe_v2', type=bool):
+            control_net_models += configuration.control_net_mediapipe_v2_models
+        control_net_ui.model_combo_box.addItems(sorted(control_net_models))
+        control_net_ui.model_combo_box.setCurrentText(control_net_meta.model)
 
         preprocessor_label = QLabel('Preprocessor')
         preprocessor_label.setAlignment(Qt.AlignCenter)
@@ -722,12 +724,14 @@ class MainWindow(QMainWindow):
 
     def get_control_net_param_values(self, control_net_ui: ControlNetUI) -> list[float]:
         preprocessor = control_net_ui.preprocessor_combo_box.currentText()
-        params = configuration.control_net_parameters.get(preprocessor, [])
+        preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
+        if not preprocessor_type:
+            return []
+
         int_index = 0
         float_index = 0
-
         result = []
-        for param in params:
+        for param in preprocessor_type.params:
             if param.type == int:
                 param_ui = control_net_ui.int_params[int_index]
                 int_index += 1
@@ -743,11 +747,13 @@ class MainWindow(QMainWindow):
 
     def set_control_net_param_values(self, control_net_ui: ControlNetUI, control_net_meta: ControlNetMetadata) -> None:
         preprocessor = control_net_ui.preprocessor_combo_box.currentText()
-        params = configuration.control_net_parameters.get(preprocessor, [])
+        preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
+        if not preprocessor_type:
+            return
+
         int_index = 0
         float_index = 0
-
-        for i, param in enumerate(params):
+        for i, param in enumerate(preprocessor_type.params):
             if param.type == int:
                 param_ui = control_net_ui.int_params[int_index]
                 int_index += 1
@@ -762,17 +768,19 @@ class MainWindow(QMainWindow):
                 param_ui.spin_box.setValue(value)
 
     def on_control_net_preprocessor_combo_box_changed(self, control_net_ui: ControlNetUI, text: str):
-        params = configuration.control_net_parameters.get(text, [])
-
         for param in control_net_ui.int_params:
             param.setVisible(False)
         for param in control_net_ui.float_params:
             param.setVisible(False)
 
+        preprocessor_type = configuration.control_net_preprocessors.get(text)
+        if not preprocessor_type:
+            return
+
         int_index = 0
         float_index = 0
 
-        for param in params:
+        for param in preprocessor_type.params:
             if param.type == int:
                 param_ui = control_net_ui.int_params[int_index]
                 int_index += 1
@@ -792,7 +800,7 @@ class MainWindow(QMainWindow):
         models = configuration.control_net_preprocessors_to_models.get(preprocessor, [])
         found = False
         for model in models:
-            index = control_net_ui.model_combo_box.findData(model)
+            index = control_net_ui.model_combo_box.findText(model)
             if index != -1:
                 control_net_ui.model_combo_box.setCurrentIndex(index)
                 found = True
@@ -843,7 +851,7 @@ class MainWindow(QMainWindow):
         control_net_metas = []
         for control_net_ui in self.control_net_uis:
             control_net_meta = ControlNetMetadata()
-            control_net_meta.model = control_net_ui.model_combo_box.currentData()
+            control_net_meta.model = control_net_ui.model_combo_box.currentText()
             control_net_meta.preprocessor = control_net_ui.preprocessor_combo_box.currentText()
             control_net_meta.image_source = control_net_ui.source_image_ui.line_edit.text()
             control_net_meta.params = self.get_control_net_param_values(control_net_ui)
