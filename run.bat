@@ -1,3 +1,3 @@
 call .venv\Scripts\activate.bat
-python -m simple_diffusion.main
+python -m seed_alchemy.main
 call .venv\Scripts\deactivate.bat

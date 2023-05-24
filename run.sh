@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
 source .venv/bin/activate
-python -m simple_diffusion.main
+python -m seed_alchemy.main

@@ -2,7 +2,7 @@
 
 ![Logo](docs/logo.webp)
 
-# Seed Alchemy: AI Image Generation
+# SeedAlchemy: AI Image Generation
 
 ![Screenshot](docs/screenshot.webp)
 

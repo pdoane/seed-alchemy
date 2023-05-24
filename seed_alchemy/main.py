@@ -21,7 +21,7 @@ def main():
     parser.add_argument('--root')
     args = parser.parse_args()
 
-    configuration.set_resources_path(os.path.join(os.getcwd(), 'simple_diffusion/resources'))
+    configuration.set_resources_path(os.path.join(os.getcwd(), 'seed_alchemy/resources'))
     if args.root:
         os.chdir(os.path.expanduser(args.root))
 

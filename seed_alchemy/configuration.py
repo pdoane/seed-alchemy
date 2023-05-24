@@ -21,7 +21,7 @@ from .processors import (CannyProcessor, DepthMidasProcessor,
                          SoftEdgeHEDProcessor, SoftEdgeHEDSafeProcessor,
                          SoftEdgePIDIProcessor, SoftEdgePIDISafeProcessor)
 
-APP_NAME = 'SimpleDiffusion'
+APP_NAME = 'SeedAlchemy'
 APP_VERSION = 0.1
 
 IMAGES_PATH = 'images'
