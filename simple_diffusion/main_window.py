@@ -322,7 +322,7 @@ class MainWindow(QMainWindow):
 
         # Image to Image
         self.img2img_source_ui = self.create_source_image_ui(self.settings.value('img2img_source', type=str))
-        self.img2img_strength = FloatSliderSpinBox('Strength', float(self.settings.value('img2img_strength')))
+        self.img2img_noise = FloatSliderSpinBox('Noise', float(self.settings.value('img2img_noise')))
 
         self.img2img_group_box = QGroupBox('Image to Image')
         self.img2img_group_box.setCheckable(True)
@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
 
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
         img2img_group_box_layout.addWidget(self.img2img_source_ui.frame)
-        img2img_group_box_layout.addWidget(self.img2img_strength)
+        img2img_group_box_layout.addWidget(self.img2img_noise)
 
         # ControlNet
         self.control_net_guidance_start = FloatSliderSpinBox('Guidance Start', float(self.settings.value('control_net_guidance_start')))
@@ -853,7 +853,7 @@ class MainWindow(QMainWindow):
         self.settings.setValue('height', self.height_spin_box.value())
         self.settings.setValue('img2img_enabled', self.img2img_group_box.isChecked())
         self.settings.setValue('img2img_source', self.img2img_source_ui.line_edit.text())
-        self.settings.setValue('img2img_strength', self.img2img_strength.spin_box.value())
+        self.settings.setValue('img2img_noise', self.img2img_noise.spin_box.value())
         self.settings.setValue('control_net_enabled', self.control_net_group_box.isChecked())
         self.settings.setValue('control_net_guidance_start', self.control_net_guidance_start.spin_box.value())
         self.settings.setValue('control_net_guidance_end', self.control_net_guidance_end.spin_box.value())
@@ -989,7 +989,7 @@ class MainWindow(QMainWindow):
             if image_metadata.img2img_enabled:
                 self.img2img_group_box.setChecked(True)
                 self.img2img_source_ui.line_edit.setText(image_metadata.img2img_source)
-                self.img2img_strength.spin_box.setValue(image_metadata.img2img_strength)
+                self.img2img_noise.spin_box.setValue(image_metadata.img2img_noise)
             else:
                 self.img2img_group_box.setChecked(False)
                 self.img2img_source_ui.line_edit.setText('')

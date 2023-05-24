@@ -84,9 +84,9 @@ class ImageMetadataFrame(QFrame):
 
         if metadata.img2img_enabled:
             self.img2img.frame.setVisible(True)
-            self.img2img.value.setText('Source={:s}, Blend={:.2f}'.format(
+            self.img2img.value.setText('Source={:s}, Noise={:.2f}'.format(
                 metadata.img2img_source,
-                metadata.img2img_strength,
+                metadata.img2img_noise,
             ))
         else:
             self.img2img.frame.setVisible(False)

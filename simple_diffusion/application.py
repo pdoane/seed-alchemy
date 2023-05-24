@@ -46,7 +46,7 @@ class Application(QApplication):
         self.set_default_setting('height', 512)
         self.set_default_setting('img2img_enabled', False)
         self.set_default_setting('img2img_source', '')
-        self.set_default_setting('img2img_strength', 0.5)
+        self.set_default_setting('img2img_noise', 0.5)
         self.set_default_setting('control_net_enabled', False)
         self.set_default_setting('control_net_guidance_start', 0.0)
         self.set_default_setting('control_net_guidance_end', 1.0)

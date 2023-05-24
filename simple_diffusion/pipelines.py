@@ -142,10 +142,10 @@ class ImagePipeline(PipelineBase):
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
         # Image parameters
         image = None
-        img2img_strength = 1.0
+        img2img_noise = 1.0
         if req.image_metadata.img2img_enabled:
             image = req.source_image
-            img2img_strength = req.image_metadata.img2img_strength
+            img2img_noise = req.image_metadata.img2img_noise
 
         # Controlnet parameters
         controlnet = None
@@ -172,7 +172,7 @@ class ImagePipeline(PipelineBase):
             width=req.image_metadata.width,
             height=req.image_metadata.height,
             image=image,
-            strength=img2img_strength,
+            strength=img2img_noise,
             controlnet=controlnet,
             controlnet_conditioning_image=controlnet_conditioning_image,
             controlnet_conditioning_scale=controlnet_conditioning_scale,

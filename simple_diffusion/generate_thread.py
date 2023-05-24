@@ -141,7 +141,7 @@ class GenerateThread(QThread):
         self.req.negative_prompt_embeds = compel_proc(self.req.image_metadata.negative_prompt)
 
         # generate
-        if self.req.image_metadata.img2img_enabled and self.req.image_metadata.img2img_strength == 0.0:
+        if self.req.image_metadata.img2img_enabled and self.req.image_metadata.img2img_noise == 0.0:
             images = [self.req.source_image]
         else:
             if self.req.source_image is not None:
@@ -188,7 +188,7 @@ class GenerateThread(QThread):
                     high_res_req.image_metadata.width = high_res_width
                     high_res_req.image_metadata.height = high_res_height
                     high_res_req.image_metadata.img2img_enabled = True
-                    high_res_req.image_metadata.img2img_strength = self.req.image_metadata.high_res_noise
+                    high_res_req.image_metadata.img2img_noise = self.req.image_metadata.high_res_noise
                     high_res_req.num_images_per_prompt = 1
                     high_res_req.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
                     high_res_req.prompt_embeds = self.req.prompt_embeds
@@ -267,7 +267,7 @@ class GenerateThread(QThread):
 
         pipeline_steps = self.req.image_metadata.num_inference_steps
         if self.req.image_metadata.img2img_enabled:
-            pipeline_steps = int(pipeline_steps * self.req.image_metadata.img2img_strength)
+            pipeline_steps = int(pipeline_steps * self.req.image_metadata.img2img_noise)
 
         return pipeline_steps + self.req.num_images_per_prompt * steps_per_image
     
