@@ -148,6 +148,7 @@ class ImageViewer(QWidget):
         self.image_path_ = ''
 
         self.image = None
+        self.metadata = None
         self.preview_image = None
 
         self.label = QLabel(self)

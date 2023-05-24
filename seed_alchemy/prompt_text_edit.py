@@ -64,8 +64,8 @@ class PromptTextEdit(QPlainTextEdit):
         if key in (Qt.Key_Left, Qt.Key_Right):
             event.accept()
 
-    def setPlainText(self, str):
-        super().setPlainText(str)
+    def setPlainText(self, text):
+        super().setPlainText(text)
         self.highlight_misspelled_words()
 
     def contextMenuEvent(self, event):

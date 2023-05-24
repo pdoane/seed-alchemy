@@ -25,7 +25,7 @@ class ThumbnailModel(QAbstractListModel):
 
     def data(self, index, role=Qt.DisplayRole):
         if not index.isValid():
-            return
+            return None
         if role == Qt.SizeHintRole:
             return QSize(self.icon_size, self.icon_size)
         if role != Qt.DecorationRole:

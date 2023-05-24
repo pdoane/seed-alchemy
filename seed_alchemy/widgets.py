@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
-                               QLabel, QPushButton, QScrollArea, QSizePolicy,
-                               QSlider, QSpinBox, QStyle, QStyleOptionSlider,
+                               QLabel, QPushButton, QScrollArea, QSlider,
+                               QSpinBox, QStyle, QStyleOptionSlider,
                                QToolButton, QWidget)
 
 from . import font_awesome as fa

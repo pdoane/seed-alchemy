@@ -79,7 +79,7 @@ class ActionDef:
 
 # File
 preferences = ActionDef('Preferences...', empty_icon=False, role=QAction.MenuRole.PreferencesRole)
-exit = ActionDef('Exit', empty_icon=False, role=QAction.MenuRole.QuitRole)
+quit = ActionDef('Exit', empty_icon=False, role=QAction.MenuRole.QuitRole)
 
 # Modes
 image_mode = ActionDef('Image Generation', icon='img2img_icon.png', checkable=True, auto_exclusive=True)

@@ -1,12 +1,10 @@
 
 import os
 
-from PIL import Image
 from PySide6.QtCore import QSettings, Signal
 from PySide6.QtWidgets import QComboBox, QMenu, QVBoxLayout, QWidget
 
-from . import actions, configuration
-from .image_metadata import ImageMetadata
+from . import configuration
 from .thumbnail_list_widget import ThumbnailListWidget
 from .thumbnail_loader import ThumbnailLoader
 

@@ -112,7 +112,7 @@ class ImageMetadata:
                 self.negative_prompt = image_data.get('negative_prompt', '')
 
                 self.seed = int(image_data.get('seed', 5))
-                self.steps = int(image_data.get('steps', 30))
+                self.num_inference_steps = int(image_data.get('steps', 30))
                 self.guidance_scale = float(image_data.get('cfg_scale', 7.5))
                 self.width = int(image_data.get('width', 512))
                 self.height = int(image_data.get('height', 512))

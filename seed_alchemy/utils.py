@@ -3,7 +3,6 @@ import re
 import subprocess
 import sys
 import time
-from dataclasses import MISSING, fields, is_dataclass
 from typing import Callable
 
 import requests
@@ -57,13 +56,13 @@ def download_file(url: str, output_path: str) -> None:
         else:
             print(f'Failed to download the file, status code: {response.status_code}')
 
-def next_image_id(dir: str) -> int:
-    id = 0
-    for image_file in os.listdir(dir):
+def next_image_id(path: str) -> int:
+    index = 0
+    for image_file in os.listdir(path):
         match = re.match(r'(\d+)\.png', image_file)
         if match:
-            id = max(id, int(match.group(1)))
-    return id + 1
+            index = max(index, int(match.group(1)))
+    return index + 1
 
 def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, backoff_factor=1.1):
     current_retry = 0
@@ -79,6 +78,8 @@ def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, bac
 
             delay = initial_delay * (backoff_factor ** (current_retry - 1))
             time.sleep(delay)
+    
+    return None
 
 def create_thumbnail(image, max_size):
     width, height = image.size

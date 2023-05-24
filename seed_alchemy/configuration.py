@@ -239,18 +239,18 @@ def load_from_settings(settings: QSettings):
 
             known_stable_diffusion_models.append(entry)
 
-def get_embedding_path(str):
-    return os.path.join(local_models_path, EMBEDDINGS_DIR, str)
+def get_embedding_path(path):
+    return os.path.join(local_models_path, EMBEDDINGS_DIR, path)
 
-def get_lora_path(str):
-    return os.path.join(local_models_path, LORA_DIR, lora_dict[str])
+def get_lora_path(path):
+    return os.path.join(local_models_path, LORA_DIR, lora_dict[path])
 
-def get_stable_diffusion_model_path(str):
-    return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, str)
+def get_stable_diffusion_model_path(path):
+    return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, path)
 
-def set_resources_path(str):
+def set_resources_path(path):
     global resources_path
-    resources_path = str
+    resources_path = path
 
 def get_resource_path(relative_path) -> str:
     return os.path.join(resources_path, relative_path)

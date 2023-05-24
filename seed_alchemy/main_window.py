@@ -59,6 +59,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: QSettings, collections: list[str]):
         super().__init__()
 
+        self.type = 'image'
         self.settings = settings
         self.collections = collections
         self.image_history = ImageHistory()
@@ -91,13 +92,13 @@ class MainWindow(QMainWindow):
         # File Menu
         action_preferences = actions.preferences.create(self)
         action_preferences.triggered.connect(self.show_preferences_dialog)
-        action_exit = actions.exit.create(self)
-        action_exit.triggered.connect(self.close)
+        action_quit = actions.quit.create(self)
+        action_quit.triggered.connect(self.close)
 
         app_menu = QMenu("File", self)
         app_menu.addAction(action_preferences)
         app_menu.addSeparator()
-        app_menu.addAction(action_exit)
+        app_menu.addAction(action_quit)
 
         # History Menu
         history_menu = QMenu("History", self)
@@ -368,7 +369,7 @@ class MainWindow(QMainWindow):
         self.upscale_group_box.setCheckable(True)
         self.upscale_group_box.setChecked(self.settings.value('upscale_enabled', type=bool))
         upscale_factor_layout = QHBoxLayout()
-        upscale_factor_layout.setContentsMargins(0, 0, 0, 0) 
+        upscale_factor_layout.setContentsMargins(0, 0, 0, 0)
         upscale_factor_layout.setSpacing(0)
         upscale_factor_layout.addWidget(upscale_factor_label)
         upscale_factor_layout.addWidget(self.upscale_factor_combo_box)
@@ -504,7 +505,7 @@ class MainWindow(QMainWindow):
         if not self.scheduled_update:
             self.scheduled_update = True
             QTimer.singleShot(0, self.deferred_size_update)
-    
+
     def deferred_size_update(self):
         self.scheduled_update = False
         self.config_frame.adjustSize()
@@ -571,7 +572,7 @@ class MainWindow(QMainWindow):
         hlayout.addWidget(source_image_ui.label)
 
         return source_image_ui
-        
+
     def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
         image_path = source_image_ui.line_edit.text()
         self.thumbnail_loader.get(image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap))
@@ -602,7 +603,7 @@ class MainWindow(QMainWindow):
 
         control_net_models = []
         if self.settings.value('install_control_net_v10', type=bool):
-            control_net_models += configuration.control_net_v0_models
+            control_net_models += configuration.control_net_v10_models
         if self.settings.value('install_control_net_v11', type=bool):
             control_net_models += configuration.control_net_v11_models
         if self.settings.value('install_control_net_mediapipe_v2', type=bool):
@@ -661,7 +662,7 @@ class MainWindow(QMainWindow):
         self.set_control_net_param_values(control_net_ui, control_net_meta)
 
         return control_net_ui
-    
+
     def populate_set_as_source_menu(self):
         self.set_as_source_menu.clear()
         action = QAction('Image to Image', self)
@@ -672,13 +673,13 @@ class MainWindow(QMainWindow):
             action = QAction('Control Net {:d}'.format(i + 1), self)
             action.triggered.connect(lambda checked=False, control_net_ui=control_net_ui: self.on_set_as_source(control_net_ui.source_image_ui))
             self.set_as_source_menu.addAction(action)
-        
+
         self.set_as_source_menu.addSeparator()
 
         action = QAction('New Control Net Condition', self)
         action.triggered.connect(lambda: self.on_set_as_source(self.on_add_control_net().source_image_ui))
         self.set_as_source_menu.addAction(action)
-    
+
     def on_set_as_source(self, source_image_ui: SourceImageUI):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
@@ -698,8 +699,8 @@ class MainWindow(QMainWindow):
         dialog = PreferencesDialog(self)
         dialog.exec()
 
-    def set_type(self, type):
-        self.type = type
+    def set_type(self, t):
+        self.type = t
         if self.type == 'image':
             self.button_group.button(0).setChecked(True)
 
