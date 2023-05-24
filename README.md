@@ -8,7 +8,7 @@
 
 </div>
 
-### Features
+# Features
 
 - Text to Image
 - Image to Image
@@ -22,7 +22,9 @@
 - Image generation with real-time preview of latent space
 - Thumbnail viewer with collections
 
-### Installation on Windows
+# Installation
+
+## Windows
 
 1. Install [Python](https://www.python.org/downloads/windows/), checking "Add Python to PATH".
 2. Install [git](https://git-scm.com/download/win).
@@ -31,15 +33,15 @@
    Use this also to update when requirements/dependency versions change
 5. Execute `run.bat` from Windows Explorer as normal, non-administrator, user.
 
-### Installation on macOS
+## macOS
 
-1. Install MacOS Developer Tools
+1. Install Python and git, one option is via the MacOS Developer Tools
 2. Download this repository, for example by running `git clone https://github.com/pdoane/simple-diffusion.git`.
 3. Navigate a terminal to the directory containing this project.
 4. Execute `install.sh` (use this also to update when requirements/dependency versions change)
 5. Execute `run.sh`
 
-### Roadmap
+# Roadmap
 
 Near-term:
 - Outpainting
@@ -50,7 +52,7 @@ Evaluate:
 - ControlNet Reference-Only control
 - ControlNet T2I-Adapter
 - ControlNet High-resolution control image sampling
+- Clip Interrogator
 - Long Prompt Weighting
 - Self-Attention Guidance
 - MultiDiffusion
-- Clip Interrogator
