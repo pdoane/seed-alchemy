@@ -1,5 +1,7 @@
+import os
 import threading
 import time
+import shutil
 
 import pytest
 from PySide6.QtWidgets import QApplication
@@ -17,11 +19,22 @@ def wait_for_thread(thread, timeout=5):
             pytest.fail(f"Timeout occurred while waiting for thread")
         QApplication.instance().processEvents()
 
-@pytest.fixture(scope='module')
-def app():
-    app = Application([])
-    yield app
-    app.main_window.close()
+
+@pytest.fixture(scope="module")
+def app(request):
+    app = None
+    dir_name = os.path.abspath("test_data")
+    try:
+        if os.path.exists(dir_name):
+            shutil.rmtree(dir_name)
+        os.mkdir(dir_name)
+        app = Application(["seed_alchemy", "--root=" + dir_name])
+        yield app
+        app.main_window.close()
+    finally:
+        if not request.config.test_failed:
+            shutil.rmtree(dir_name)
+
 
 def test(app: Application):
     main_window = app.main_window
