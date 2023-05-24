@@ -1,8 +1,12 @@
-# SimpleDiffusion
+<div align="center">
 
-A native UI for Stable Diffusion using the `diffusers` library.
+![Logo](docs/logo.webp)
+
+# Seed Alchemy: AI Image Generation
 
 ![Screenshot](docs/screenshot.webp)
+
+</div>
 
 ### Installation on Windows
 
@@ -17,7 +21,7 @@ A native UI for Stable Diffusion using the `diffusers` library.
 
 1. Install MacOS Developer Tools
 2. Download this repository, for example by running `git clone https://github.com/pdoane/simple-diffusion.git`.
-3. Navigate to the directory containing this project.
+3. Navigate a terminal to the directory containing this project.
 4. Execute `install.sh` (use this also to update when requirements/dependency versions change)
 5. Execute `run.sh`
 
