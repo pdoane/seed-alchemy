@@ -1,4 +1,6 @@
+import argparse
 import os
+import sys
 
 import qdarktheme
 import torch
@@ -15,8 +17,22 @@ class Application(QApplication):
     settings: QSettings = None
     collections: list[str] = []
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, argv):
+        super().__init__(argv)
+
+        if sys.platform == 'darwin':
+            from Foundation import NSBundle
+            bundle = NSBundle.mainBundle()
+            info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
+            info_dict['CFBundleName'] = configuration.APP_NAME
+
+        parser = argparse.ArgumentParser(description=configuration.APP_NAME)
+        parser.add_argument('--root')
+        args = parser.parse_args(argv[1:])
+
+        configuration.set_resources_path(os.path.join(os.getcwd(), 'seed_alchemy/resources'))
+        if args.root:
+            os.chdir(os.path.expanduser(args.root))
 
         dpi = QApplication.primaryScreen().logicalDotsPerInch()
         configuration.font_scale_factor = 96 / dpi

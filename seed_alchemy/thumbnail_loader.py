@@ -19,7 +19,7 @@ class ThumbnailRunnable(QRunnable):
         thumbnail_loaded = Signal(str, QPixmap)
 
     def run(self):
-        while True:
+        while not self.loader.is_shutting_down:
             with QMutexLocker(self.loader.mutex):
                 if not self.loader.requests:
                     self.loader.wait_condition.wait(self.loader.mutex)
@@ -64,6 +64,7 @@ class ThumbnailLoader(QObject):
         with QMutexLocker(self.mutex):
             self.is_shutting_down = True
             self.wait_condition.wakeAll()
+        self.thread_pool.waitForDone()
 
     def get(self, image_path, max_size, callback):
         with QMutexLocker(self.mutex):
