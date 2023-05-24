@@ -169,10 +169,12 @@ class ImageViewer(QWidget):
         self.forward_menu.aboutToShow.connect(lambda: self.history.populate_forward_menu(self.forward_menu))
 
         self.back_button = actions.back.tool_button()
+        self.back_button.setEnabled(False)
         self.back_button.setMenu(self.back_menu)
         self.back_button.setPopupMode(QToolButton.DelayedPopup)
         self.back_button.clicked.connect(self.history.navigate_back)
         self.forward_button = actions.forward.tool_button()
+        self.forward_button.setEnabled(False)
         self.forward_button.setMenu(self.forward_menu)
         self.forward_button.setPopupMode(QToolButton.DelayedPopup)
         self.forward_button.clicked.connect(self.history.navigate_forward)

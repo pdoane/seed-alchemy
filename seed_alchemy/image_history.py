@@ -14,8 +14,10 @@ class ImageHistory(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.back_action = actions.back.create(self)
+        self.back_action.setEnabled(False)
         self.back_action.triggered.connect(self.navigate_back)
         self.forward_action = actions.forward.create(self)
+        self.forward_action.setEnabled(False)
         self.forward_action.triggered.connect(self.navigate_forward)
 
     def visit(self, path):
