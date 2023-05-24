@@ -15,6 +15,7 @@ from .processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
 pipeline_cache: PipelineCache = PipelineCache()
 generate_preprocessor: ProcessorBase = None
 
+
 def latents_to_pil(latents: torch.FloatTensor):
     # Code from InvokeAI
     # https://github.com/invoke-ai/InvokeAI/blob/a1cd4834d127641a865438e668c5c7f050e83587/invokeai/backend/generator/base.py#L502
@@ -26,9 +27,9 @@ def latents_to_pil(latents: torch.FloatTensor):
     v1_5_latent_rgb_factors = torch.tensor(
         [
             #    R        G        B
-            [ 0.3444,  0.1385,  0.0670],  # L1
-            [ 0.1247,  0.4027,  0.1494],  # L2
-            [-0.3192,  0.2513,  0.2103],  # L3
+            [0.3444, 0.1385, 0.0670],  # L1
+            [0.1247, 0.4027, 0.1494],  # L2
+            [-0.3192, 0.2513, 0.2103],  # L3
             [-0.1307, -0.1874, -0.7445],  # L4
         ],
         dtype=latents.dtype,
@@ -37,19 +38,19 @@ def latents_to_pil(latents: torch.FloatTensor):
 
     latent_image = latents[0].permute(1, 2, 0) @ v1_5_latent_rgb_factors
     latents_ubyte = (
-        ((latent_image + 1) / 2)
-        .clamp(0, 1)  # change scale from -1..1 to 0..1
-        .mul(0xFF)  # to 0..255
-        .byte()
+        ((latent_image + 1) / 2).clamp(0, 1).mul(0xFF).byte()  # change scale from -1..1 to 0..1  # to 0..255
     ).cpu()
 
     return Image.fromarray(latents_ubyte.numpy())
 
+
 def align_down(n: int, align: int) -> int:
     return align * (n // align)
 
+
 class CancelThreadException(Exception):
     pass
+
 
 class GenerateThread(QThread):
     task_progress = Signal(int)
@@ -62,14 +63,14 @@ class GenerateThread(QThread):
 
         self.cancel = False
         self.step = 0
-        self.collection = settings.value('collection')
-        self.reduce_memory = settings.value('reduce_memory', type=bool)
+        self.collection = settings.value("collection")
+        self.reduce_memory = settings.value("reduce_memory", type=bool)
         self.req = GenerateRequest()
         self.req.image_metadata = ImageMetadata()
         self.req.image_metadata.load_from_settings(settings)
-        self.req.num_images_per_prompt = int(settings.value('num_images_per_prompt', 1))
+        self.req.num_images_per_prompt = int(settings.value("num_images_per_prompt", 1))
         self.req.callback = self.generate_callback
-    
+
     def run(self):
         try:
             self.run_()
@@ -77,10 +78,10 @@ class GenerateThread(QThread):
             pass
         except Exception as e:
             traceback.print_exc()
-        
+
         self.task_complete.emit()
         gc.collect()
- 
+
     def run_(self):
         global generate_preprocessor
 
@@ -94,7 +95,7 @@ class GenerateThread(QThread):
             source_path = self.req.image_metadata.img2img_source
             full_path = os.path.join(configuration.IMAGES_PATH, source_path)
             with Image.open(full_path) as image:
-                image = image.convert('RGB')
+                image = image.convert("RGB")
                 # Delay resize until generation for enhance operations
                 self.req.source_image = image.copy()
 
@@ -104,8 +105,10 @@ class GenerateThread(QThread):
                 source_path = control_net_meta.image_source
                 full_path = os.path.join(configuration.IMAGES_PATH, source_path)
                 with Image.open(full_path) as image:
-                    image = image.convert('RGB')
-                    image = image.resize((self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS)
+                    image = image.convert("RGB")
+                    image = image.resize(
+                        (self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS
+                    )
                     controlnet_conditioning_image = image.copy()
 
                 if control_net_meta.preprocessor is not None:
@@ -113,10 +116,12 @@ class GenerateThread(QThread):
                     if preprocessor_type:
                         if not isinstance(generate_preprocessor, preprocessor_type):
                             generate_preprocessor = preprocessor_type()
-                        controlnet_conditioning_image = generate_preprocessor(controlnet_conditioning_image, control_net_meta.params)
+                        controlnet_conditioning_image = generate_preprocessor(
+                            controlnet_conditioning_image, control_net_meta.params
+                        )
                         if self.reduce_memory:
                             generate_preprocessor = None
-                
+
                 self.req.controlnet_conditioning_images.append(controlnet_conditioning_image)
 
         # scheduler
@@ -136,7 +141,11 @@ class GenerateThread(QThread):
         pipeline.set_loras(loras)
 
         # prompt weighting
-        compel_proc = Compel(tokenizer=pipe.tokenizer, text_encoder=pipe.text_encoder, textual_inversion_manager=pipeline.textual_inversion_manager)
+        compel_proc = Compel(
+            tokenizer=pipe.tokenizer,
+            text_encoder=pipe.text_encoder,
+            textual_inversion_manager=pipeline.textual_inversion_manager,
+        )
         self.req.prompt_embeds = compel_proc(self.req.image_metadata.prompt)
         self.req.negative_prompt_embeds = compel_proc(self.req.image_metadata.negative_prompt)
 
@@ -145,7 +154,9 @@ class GenerateThread(QThread):
             images = [self.req.source_image]
         else:
             if self.req.source_image is not None:
-                self.req.source_image = self.req.source_image.resize((self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS)
+                self.req.source_image = self.req.source_image.resize(
+                    (self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS
+                )
             images = pipeline(self.req)
 
         for image in images:
@@ -173,11 +184,15 @@ class GenerateThread(QThread):
                     self.next_step()
                 else:
                     image = upscaled_image
-                
+
                 # High Resolution
                 if i == 0 and self.req.image_metadata.high_res_enabled:
-                    high_res_width = align_down(int(self.req.image_metadata.width * self.req.image_metadata.high_res_factor), 8)
-                    high_res_height = align_down(int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8)
+                    high_res_width = align_down(
+                        int(self.req.image_metadata.width * self.req.image_metadata.high_res_factor), 8
+                    )
+                    high_res_height = align_down(
+                        int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8
+                    )
                     source_image = image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
 
                     high_res_req = GenerateRequest()
@@ -198,12 +213,18 @@ class GenerateThread(QThread):
                     if self.req.image_metadata.control_net_enabled:
                         high_res_req.controlnet_conditioning_images = []
                         for controlnet_conditioning_image in self.req.controlnet_conditioning_images:
-                            controlnet_conditioning_image = controlnet_conditioning_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
+                            controlnet_conditioning_image = controlnet_conditioning_image.resize(
+                                (high_res_width, high_res_height), Image.Resampling.LANCZOS
+                            )
                             high_res_req.controlnet_conditioning_images.append(controlnet_conditioning_image)
 
                         high_res_req.image_metadata.control_net_enabled = True
-                        high_res_req.image_metadata.control_net_guidance_start = self.req.image_metadata.control_net_guidance_start
-                        high_res_req.image_metadata.control_net_guidance_end = self.req.image_metadata.control_net_guidance_end
+                        high_res_req.image_metadata.control_net_guidance_start = (
+                            self.req.image_metadata.control_net_guidance_start
+                        )
+                        high_res_req.image_metadata.control_net_guidance_end = (
+                            self.req.image_metadata.control_net_guidance_end
+                        )
                         high_res_req.image_metadata.control_nets = self.req.image_metadata.control_nets
 
                     image = pipeline(high_res_req)[0]
@@ -215,7 +236,7 @@ class GenerateThread(QThread):
 
             def io_operation():
                 next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
-                output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
+                output_path = os.path.join(collection, "{:05d}.png".format(next_image_id))
                 full_path = os.path.join(configuration.IMAGES_PATH, output_path)
 
                 image.save(full_path, pnginfo=png_info)
@@ -232,7 +253,9 @@ class GenerateThread(QThread):
 
         if self.req.image_metadata.high_res_enabled:
             preview_width = align_down(int(self.req.image_metadata.width * self.req.image_metadata.high_res_factor), 8)
-            preview_height = align_down(int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8)
+            preview_height = align_down(
+                int(self.req.image_metadata.height * self.req.image_metadata.high_res_factor), 8
+            )
         else:
             preview_width = self.req.image_metadata.width
             preview_height = self.req.image_metadata.height
@@ -270,4 +293,3 @@ class GenerateThread(QThread):
             pipeline_steps = int(pipeline_steps * self.req.image_metadata.img2img_noise)
 
         return pipeline_steps + self.req.num_images_per_prompt * steps_per_image
-    

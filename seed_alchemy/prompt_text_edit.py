@@ -2,8 +2,7 @@ import os
 import re
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import (QAction, QColor, QFontMetrics, QTextCharFormat,
-                           QTextCursor)
+from PySide6.QtGui import QAction, QColor, QFontMetrics, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
 from spellchecker import SpellChecker
 
@@ -26,7 +25,7 @@ class PromptTextEdit(QPlainTextEdit):
 
         self.spell_checker = SpellChecker()
 
-        custom_words = ['3d', 'useLora', 'withLora']
+        custom_words = ["3d", "useLora", "withLora"]
         for entry in configuration.known_embeddings:
             name, _ = os.path.splitext(entry)
             custom_words.append(name)
@@ -37,7 +36,7 @@ class PromptTextEdit(QPlainTextEdit):
 
         self.spell_checker.word_frequency.load_words(custom_words)
 
-        self.word_pattern = re.compile(r'\b(?:\w+(?:-\w+)*)\b')
+        self.word_pattern = re.compile(r"\b(?:\w+(?:-\w+)*)\b")
 
         font = self.font()
         font_metrics = QFontMetrics(font)
@@ -46,7 +45,9 @@ class PromptTextEdit(QPlainTextEdit):
         frame_width = self.frameWidth()
         document_margins = self.document().documentMargin()
 
-        self.setFixedHeight(line_height * desired_lines + margins.top() + margins.bottom() + 2 * frame_width + 2 * document_margins)
+        self.setFixedHeight(
+            line_height * desired_lines + margins.top() + margins.bottom() + 2 * frame_width + 2 * document_margins
+        )
         self.setPlaceholderText(placeholder_text)
         self.setTabChangesFocus(True)
 
@@ -77,7 +78,7 @@ class PromptTextEdit(QPlainTextEdit):
         menu.exec(event.globalPos())
 
     def on_insert_textual_inversion(self):
-        popup = WordListPopup('Insert Textual Inversion', self)
+        popup = WordListPopup("Insert Textual Inversion", self)
         popup.word_selected.connect(self.handle_textual_inversion)
 
         valid_words = []
@@ -97,7 +98,7 @@ class PromptTextEdit(QPlainTextEdit):
         self.setTextCursor(cursor)
 
     def on_insert_lora(self):
-        popup = WordListPopup('Insert LoRA', self)
+        popup = WordListPopup("Insert LoRA", self)
         popup.word_selected.connect(self.handle_lora)
 
         valid_words = []
@@ -114,7 +115,7 @@ class PromptTextEdit(QPlainTextEdit):
     def handle_lora(self, selected_word):
         cursor = self.textCursor()
         cursor.movePosition(QTextCursor.End)
-        cursor.insertText(' useLora({:s}, 1.0)'.format(selected_word))
+        cursor.insertText(" useLora({:s}, 1.0)".format(selected_word))
         self.setTextCursor(cursor)
 
     def highlight_misspelled_words(self):
@@ -144,7 +145,7 @@ class PromptTextEdit(QPlainTextEdit):
     def is_known_word(self, word):
         if self.spell_checker.known([word]):
             return True
-        components = word.split('-')
+        components = word.split("-")
         if all(self.spell_checker.known([component]) or component.isdigit() for component in components):
             return True
         return False

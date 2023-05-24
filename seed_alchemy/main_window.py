@@ -7,12 +7,28 @@ import sys
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import (QApplication, QButtonGroup, QDialog, QFrame,
-                               QGridLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit, QMainWindow, QMenu, QMenuBar,
-                               QMessageBox, QProgressBar, QPushButton,
-                               QSizePolicy, QSplitter, QToolBar, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (
+    QApplication,
+    QButtonGroup,
+    QDialog,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QSplitter,
+    QToolBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from . import actions, configuration
 from . import font_awesome as fa
@@ -28,18 +44,26 @@ from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
 from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_viewer import ThumbnailViewer
-from .widgets import (ComboBox, DoubleSpinBox, FloatSliderSpinBox,
-                      FrameWithCloseButton, IntSliderSpinBox, ScrollArea,
-                      SpinBox)
+from .widgets import (
+    ComboBox,
+    DoubleSpinBox,
+    FloatSliderSpinBox,
+    FrameWithCloseButton,
+    IntSliderSpinBox,
+    ScrollArea,
+    SpinBox,
+)
 
-if sys.platform == 'darwin':
+if sys.platform == "darwin":
     from AppKit import NSApplication
+
 
 class SourceImageUI:
     frame: QFrame
     label: QLabel
     line_edit: QLineEdit
     context_menu: QMenu
+
 
 class ControlNetUI:
     frame: FrameWithCloseButton
@@ -50,6 +74,7 @@ class ControlNetUI:
     params: list[QWidget]
     scale: FloatSliderSpinBox
 
+
 class MainWindow(QMainWindow):
     preview_preprocessor: ProcessorBase = None
     img2img_source_ui: SourceImageUI = None
@@ -59,7 +84,7 @@ class MainWindow(QMainWindow):
     def __init__(self, settings: QSettings, collections: list[str]):
         super().__init__()
 
-        self.type = 'image'
+        self.type = "image"
         self.settings = settings
         self.collections = collections
         self.image_history = ImageHistory()
@@ -76,13 +101,13 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central_widget)
 
         # Set as Source Menu
-        self.set_as_source_menu = QMenu('Set as Source', self)
+        self.set_as_source_menu = QMenu("Set as Source", self)
         self.set_as_source_menu.setIcon(QIcon(utils.create_fontawesome_icon(fa.icon_share)))
         self.set_as_source_menu.addAction(QAction("Dummy...", self))
         self.set_as_source_menu.aboutToShow.connect(self.populate_set_as_source_menu)
 
         # Move To Menu
-        move_image_menu = QMenu('Move To', self)
+        move_image_menu = QMenu("Move To", self)
         move_image_menu.setIcon(utils.empty_qicon())
         for collection in self.collections:
             item_action = QAction(collection, self)
@@ -151,7 +176,7 @@ class MainWindow(QMainWindow):
         action_about = actions.about.create(self)
         action_about.triggered.connect(self.show_about_dialog)
 
-        help_menu = QMenu('Help', self)
+        help_menu = QMenu("Help", self)
         help_menu.addAction(action_about)
 
         # Menu bar
@@ -176,7 +201,7 @@ class MainWindow(QMainWindow):
         self.button_group.idToggled.connect(self.on_mode_changed)
 
         # Generate
-        self.generate_button = QPushButton('Generate')
+        self.generate_button = QPushButton("Generate")
         self.generate_button.clicked.connect(self.on_generate_image)
 
         cancel_button = actions.cancel_generation.push_button()
@@ -201,44 +226,44 @@ class MainWindow(QMainWindow):
         self.config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
         # Model
-        model_label = QLabel('Stable Diffusion Model')
+        model_label = QLabel("Stable Diffusion Model")
         model_label.setAlignment(Qt.AlignCenter)
         self.model_combo_box = ComboBox()
         for model in configuration.known_stable_diffusion_models:
             self.model_combo_box.addItem(model, configuration.get_stable_diffusion_model_path(model))
-        for repo_id in utils.deserialize_string_list(self.settings.value('huggingface_models')):
+        for repo_id in utils.deserialize_string_list(self.settings.value("huggingface_models")):
             self.model_combo_box.addItem(os.path.basename(repo_id), repo_id)
-        utils.set_current_data(self.model_combo_box, self.settings.value('model'))
+        utils.set_current_data(self.model_combo_box, self.settings.value("model"))
 
         # Prompts
-        self.prompt_edit = PromptTextEdit(8, 'Prompt')
-        self.prompt_edit.setPlainText(self.settings.value('prompt'))
+        self.prompt_edit = PromptTextEdit(8, "Prompt")
+        self.prompt_edit.setPlainText(self.settings.value("prompt"))
         self.prompt_edit.return_pressed.connect(self.on_generate_image)
-        self.negative_prompt_edit = PromptTextEdit(5, 'Negative Prompt')
-        self.negative_prompt_edit.setPlainText(self.settings.value('negative_prompt'))
+        self.negative_prompt_edit = PromptTextEdit(5, "Negative Prompt")
+        self.negative_prompt_edit.setPlainText(self.settings.value("negative_prompt"))
         self.negative_prompt_edit.return_pressed.connect(self.on_generate_image)
 
-        self.prompt_group_box = QGroupBox('Prompts')
+        self.prompt_group_box = QGroupBox("Prompts")
         prompt_group_box_layout = QVBoxLayout(self.prompt_group_box)
         prompt_group_box_layout.addWidget(self.prompt_edit)
         prompt_group_box_layout.addWidget(self.negative_prompt_edit)
 
         # General
-        num_images_label = QLabel('Images')
+        num_images_label = QLabel("Images")
         num_images_label.setAlignment(Qt.AlignCenter)
         self.num_images_spin_box = SpinBox()
         self.num_images_spin_box.setAlignment(Qt.AlignCenter)
         self.num_images_spin_box.setFixedWidth(80)
         self.num_images_spin_box.setMinimum(1)
-        self.num_images_spin_box.setValue(int(self.settings.value('num_images_per_prompt')))
-        num_steps_label = QLabel('Steps')
+        self.num_images_spin_box.setValue(int(self.settings.value("num_images_per_prompt")))
+        num_steps_label = QLabel("Steps")
         num_steps_label.setAlignment(Qt.AlignCenter)
         self.num_steps_spin_box = SpinBox()
         self.num_steps_spin_box.setAlignment(Qt.AlignCenter)
         self.num_steps_spin_box.setFixedWidth(80)
         self.num_steps_spin_box.setMinimum(1)
-        self.num_steps_spin_box.setValue(int(self.settings.value('num_inference_steps')))
-        guidance_scale_label = QLabel('CFG Scale')
+        self.num_steps_spin_box.setValue(int(self.settings.value("num_inference_steps")))
+        guidance_scale_label = QLabel("CFG Scale")
         guidance_scale_label.setAlignment(Qt.AlignCenter)
         self.guidance_scale_spin_box = DoubleSpinBox()
         self.guidance_scale_spin_box.setFocusPolicy(Qt.StrongFocus)
@@ -246,8 +271,8 @@ class MainWindow(QMainWindow):
         self.guidance_scale_spin_box.setFixedWidth(80)
         self.guidance_scale_spin_box.setSingleStep(0.5)
         self.guidance_scale_spin_box.setMinimum(1.0)
-        self.guidance_scale_spin_box.setValue(float(self.settings.value('guidance_scale')))
-        width_label = QLabel('Width')
+        self.guidance_scale_spin_box.setValue(float(self.settings.value("guidance_scale")))
+        width_label = QLabel("Width")
         width_label.setAlignment(Qt.AlignCenter)
         self.width_spin_box = SpinBox()
         self.width_spin_box.setAlignment(Qt.AlignCenter)
@@ -255,8 +280,8 @@ class MainWindow(QMainWindow):
         self.width_spin_box.setSingleStep(64)
         self.width_spin_box.setMinimum(64)
         self.width_spin_box.setMaximum(2048)
-        self.width_spin_box.setValue(int(self.settings.value('width')))
-        height_label = QLabel('Height')
+        self.width_spin_box.setValue(int(self.settings.value("width")))
+        height_label = QLabel("Height")
         height_label.setAlignment(Qt.AlignCenter)
         self.height_spin_box = SpinBox()
         self.height_spin_box.setAlignment(Qt.AlignCenter)
@@ -264,15 +289,15 @@ class MainWindow(QMainWindow):
         self.height_spin_box.setSingleStep(64)
         self.height_spin_box.setMinimum(64)
         self.height_spin_box.setMaximum(2048)
-        self.height_spin_box.setValue(int(self.settings.value('height')))
-        scheduler_label = QLabel('Scheduler')
+        self.height_spin_box.setValue(int(self.settings.value("height")))
+        scheduler_label = QLabel("Scheduler")
         scheduler_label.setAlignment(Qt.AlignCenter)
         self.scheduler_combo_box = ComboBox()
         self.scheduler_combo_box.addItems(configuration.schedulers.keys())
         self.scheduler_combo_box.setFixedWidth(120)
-        self.scheduler_combo_box.setCurrentText(self.settings.value('scheduler'))
+        self.scheduler_combo_box.setCurrentText(self.settings.value("scheduler"))
 
-        self.general_group_box = QGroupBox('General')
+        self.general_group_box = QGroupBox("General")
 
         model_vlayout = QVBoxLayout()
         model_vlayout.setContentsMargins(0, 0, 0, 0)
@@ -304,8 +329,8 @@ class MainWindow(QMainWindow):
         # Seed
         self.seed_lineedit = QLineEdit()
         self.seed_lineedit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.seed_lineedit.setText(str(self.settings.value('seed')))
-        seed_random_button = QPushButton('New')
+        self.seed_lineedit.setText(str(self.settings.value("seed")))
+        seed_random_button = QPushButton("New")
         seed_random_button.clicked.connect(self.on_seed_random_clicked)
 
         self.seed_frame = QFrame()
@@ -315,59 +340,67 @@ class MainWindow(QMainWindow):
         seed_hlayout.addWidget(self.seed_lineedit)
         seed_hlayout.addWidget(seed_random_button)
 
-        self.manual_seed_group_box = QGroupBox('Manual Seed')
+        self.manual_seed_group_box = QGroupBox("Manual Seed")
         self.manual_seed_group_box.setCheckable(True)
-        self.manual_seed_group_box.setChecked(self.settings.value('manual_seed', type=bool))
+        self.manual_seed_group_box.setChecked(self.settings.value("manual_seed", type=bool))
         manual_seed_group_box_layout = QVBoxLayout(self.manual_seed_group_box)
         manual_seed_group_box_layout.addWidget(self.seed_frame)
 
         # Image to Image
-        self.img2img_source_ui = self.create_source_image_ui(self.settings.value('img2img_source', type=str))
-        self.img2img_noise = FloatSliderSpinBox('Noise', float(self.settings.value('img2img_noise')))
+        self.img2img_source_ui = self.create_source_image_ui(self.settings.value("img2img_source", type=str))
+        self.img2img_noise = FloatSliderSpinBox("Noise", float(self.settings.value("img2img_noise")))
 
-        self.img2img_group_box = QGroupBox('Image to Image')
+        self.img2img_group_box = QGroupBox("Image to Image")
         self.img2img_group_box.setCheckable(True)
-        self.img2img_group_box.setChecked(self.settings.value('img2img_enabled', type=bool))
+        self.img2img_group_box.setChecked(self.settings.value("img2img_enabled", type=bool))
 
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
         img2img_group_box_layout.addWidget(self.img2img_source_ui.frame)
         img2img_group_box_layout.addWidget(self.img2img_noise)
 
         # ControlNet
-        self.control_net_guidance_start = FloatSliderSpinBox('Guidance Start', float(self.settings.value('control_net_guidance_start')))
-        self.control_net_guidance_end = FloatSliderSpinBox('Guidance End', float(self.settings.value('control_net_guidance_end')))
+        self.control_net_guidance_start = FloatSliderSpinBox(
+            "Guidance Start", float(self.settings.value("control_net_guidance_start"))
+        )
+        self.control_net_guidance_end = FloatSliderSpinBox(
+            "Guidance End", float(self.settings.value("control_net_guidance_end"))
+        )
 
-        self.control_net_add_button = QPushButton('Add Condition')
+        self.control_net_add_button = QPushButton("Add Condition")
         self.control_net_add_button.clicked.connect(self.on_add_control_net)
 
-        self.control_net_group_box = QGroupBox('Control Net')
+        self.control_net_group_box = QGroupBox("Control Net")
         self.control_net_group_box.setCheckable(True)
-        self.control_net_group_box.setChecked(self.settings.value('control_net_enabled', type=bool))
+        self.control_net_group_box.setChecked(self.settings.value("control_net_enabled", type=bool))
         self.control_net_group_box_layout = QVBoxLayout(self.control_net_group_box)
         self.control_net_group_box_layout.addWidget(self.control_net_guidance_start)
         self.control_net_group_box_layout.addWidget(self.control_net_guidance_end)
         self.control_net_dynamic_index = self.control_net_group_box_layout.count()
         self.control_net_group_box_layout.addWidget(self.control_net_add_button)
 
-        control_net_metas = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value('control_nets'))]
+        control_net_metas = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value("control_nets"))]
         for i, control_net_meta in enumerate(control_net_metas):
             control_net_ui = self.create_control_net_ui(control_net_meta)
             self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_ui.frame)
             self.control_net_uis.append(control_net_ui)
 
         # Upscale
-        upscale_factor_label = QLabel('Factor: ')
+        upscale_factor_label = QLabel("Factor: ")
         self.upscale_factor_combo_box = ComboBox()
         self.upscale_factor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.upscale_factor_combo_box.addItem('2x', 2)
-        self.upscale_factor_combo_box.addItem('4x', 4)
-        utils.set_current_data(self.upscale_factor_combo_box, self.settings.value('upscale_factor', type=int))
-        self.upscale_denoising_strength = FloatSliderSpinBox('Denoising', float(self.settings.value('upscale_denoising_strength')))
-        self.upscale_blend_strength = FloatSliderSpinBox('Strength', float(self.settings.value('upscale_blend_strength')))
+        self.upscale_factor_combo_box.addItem("2x", 2)
+        self.upscale_factor_combo_box.addItem("4x", 4)
+        utils.set_current_data(self.upscale_factor_combo_box, self.settings.value("upscale_factor", type=int))
+        self.upscale_denoising_strength = FloatSliderSpinBox(
+            "Denoising", float(self.settings.value("upscale_denoising_strength"))
+        )
+        self.upscale_blend_strength = FloatSliderSpinBox(
+            "Strength", float(self.settings.value("upscale_blend_strength"))
+        )
 
-        self.upscale_group_box = QGroupBox('Upscaling')
+        self.upscale_group_box = QGroupBox("Upscaling")
         self.upscale_group_box.setCheckable(True)
-        self.upscale_group_box.setChecked(self.settings.value('upscale_enabled', type=bool))
+        self.upscale_group_box.setChecked(self.settings.value("upscale_enabled", type=bool))
         upscale_factor_layout = QHBoxLayout()
         upscale_factor_layout.setContentsMargins(0, 0, 0, 0)
         upscale_factor_layout.setSpacing(0)
@@ -379,24 +412,34 @@ class MainWindow(QMainWindow):
         upscale_group_box_layout.addWidget(self.upscale_blend_strength)
 
         # Face Restoration
-        self.face_strength = FloatSliderSpinBox('Strength', float(self.settings.value('face_blend_strength')))
+        self.face_strength = FloatSliderSpinBox("Strength", float(self.settings.value("face_blend_strength")))
 
-        self.face_strength_group_box = QGroupBox('Face Restoration')
+        self.face_strength_group_box = QGroupBox("Face Restoration")
         self.face_strength_group_box.setCheckable(True)
-        self.face_strength_group_box.setChecked(self.settings.value('face_enabled', type=bool))
+        self.face_strength_group_box.setChecked(self.settings.value("face_enabled", type=bool))
 
         face_strength_group_box_layout = QVBoxLayout(self.face_strength_group_box)
         face_strength_group_box_layout.addWidget(self.face_strength)
 
         # High Resolution
-        self.high_res_factor = FloatSliderSpinBox('Factor', self.settings.value('high_res_factor', type=float), minimum=1, maximum=2)
-        self.high_res_steps = IntSliderSpinBox('Steps', self.settings.value('high_res_steps', type=int), minimum=1, maximum=200)
-        self.high_res_guidance_scale = FloatSliderSpinBox('Guidance', self.settings.value('high_res_guidance_scale', type=float), minimum=1, maximum=50, single_step=0.5)
-        self.high_res_noise = FloatSliderSpinBox('Noise', self.settings.value('high_res_noise', type=float))
+        self.high_res_factor = FloatSliderSpinBox(
+            "Factor", self.settings.value("high_res_factor", type=float), minimum=1, maximum=2
+        )
+        self.high_res_steps = IntSliderSpinBox(
+            "Steps", self.settings.value("high_res_steps", type=int), minimum=1, maximum=200
+        )
+        self.high_res_guidance_scale = FloatSliderSpinBox(
+            "Guidance",
+            self.settings.value("high_res_guidance_scale", type=float),
+            minimum=1,
+            maximum=50,
+            single_step=0.5,
+        )
+        self.high_res_noise = FloatSliderSpinBox("Noise", self.settings.value("high_res_noise", type=float))
 
-        self.high_res_group_box = QGroupBox('High Resolution')
+        self.high_res_group_box = QGroupBox("High Resolution")
         self.high_res_group_box.setCheckable(True)
-        self.high_res_group_box.setChecked(self.settings.value('high_res_enabled', type=bool))
+        self.high_res_group_box.setChecked(self.settings.value("high_res_enabled", type=bool))
 
         high_res_group_box_layout = QVBoxLayout(self.high_res_group_box)
         high_res_group_box_layout.addWidget(self.high_res_factor)
@@ -474,7 +517,7 @@ class MainWindow(QMainWindow):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
         self.progress_bar.setMinimum(0)
-        self.progress_bar.setStyleSheet('QProgressBar { border: none; }')
+        self.progress_bar.setStyleSheet("QProgressBar { border: none; }")
 
         config_vlayout = QVBoxLayout()
         config_vlayout.addLayout(generate_hlayout)
@@ -496,7 +539,7 @@ class MainWindow(QMainWindow):
         self.setGeometry(100, 100, 1200, 600)
 
         # Update state
-        self.set_type(self.settings.value('type'))
+        self.set_type(self.settings.value("type"))
         selected_image = self.thumbnail_viewer.list_widget.selected_image()
         if selected_image is not None:
             self.image_history.visit(selected_image)
@@ -532,27 +575,35 @@ class MainWindow(QMainWindow):
         source_image_ui.frame = QFrame()
         source_image_ui.frame.setContentsMargins(0, 0, 0, 0)
 
-        source_label = QLabel('Source')
+        source_label = QLabel("Source")
         source_label.setAlignment(Qt.AlignCenter)
 
         source_image_ui.label = QLabel()
         source_image_ui.label.setFrameStyle(QFrame.Box)
         source_image_ui.label.setContextMenuPolicy(Qt.CustomContextMenu)
         source_image_ui.label.setFixedSize(96, 96)
-        source_image_ui.label.customContextMenuRequested.connect(lambda point: self.show_source_image_context_menu(source_image_ui, point))
+        source_image_ui.label.customContextMenuRequested.connect(
+            lambda point: self.show_source_image_context_menu(source_image_ui, point)
+        )
 
         source_image_ui.line_edit = QLineEdit()
         source_image_ui.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         source_image_ui.line_edit.textChanged.connect(lambda: self.on_source_image_ui_text_changed(source_image_ui))
-        source_image_ui.line_edit.setPlaceholderText('Image Path')
+        source_image_ui.line_edit.setPlaceholderText("Image Path")
         source_image_ui.line_edit.setText(text)
 
         locate_source_action = actions.locate_source.create(self)
-        locate_source_action.triggered.connect(lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text()))
+        locate_source_action.triggered.connect(
+            lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text())
+        )
 
         source_image_ui.context_menu = QMenu(self)
-        source_image_ui.context_menu.aboutToShow.connect(lambda: self.set_override_metadata(self.get_source_image_metadata(source_image_ui)))
-        source_image_ui.context_menu.aboutToHide.connect(lambda: QTimer.singleShot(0, lambda: self.set_override_metadata(None)))
+        source_image_ui.context_menu.aboutToShow.connect(
+            lambda: self.set_override_metadata(self.get_source_image_metadata(source_image_ui))
+        )
+        source_image_ui.context_menu.aboutToHide.connect(
+            lambda: QTimer.singleShot(0, lambda: self.set_override_metadata(None))
+        )
         source_image_ui.context_menu.addAction(locate_source_action)
         source_image_ui.context_menu.addSeparator()
         source_image_ui.context_menu.addMenu(self.set_as_source_menu)
@@ -575,7 +626,9 @@ class MainWindow(QMainWindow):
 
     def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
         image_path = source_image_ui.line_edit.text()
-        self.thumbnail_loader.get(image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap))
+        self.thumbnail_loader.get(
+            image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap)
+        )
 
     def get_source_image_metadata(self, source_image_ui: SourceImageUI):
         image_path = source_image_ui.line_edit.text()
@@ -596,41 +649,45 @@ class MainWindow(QMainWindow):
         control_net_ui.frame = FrameWithCloseButton()
         control_net_ui.frame.closed.connect(lambda: self.on_remove_control_net(control_net_ui))
 
-        model_label = QLabel('Model')
+        model_label = QLabel("Model")
         model_label.setAlignment(Qt.AlignCenter)
         control_net_ui.model_combo_box = ComboBox()
         control_net_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         control_net_models = []
-        if self.settings.value('install_control_net_v10', type=bool):
+        if self.settings.value("install_control_net_v10", type=bool):
             control_net_models += configuration.control_net_v10_models
-        if self.settings.value('install_control_net_v11', type=bool):
+        if self.settings.value("install_control_net_v11", type=bool):
             control_net_models += configuration.control_net_v11_models
-        if self.settings.value('install_control_net_mediapipe_v2', type=bool):
+        if self.settings.value("install_control_net_mediapipe_v2", type=bool):
             control_net_models += configuration.control_net_mediapipe_v2_models
         control_net_ui.model_combo_box.addItems(sorted(control_net_models))
         control_net_ui.model_combo_box.setCurrentText(control_net_meta.model)
 
-        preprocessor_label = QLabel('Preprocessor')
+        preprocessor_label = QLabel("Preprocessor")
         preprocessor_label.setAlignment(Qt.AlignCenter)
         control_net_ui.preprocessor_combo_box = ComboBox()
         control_net_ui.preprocessor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         control_net_ui.preprocessor_combo_box.addItems(configuration.control_net_preprocessors.keys())
-        control_net_ui.preprocessor_combo_box.currentTextChanged.connect(lambda text: self.on_control_net_preprocessor_combo_box_changed(control_net_ui, text))
+        control_net_ui.preprocessor_combo_box.currentTextChanged.connect(
+            lambda text: self.on_control_net_preprocessor_combo_box_changed(control_net_ui, text)
+        )
 
         control_net_ui.source_image_ui = self.create_source_image_ui(control_net_meta.image_source)
 
         sync_button = QPushButton(fa.icon_arrows_down_to_line)
         sync_button.setFont(fa.font)
-        sync_button.setToolTip('Synchronize Model')
+        sync_button.setToolTip("Synchronize Model")
         sync_button.clicked.connect(lambda: self.on_control_net_sync_button_clicked(control_net_ui))
 
         preview_preprocessor_button = QPushButton(fa.icon_eye)
         preview_preprocessor_button.setFont(fa.font)
-        preview_preprocessor_button.setToolTip('Preview')
-        preview_preprocessor_button.clicked.connect(lambda: self.on_control_net_preview_preprocessor_button_clicked(control_net_ui))
+        preview_preprocessor_button.setToolTip("Preview")
+        preview_preprocessor_button.clicked.connect(
+            lambda: self.on_control_net_preview_preprocessor_button_clicked(control_net_ui)
+        )
 
-        control_net_ui.scale = FloatSliderSpinBox('Scale', control_net_meta.scale, maximum=2.0)
+        control_net_ui.scale = FloatSliderSpinBox("Scale", control_net_meta.scale, maximum=2.0)
 
         model_vlayout = QVBoxLayout()
         model_vlayout.setContentsMargins(0, 0, 0, 0)
@@ -665,18 +722,22 @@ class MainWindow(QMainWindow):
 
     def populate_set_as_source_menu(self):
         self.set_as_source_menu.clear()
-        action = QAction('Image to Image', self)
+        action = QAction("Image to Image", self)
         action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_ui))
         self.set_as_source_menu.addAction(action)
 
         for i, control_net_ui in enumerate(self.control_net_uis):
-            action = QAction('Control Net {:d}'.format(i + 1), self)
-            action.triggered.connect(lambda checked=False, control_net_ui=control_net_ui: self.on_set_as_source(control_net_ui.source_image_ui))
+            action = QAction("Control Net {:d}".format(i + 1), self)
+            action.triggered.connect(
+                lambda checked=False, control_net_ui=control_net_ui: self.on_set_as_source(
+                    control_net_ui.source_image_ui
+                )
+            )
             self.set_as_source_menu.addAction(action)
 
         self.set_as_source_menu.addSeparator()
 
-        action = QAction('New Control Net Condition', self)
+        action = QAction("New Control Net Condition", self)
         action.triggered.connect(lambda: self.on_set_as_source(self.on_add_control_net().source_image_ui))
         self.set_as_source_menu.addAction(action)
 
@@ -690,7 +751,7 @@ class MainWindow(QMainWindow):
                 self.height_spin_box.setValue(image_metadata.height)
             else:
                 self.control_net_group_box.setChecked(True)
-    
+
     def show_about_dialog(self):
         about_dialog = AboutDialog()
         about_dialog.exec()
@@ -701,14 +762,14 @@ class MainWindow(QMainWindow):
 
     def set_type(self, t):
         self.type = t
-        if self.type == 'image':
+        if self.type == "image":
             self.button_group.button(0).setChecked(True)
 
     def on_mode_changed(self, button_id, checked):
         if not checked:
             return
         if button_id == 0:
-            self.type = 'image'
+            self.type = "image"
 
     def on_cancel_generation(self):
         if self.generate_thread:
@@ -769,7 +830,7 @@ class MainWindow(QMainWindow):
                 elif param.type == float:
                     param_ui = FloatSliderSpinBox(param.name, param.value, param.min, param.max, param.step)
                 else:
-                    raise RuntimeError('Fatal error: Invalid type')
+                    raise RuntimeError("Fatal error: Invalid type")
 
                 layout.insertWidget(control_net_ui.params_layout_index + i, param_ui)
                 control_net_ui.params.append(param_ui)
@@ -786,13 +847,13 @@ class MainWindow(QMainWindow):
                 control_net_ui.model_combo_box.setCurrentIndex(index)
                 found = True
                 break
-        
+
         if not found:
             message_box = QMessageBox()
-            message_box.setText('No Model Found')
-            message_box.setInformativeText("The '{:s}' preprocessor is not supported by any enabled ControlNet model.".format(
-                preprocessor
-            ))
+            message_box.setText("No Model Found")
+            message_box.setInformativeText(
+                "The '{:s}' preprocessor is not supported by any enabled ControlNet model.".format(preprocessor)
+            )
             message_box.setIcon(QMessageBox.Warning)
             message_box.addButton(QMessageBox.Ok)
             message_box.exec()
@@ -804,20 +865,22 @@ class MainWindow(QMainWindow):
 
         full_path = os.path.join(configuration.IMAGES_PATH, source_path)
         with Image.open(full_path) as image:
-            image = image.convert('RGB')
+            image = image.convert("RGB")
             image = image.resize((width, height), Image.Resampling.LANCZOS)
             source_image = image.copy()
 
-        preprocessor_type = configuration.control_net_preprocessors[control_net_ui.preprocessor_combo_box.currentText()]
+        preprocessor_type = configuration.control_net_preprocessors[
+            control_net_ui.preprocessor_combo_box.currentText()
+        ]
         if preprocessor_type:
             params = self.get_control_net_param_values(control_net_ui)
 
             if not isinstance(self.preview_preprocessor, preprocessor_type):
                 self.preview_preprocessor = preprocessor_type()
             source_image = self.preview_preprocessor(source_image, params)
-            if self.settings.value('reduce_memory', type=bool):
+            if self.settings.value("reduce_memory", type=bool):
                 self.preview_preprocessor = None
-            output_path = 'preprocessed.png'
+            output_path = "preprocessed.png"
             full_path = os.path.join(configuration.IMAGES_PATH, output_path)
             source_image.save(full_path)
             self.image_viewer.set_current_image(output_path)
@@ -839,37 +902,39 @@ class MainWindow(QMainWindow):
             control_net_meta.scale = control_net_ui.scale.spin_box.value()
             control_net_metas.append(control_net_meta)
 
-        self.settings.setValue('collection', self.thumbnail_viewer.collection())
-        self.settings.setValue('type', self.type)
-        self.settings.setValue('model', self.model_combo_box.currentData())
-        self.settings.setValue('scheduler', self.scheduler_combo_box.currentText())
-        self.settings.setValue('prompt', self.prompt_edit.toPlainText())
-        self.settings.setValue('negative_prompt', self.negative_prompt_edit.toPlainText())
-        self.settings.setValue('manual_seed', self.manual_seed_group_box.isChecked())
-        self.settings.setValue('seed', self.seed_lineedit.text())
-        self.settings.setValue('num_images_per_prompt', self.num_images_spin_box.value())
-        self.settings.setValue('num_inference_steps', self.num_steps_spin_box.value())
-        self.settings.setValue('guidance_scale', self.guidance_scale_spin_box.value())
-        self.settings.setValue('width', self.width_spin_box.value())
-        self.settings.setValue('height', self.height_spin_box.value())
-        self.settings.setValue('img2img_enabled', self.img2img_group_box.isChecked())
-        self.settings.setValue('img2img_source', self.img2img_source_ui.line_edit.text())
-        self.settings.setValue('img2img_noise', self.img2img_noise.spin_box.value())
-        self.settings.setValue('control_net_enabled', self.control_net_group_box.isChecked())
-        self.settings.setValue('control_net_guidance_start', self.control_net_guidance_start.spin_box.value())
-        self.settings.setValue('control_net_guidance_end', self.control_net_guidance_end.spin_box.value())
-        self.settings.setValue('control_nets', json.dumps([control_net.to_dict() for control_net in control_net_metas]))
-        self.settings.setValue('upscale_enabled', self.upscale_group_box.isChecked())
-        self.settings.setValue('upscale_factor', self.upscale_factor_combo_box.currentData())
-        self.settings.setValue('upscale_denoising_strength', self.upscale_denoising_strength.spin_box.value())
-        self.settings.setValue('upscale_blend_strength', self.upscale_blend_strength.spin_box.value())
-        self.settings.setValue('face_enabled', self.face_strength_group_box.isChecked())
-        self.settings.setValue('face_blend_strength', self.face_strength.spin_box.value())
-        self.settings.setValue('high_res_enabled', self.high_res_group_box.isChecked())
-        self.settings.setValue('high_res_factor', self.high_res_factor.spin_box.value())
-        self.settings.setValue('high_res_steps', self.high_res_steps.spin_box.value())
-        self.settings.setValue('high_res_guidance_scale', self.high_res_guidance_scale.spin_box.value())
-        self.settings.setValue('high_res_noise', self.high_res_noise.spin_box.value())
+        self.settings.setValue("collection", self.thumbnail_viewer.collection())
+        self.settings.setValue("type", self.type)
+        self.settings.setValue("model", self.model_combo_box.currentData())
+        self.settings.setValue("scheduler", self.scheduler_combo_box.currentText())
+        self.settings.setValue("prompt", self.prompt_edit.toPlainText())
+        self.settings.setValue("negative_prompt", self.negative_prompt_edit.toPlainText())
+        self.settings.setValue("manual_seed", self.manual_seed_group_box.isChecked())
+        self.settings.setValue("seed", self.seed_lineedit.text())
+        self.settings.setValue("num_images_per_prompt", self.num_images_spin_box.value())
+        self.settings.setValue("num_inference_steps", self.num_steps_spin_box.value())
+        self.settings.setValue("guidance_scale", self.guidance_scale_spin_box.value())
+        self.settings.setValue("width", self.width_spin_box.value())
+        self.settings.setValue("height", self.height_spin_box.value())
+        self.settings.setValue("img2img_enabled", self.img2img_group_box.isChecked())
+        self.settings.setValue("img2img_source", self.img2img_source_ui.line_edit.text())
+        self.settings.setValue("img2img_noise", self.img2img_noise.spin_box.value())
+        self.settings.setValue("control_net_enabled", self.control_net_group_box.isChecked())
+        self.settings.setValue("control_net_guidance_start", self.control_net_guidance_start.spin_box.value())
+        self.settings.setValue("control_net_guidance_end", self.control_net_guidance_end.spin_box.value())
+        self.settings.setValue(
+            "control_nets", json.dumps([control_net.to_dict() for control_net in control_net_metas])
+        )
+        self.settings.setValue("upscale_enabled", self.upscale_group_box.isChecked())
+        self.settings.setValue("upscale_factor", self.upscale_factor_combo_box.currentData())
+        self.settings.setValue("upscale_denoising_strength", self.upscale_denoising_strength.spin_box.value())
+        self.settings.setValue("upscale_blend_strength", self.upscale_blend_strength.spin_box.value())
+        self.settings.setValue("face_enabled", self.face_strength_group_box.isChecked())
+        self.settings.setValue("face_blend_strength", self.face_strength.spin_box.value())
+        self.settings.setValue("high_res_enabled", self.high_res_group_box.isChecked())
+        self.settings.setValue("high_res_factor", self.high_res_factor.spin_box.value())
+        self.settings.setValue("high_res_steps", self.high_res_steps.spin_box.value())
+        self.settings.setValue("high_res_guidance_scale", self.high_res_guidance_scale.spin_box.value())
+        self.settings.setValue("high_res_noise", self.high_res_noise.spin_box.value())
 
         self.update_progress(0, 0)
         self.generate_button.setEnabled(False)
@@ -883,21 +948,25 @@ class MainWindow(QMainWindow):
     def update_progress(self, progress_amount, maximum_amount=100):
         self.progress_bar.setMaximum(maximum_amount)
         if maximum_amount == 0:
-            self.progress_bar.setStyleSheet('QProgressBar { border: none; } QProgressBar:chunk { background-color: grey; }')
+            self.progress_bar.setStyleSheet(
+                "QProgressBar { border: none; } QProgressBar:chunk { background-color: grey; }"
+            )
         else:
-            self.progress_bar.setStyleSheet('QProgressBar { border: none; } QProgressBar:chunk { background-color: blue; }')
+            self.progress_bar.setStyleSheet(
+                "QProgressBar { border: none; } QProgressBar:chunk { background-color: blue; }"
+            )
         if progress_amount is not None:
             self.progress_bar.setValue(progress_amount)
         else:
             self.progress_bar.setValue(0)
 
-        if sys.platform == 'darwin':
+        if sys.platform == "darwin":
             sharedApplication = NSApplication.sharedApplication()
             dockTile = sharedApplication.dockTile()
             if maximum_amount == 0:
-                dockTile.setBadgeLabel_('...')
+                dockTile.setBadgeLabel_("...")
             elif progress_amount is not None:
-                dockTile.setBadgeLabel_('{:d}%'.format(progress_amount))
+                dockTile.setBadgeLabel_("{:d}%".format(progress_amount))
             else:
                 dockTile.setBadgeLabel_(None)
 
@@ -914,7 +983,7 @@ class MainWindow(QMainWindow):
         self.generate_thread = None
 
     def randomize_seed(self):
-        seed = random.randint(0, 0x7fff_ffff_ffff_ffff)
+        seed = random.randint(0, 0x7FFF_FFFF_FFFF_FFFF)
         self.seed_lineedit.setText(str(seed))
 
     def on_seed_random_clicked(self):
@@ -931,7 +1000,7 @@ class MainWindow(QMainWindow):
 
         def io_operation():
             next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
-            output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
+            output_path = os.path.join(collection, "{:05d}.png".format(next_image_id))
             full_path = os.path.join(configuration.IMAGES_PATH, output_path)
 
             with Image.open(source_path) as image:
@@ -941,7 +1010,7 @@ class MainWindow(QMainWindow):
                 png_info = PngImagePlugin.PngInfo()
                 metadata.save_to_png_info(png_info)
 
-                image.save(full_path, pnginfo = png_info)
+                image.save(full_path, pnginfo=png_info)
             return output_path
 
         output_path = utils.retry_on_failure(io_operation)
@@ -979,7 +1048,7 @@ class MainWindow(QMainWindow):
 
             while len(self.control_net_uis) < len(image_metadata.control_nets):
                 self.on_add_control_net()
-            
+
             for i, control_net_meta in enumerate(image_metadata.control_nets):
                 control_net_ui = self.control_net_uis[i]
                 control_net_ui.source_image_ui.line_edit.setText(control_net_meta.image_source)
@@ -993,7 +1062,7 @@ class MainWindow(QMainWindow):
                 self.img2img_noise.spin_box.setValue(image_metadata.img2img_noise)
             else:
                 self.img2img_group_box.setChecked(False)
-                self.img2img_source_ui.line_edit.setText('')
+                self.img2img_source_ui.line_edit.setText("")
 
     def on_use_control_net(self):
         image_metadata = self.get_current_metadata()
@@ -1011,7 +1080,9 @@ class MainWindow(QMainWindow):
 
                 for i, control_net_meta in enumerate(image_metadata.control_nets):
                     control_net_ui = self.create_control_net_ui(control_net_meta)
-                    self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_ui.frame)
+                    self.control_net_group_box_layout.insertWidget(
+                        self.control_net_dynamic_index + i, control_net_ui.frame
+                    )
                     self.control_net_uis.append(control_net_ui)
             else:
                 self.control_net_group_box.setChecked(False)
@@ -1034,7 +1105,7 @@ class MainWindow(QMainWindow):
                 self.face_strength.spin_box.setValue(image_metadata.face_blend_strength)
             else:
                 self.face_strength_group_box.setChecked(False)
-            
+
             if image_metadata.high_res_enabled:
                 self.high_res_group_box.setChecked(True)
                 self.high_res_factor.spin_box.setValue(image_metadata.high_res_factor)
@@ -1043,7 +1114,7 @@ class MainWindow(QMainWindow):
                 self.high_res_noise.spin_box.setValue(image_metadata.high_res_noise)
             else:
                 self.high_res_group_box.setChecked(False)
- 
+
     def on_use_all(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
@@ -1066,7 +1137,7 @@ class MainWindow(QMainWindow):
 
             def io_operation():
                 next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
-                output_path = os.path.join(collection, '{:05d}.png'.format(next_image_id))
+                output_path = os.path.join(collection, "{:05d}.png".format(next_image_id))
 
                 full_source_path = os.path.join(configuration.IMAGES_PATH, source_path)
                 full_output_path = os.path.join(configuration.IMAGES_PATH, output_path)

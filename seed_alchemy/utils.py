@@ -15,10 +15,11 @@ from PySide6.QtWidgets import QApplication, QFrame
 from . import configuration
 from . import font_awesome as fa
 
-if sys.platform == 'darwin':
+if sys.platform == "darwin":
     from AppKit import NSURL, NSWorkspace
 
 empty_icon: QIcon = None
+
 
 class Timer:
     def __init__(self, name=None):
@@ -36,33 +37,38 @@ class Timer:
         else:
             print(f"Elapsed time: {elapsed_time:.6f} seconds")
 
+
 def reveal_in_finder(path: str) -> None:
-    if sys.platform == 'darwin':
+    if sys.platform == "darwin":
         url = NSURL.fileURLWithPath_(path)
         NSWorkspace.sharedWorkspace().activateFileViewerSelectingURLs_([url])
-    elif sys.platform == 'win32':
-        subprocess.run(['explorer', '/select,', path])
+    elif sys.platform == "win32":
+        subprocess.run(["explorer", "/select,", path])
+
 
 def recycle_file(path: str) -> None:
     send2trash.send2trash(path)
+
 
 def download_file(url: str, output_path: str) -> None:
     with requests.get(url, stream=True) as response:
         if response.status_code == 200:
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            with open(output_path, 'wb') as f:
+            with open(output_path, "wb") as f:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
         else:
-            print(f'Failed to download the file, status code: {response.status_code}')
+            print(f"Failed to download the file, status code: {response.status_code}")
+
 
 def next_image_id(path: str) -> int:
     index = 0
     for image_file in os.listdir(path):
-        match = re.match(r'(\d+)\.png', image_file)
+        match = re.match(r"(\d+)\.png", image_file)
         if match:
             index = max(index, int(match.group(1)))
     return index + 1
+
 
 def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, backoff_factor=1.1):
     current_retry = 0
@@ -78,8 +84,9 @@ def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, bac
 
             delay = initial_delay * (backoff_factor ** (current_retry - 1))
             time.sleep(delay)
-    
+
     return None
+
 
 def create_thumbnail(image, max_size):
     width, height = image.size
@@ -94,10 +101,11 @@ def create_thumbnail(image, max_size):
         new_width = int(thumbnail_size * aspect_ratio)
 
     scaled_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-    thumbnail = Image.new('RGBA', (thumbnail_size, thumbnail_size), (0, 0, 0, 0))
+    thumbnail = Image.new("RGBA", (thumbnail_size, thumbnail_size), (0, 0, 0, 0))
     position = ((thumbnail_size - new_width) // 2, (thumbnail_size - new_height) // 2)
     thumbnail.paste(scaled_image, position)
     return thumbnail
+
 
 def empty_qicon():
     global empty_icon
@@ -107,10 +115,11 @@ def empty_qicon():
         empty_icon = QIcon(empty_pixmap)
     return empty_icon
 
+
 def create_fontawesome_icon(icon_code, color=Qt.white):
     app_instance = QApplication.instance()
     device_pixel_ratio = app_instance.devicePixelRatio()
-    
+
     font_size = 12 * configuration.font_scale_factor * device_pixel_ratio
     pixmap_size = 16 * device_pixel_ratio
     font = QFont(fa.font_family, font_size)
@@ -131,26 +140,31 @@ def create_fontawesome_icon(icon_code, color=Qt.white):
 
     return QIcon(pixmap)
 
+
 def horizontal_separator():
     separator = QFrame()
     separator.setFrameShape(QFrame.HLine)
     return separator
 
+
 def pil_to_qimage(pil_image: Image.Image):
-    data = pil_image.convert('RGBA').tobytes('raw', 'RGBA')
+    data = pil_image.convert("RGBA").tobytes("raw", "RGBA")
     qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
     return qimage
+
 
 def set_current_data(widget, data):
     index = widget.findData(data)
     if index != -1:
         widget.setCurrentIndex(index)
 
+
 def deserialize_string_list(value):
     if isinstance(value, list):
         return [str(item) for item in value]
     else:
         return [str(value)]
+
 
 def list_get(l, index, default=None):
     try:

@@ -1,10 +1,10 @@
-
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QAction
 
 from . import actions
 
 MAX_HISTORY = 16
+
 
 class ImageHistory(QObject):
     current_image_changed = Signal(str)
@@ -25,7 +25,7 @@ class ImageHistory(QObject):
                 return
 
         if self.history_stack_index < len(self.history_stack) - 1:
-            self.history_stack = self.history_stack[:self.history_stack_index + 1]
+            self.history_stack = self.history_stack[: self.history_stack_index + 1]
         self.history_stack.append(path)
         self.history_stack_index += 1
 
@@ -51,7 +51,7 @@ class ImageHistory(QObject):
         if self.history_stack_index < len(self.history_stack) - 1:
             self.history_stack_index += 1
             self._update_current()
-            
+
     def navigate_forward_valid(self):
         return self.history_stack_index < len(self.history_stack) - 1
 

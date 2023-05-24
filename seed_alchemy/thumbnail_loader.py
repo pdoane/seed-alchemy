@@ -2,8 +2,7 @@ import os
 from collections import deque
 
 from PIL import Image
-from PySide6.QtCore import (QMutex, QMutexLocker, QObject, QRunnable, Qt,
-                            QThreadPool, QWaitCondition, Signal)
+from PySide6.QtCore import QMutex, QMutexLocker, QObject, QRunnable, Qt, QThreadPool, QWaitCondition, Signal
 from PySide6.QtGui import QPixmap
 
 from . import configuration, utils
@@ -28,9 +27,9 @@ class ThumbnailRunnable(QRunnable):
                     if not self.loader.requests:
                         continue
                 image_path, max_size, callback = self.loader.requests.pop()
-            
+
             self.process(image_path, max_size, callback)
-    
+
     def process(self, image_path, max_size, callback):
         try:
             full_path = os.path.join(configuration.IMAGES_PATH, image_path)
@@ -45,6 +44,7 @@ class ThumbnailRunnable(QRunnable):
         self.signals.thumbnail_loaded.connect(callback)
         self.signals.thumbnail_loaded.emit(image_path, pixmap)
         self.signals.thumbnail_loaded.disconnect(callback)
+
 
 class ThumbnailLoader(QObject):
     def __init__(self):

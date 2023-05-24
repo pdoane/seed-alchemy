@@ -15,6 +15,7 @@ from . import configuration, lora
 from .image_metadata import ImageMetadata
 from .stable_diffusion_pipeline import StableDiffusionPipeline
 
+
 class DiffusersTextualInversionManager(BaseTextualInversionManager):
     def __init__(self, pipe):
         self.pipe = pipe
@@ -27,6 +28,7 @@ class DiffusersTextualInversionManager(BaseTextualInversionManager):
         prompt = self.pipe.maybe_convert_prompt(prompt, self.pipe.tokenizer)
         return self.pipe.tokenizer.encode(prompt, add_special_tokens=False)
 
+
 @dataclass
 class GenerateRequest:
     source_image: Image.Image = None
@@ -38,14 +40,17 @@ class GenerateRequest:
     negative_prompt_embeds: torch.FloatTensor = None
     callback: Callable[[int, int, torch.FloatTensor], None] = None
 
+
 class PipelineCache:
     def __init__(self):
         self.pipeline = None
+
 
 class PipelineBase(ABC):
     @abstractmethod
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
         pass
+
 
 class ImagePipeline(PipelineBase):
     type: str = None
@@ -71,20 +76,21 @@ class ImagePipeline(PipelineBase):
         for control_net_meta in image_metadata.control_nets:
             control_net_config = configuration.control_net_models[control_net_meta.model]
             if control_net_config.subfolder is not None:
-                control_net_name = '{:s}/{:s}'.format(control_net_config.repo_id, control_net_config.subfolder)
+                control_net_name = "{:s}/{:s}".format(control_net_config.repo_id, control_net_config.subfolder)
             else:
                 control_net_name = control_net_config.repo_id
 
             if control_net_name in prev_control_nets:
                 control_net = prev_control_nets[control_net_name]
             else:
-                print('Loading ControlNet', control_net_name)
+                print("Loading ControlNet", control_net_name)
                 control_net = ControlNetModel.from_pretrained(
                     control_net_config.repo_id,
                     subfolder=control_net_config.subfolder,
-                    torch_dtype=configuration.torch_dtype)
+                    torch_dtype=configuration.torch_dtype,
+                )
                 control_net.to(configuration.torch_device)
-                control_net.set_attention_slice('auto')
+                control_net.set_attention_slice("auto")
 
             self.control_nets.append(control_net)
             self.control_net_names.append(control_net_name)
@@ -102,19 +108,20 @@ class ImagePipeline(PipelineBase):
 
             # Model
             with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                print('Loading Stable Diffusion Pipeline', image_metadata.model)
+                warnings.simplefilter("ignore")
+                print("Loading Stable Diffusion Pipeline", image_metadata.model)
 
                 if image_metadata.safety_checker:
                     self.pipe = StableDiffusionPipeline.from_pretrained(
-                        self.model,
-                        torch_dtype=configuration.torch_dtype)
+                        self.model, torch_dtype=configuration.torch_dtype
+                    )
                 else:
                     self.pipe = StableDiffusionPipeline.from_pretrained(
                         self.model,
                         torch_dtype=configuration.torch_dtype,
                         safety_checker=None,
-                        requires_safety_checker=False)
+                        requires_safety_checker=False,
+                    )
 
             self.pipe.to(configuration.torch_device)
             self.pipe.enable_attention_slicing()
@@ -126,7 +133,7 @@ class ImagePipeline(PipelineBase):
                 for entry in configuration.known_embeddings:
                     entry_path = configuration.get_embedding_path(entry)
                     name, _ = os.path.splitext(entry)
-                    print('Loading textual inversion', name)
+                    print("Loading textual inversion", name)
                     self.pipe.load_textual_inversion(entry_path, name)
 
     def set_loras(self, loras):

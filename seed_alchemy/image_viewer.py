@@ -4,8 +4,7 @@ import os
 from PIL import Image
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy,
-                               QToolButton, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QVBoxLayout, QWidget
 
 from . import actions, configuration, utils
 from .image_history import ImageHistory
@@ -15,44 +14,45 @@ from .image_metadata import ImageMetadata
 class MetadataRow:
     def __init__(self, label_text):
         self.label = QLabel(label_text)
-        self.label.setStyleSheet('font-weight: bold; background-color: transparent')
+        self.label.setStyleSheet("font-weight: bold; background-color: transparent")
 
         self.value = QLabel()
         self.value.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.value.setStyleSheet('background-color: transparent')
+        self.value.setStyleSheet("background-color: transparent")
         self.value.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self.value.setCursor(Qt.IBeamCursor)
         self.value.setWordWrap(True)
 
         self.frame = QFrame()
         self.frame.setContentsMargins(0, 0, 0, 0)
-        self.frame.setStyleSheet('background-color: transparent')
+        self.frame.setStyleSheet("background-color: transparent")
 
         hlayout = QHBoxLayout(self.frame)
         hlayout.setContentsMargins(0, 0, 0, 0)
         hlayout.addWidget(self.label)
         hlayout.addWidget(self.value)
 
+
 class ImageMetadataFrame(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.setStyleSheet('background-color: rgba(0, 0, 0, 127);')
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 127);")
 
-        self.path = MetadataRow('Path:')
-        self.model = MetadataRow('Model:')
-        self.scheduler = MetadataRow('Scheduler:')
-        self.prompt = MetadataRow('Prompt:')
-        self.negative_prompt = MetadataRow('Negative Prompt:')
-        self.seed = MetadataRow('Seed:')
-        self.num_inference_steps = MetadataRow('Steps:')
-        self.guidance_scale = MetadataRow('CFG Scale:')
-        self.size = MetadataRow('Size:')
-        self.img2img = MetadataRow('Image to Image:')
-        self.control_net = MetadataRow('Control Net:')
-        self.upscale = MetadataRow('Upscaling:')
-        self.face = MetadataRow('Face Restoration:')
-        self.high_res = MetadataRow('High Resolution:')
+        self.path = MetadataRow("Path:")
+        self.model = MetadataRow("Model:")
+        self.scheduler = MetadataRow("Scheduler:")
+        self.prompt = MetadataRow("Prompt:")
+        self.negative_prompt = MetadataRow("Negative Prompt:")
+        self.seed = MetadataRow("Seed:")
+        self.num_inference_steps = MetadataRow("Steps:")
+        self.guidance_scale = MetadataRow("CFG Scale:")
+        self.size = MetadataRow("Size:")
+        self.img2img = MetadataRow("Image to Image:")
+        self.control_net = MetadataRow("Control Net:")
+        self.upscale = MetadataRow("Upscaling:")
+        self.face = MetadataRow("Face Restoration:")
+        self.high_res = MetadataRow("High Resolution:")
 
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
@@ -80,61 +80,66 @@ class ImageMetadataFrame(QFrame):
         self.seed.value.setText(str(metadata.seed))
         self.num_inference_steps.value.setText(str(metadata.num_inference_steps))
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
-        self.size.value.setText('{:d}x{:d}'.format(metadata.width, metadata.height))
+        self.size.value.setText("{:d}x{:d}".format(metadata.width, metadata.height))
 
         if metadata.img2img_enabled:
             self.img2img.frame.setVisible(True)
-            self.img2img.value.setText('Source={:s}, Noise={:.2f}'.format(
-                metadata.img2img_source,
-                metadata.img2img_noise,
-            ))
+            self.img2img.value.setText(
+                "Source={:s}, Noise={:.2f}".format(
+                    metadata.img2img_source,
+                    metadata.img2img_noise,
+                )
+            )
         else:
             self.img2img.frame.setVisible(False)
 
         if metadata.control_net_enabled:
             self.control_net.frame.setVisible(True)
-            self.control_net.value.setText('Range=[{:.2f},{:.2f}], {:s}'.format(
-                metadata.control_net_guidance_start,
-                metadata.control_net_guidance_end,
-                json.dumps([control_net.to_dict() for control_net in metadata.control_nets])
-            ))
+            self.control_net.value.setText(
+                "Range=[{:.2f},{:.2f}], {:s}".format(
+                    metadata.control_net_guidance_start,
+                    metadata.control_net_guidance_end,
+                    json.dumps([control_net.to_dict() for control_net in metadata.control_nets]),
+                )
+            )
         else:
             self.control_net.frame.setVisible(False)
-        
+
         if metadata.upscale_enabled:
             self.upscale.frame.setVisible(True)
-            self.upscale.value.setText('{:d}x, Denoising={:.2f}, Blend={:.2f}'.format(
-                metadata.upscale_factor,
-                metadata.upscale_denoising_strength,
-                metadata.upscale_blend_strength
-            ))
+            self.upscale.value.setText(
+                "{:d}x, Denoising={:.2f}, Blend={:.2f}".format(
+                    metadata.upscale_factor, metadata.upscale_denoising_strength, metadata.upscale_blend_strength
+                )
+            )
         else:
             self.upscale.frame.setVisible(False)
 
         if metadata.face_enabled:
             self.face.frame.setVisible(True)
-            self.face.value.setText('Blend={:.2f}'.format(
-                metadata.face_blend_strength
-            ))
+            self.face.value.setText("Blend={:.2f}".format(metadata.face_blend_strength))
         else:
             self.face.frame.setVisible(False)
-        
+
         if metadata.high_res_enabled:
             self.high_res.frame.setVisible(True)
-            self.high_res.value.setText('Factor={:.2f}, Steps={:d}, Guidance={:.2f}, Noise={:.2f}'.format(
-                metadata.high_res_factor,
-                metadata.high_res_steps,
-                metadata.high_res_guidance_scale,
-                metadata.high_res_noise
-            ))
+            self.high_res.value.setText(
+                "Factor={:.2f}, Steps={:d}, Guidance={:.2f}, Noise={:.2f}".format(
+                    metadata.high_res_factor,
+                    metadata.high_res_steps,
+                    metadata.high_res_guidance_scale,
+                    metadata.high_res_noise,
+                )
+            )
         else:
             self.high_res.frame.setVisible(False)
+
 
 class ImageViewer(QWidget):
     current_image_changed = Signal(str)
     history: ImageHistory
     history_stack = []
-    history_stack_index = -1    
+    history_stack_index = -1
 
     def __init__(self, history, parent=None):
         super().__init__(parent)
@@ -145,7 +150,7 @@ class ImageViewer(QWidget):
         self.minimum_image_size = 100
         self.show_preview = True
 
-        self.image_path_ = ''
+        self.image_path_ = ""
 
         self.image = None
         self.metadata = None
@@ -272,7 +277,7 @@ class ImageViewer(QWidget):
                 self.image_path_ = path
                 self.image = image.copy()
         except (IOError, OSError):
-            self.image_path_ = ''
+            self.image_path_ = ""
             self.image = None
 
         self.metadata_frame.update(self.metadata)

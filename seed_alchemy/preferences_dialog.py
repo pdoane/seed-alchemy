@@ -1,9 +1,21 @@
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
-                               QFileDialog, QGroupBox, QHBoxLayout,
-                               QHeaderView, QLabel, QLineEdit, QMessageBox,
-                               QPushButton, QTableWidget, QTableWidgetItem,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from . import configuration, utils
 
@@ -26,9 +38,7 @@ class DirectoryPathWidget(QWidget):
     def browse(self):
         options = QFileDialog.Options()
         options |= QFileDialog.ShowDirsOnly
-        directory = QFileDialog.getExistingDirectory(
-            self, "Select a directory", "", options=options
-        )
+        directory = QFileDialog.getExistingDirectory(self, "Select a directory", "", options=options)
         if directory:
             self.line_edit.setText(directory)
 
@@ -37,6 +47,7 @@ class DirectoryPathWidget(QWidget):
 
     def set_path(self, path):
         self.line_edit.setText(path)
+
 
 class PreferencesDialog(QDialog):
     def __init__(self, parent=None):
@@ -47,14 +58,14 @@ class PreferencesDialog(QDialog):
 
         restartLabel = QLabel("Changes to application settings may require a restart.")
 
-        self.local_models_path = DirectoryPathWidget('Local Models Path')
-        self.local_models_path.set_path(self.settings.value('local_models_path'))
+        self.local_models_path = DirectoryPathWidget("Local Models Path")
+        self.local_models_path.set_path(self.settings.value("local_models_path"))
 
-        self.reduce_memory = QCheckBox('Reduce Memory')
-        self.reduce_memory.setChecked(self.settings.value('reduce_memory', type=bool))
+        self.reduce_memory = QCheckBox("Reduce Memory")
+        self.reduce_memory.setChecked(self.settings.value("reduce_memory", type=bool))
 
-        self.safety_checker = QCheckBox('Safety Checker')
-        self.safety_checker.setChecked(self.settings.value('safety_checker', type=bool))
+        self.safety_checker = QCheckBox("Safety Checker")
+        self.safety_checker.setChecked(self.settings.value("safety_checker", type=bool))
 
         models_group = QGroupBox()
 
@@ -97,7 +108,7 @@ class PreferencesDialog(QDialog):
         self.load_models()
 
     def load_models(self):
-        huggingface_models = utils.deserialize_string_list(self.settings.value('huggingface_models'))
+        huggingface_models = utils.deserialize_string_list(self.settings.value("huggingface_models"))
 
         self.table.setRowCount(len(huggingface_models))
 
@@ -149,10 +160,10 @@ class PreferencesDialog(QDialog):
             repo_id = self.table.item(row, 0).text()
             huggingface_models.append(repo_id)
 
-        self.settings.setValue('local_models_path', self.local_models_path.path())
-        self.settings.setValue('reduce_memory', self.reduce_memory.isChecked())
-        self.settings.setValue('safety_checker', self.safety_checker.isChecked())
-        self.settings.setValue('huggingface_models', huggingface_models)
+        self.settings.setValue("local_models_path", self.local_models_path.path())
+        self.settings.setValue("reduce_memory", self.reduce_memory.isChecked())
+        self.settings.setValue("safety_checker", self.safety_checker.isChecked())
+        self.settings.setValue("huggingface_models", huggingface_models)
 
         configuration.load_from_settings(self.settings)
 

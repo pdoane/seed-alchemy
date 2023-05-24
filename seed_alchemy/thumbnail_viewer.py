@@ -1,4 +1,3 @@
-
 import os
 
 from PySide6.QtCore import QSettings, Signal
@@ -12,7 +11,9 @@ from .thumbnail_loader import ThumbnailLoader
 class ThumbnailViewer(QWidget):
     file_dropped = Signal(str)
 
-    def __init__(self, loader: ThumbnailLoader, settings: QSettings, collections: list[str], context_menu: QMenu, parent=None):
+    def __init__(
+        self, loader: ThumbnailLoader, settings: QSettings, collections: list[str], context_menu: QMenu, parent=None
+    ):
         super().__init__(parent)
 
         self.setAcceptDrops(True)
@@ -31,7 +32,7 @@ class ThumbnailViewer(QWidget):
 
         # Gather collections
         self.collection_combobox.addItems(collections)
-        self.collection_combobox.setCurrentText(settings.value('collection'))
+        self.collection_combobox.setCurrentText(settings.value("collection"))
         self.collection_combobox.currentIndexChanged.connect(self.update_collection)
         self.pending_selection = None
         self.update_collection()
@@ -39,20 +40,20 @@ class ThumbnailViewer(QWidget):
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-            self.setStyleSheet('QListWidget {background-color: #222233;}')
+            self.setStyleSheet("QListWidget {background-color: #222233;}")
 
     def dragMoveEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
 
     def dragLeaveEvent(self, event):
-        self.setStyleSheet('QListWidget {background-color: black;}')
+        self.setStyleSheet("QListWidget {background-color: black;}")
 
     def dropEvent(self, event):
         urls = event.mimeData().urls()
         for url in urls:
             self.file_dropped.emit(url.toLocalFile())
-        self.setStyleSheet('QListWidget {background-color: black;}')
+        self.setStyleSheet("QListWidget {background-color: black;}")
 
         event.acceptProposedAction()
 
@@ -62,9 +63,13 @@ class ThumbnailViewer(QWidget):
     def update_collection(self):
         collection = self.collection()
 
-        image_files = sorted([
-            file for file in os.listdir(os.path.join(configuration.IMAGES_PATH, collection))
-            if file.lower().endswith(('.webp', '.png', '.jpg', '.jpeg', '.gif', '.bmp'))])
+        image_files = sorted(
+            [
+                file
+                for file in os.listdir(os.path.join(configuration.IMAGES_PATH, collection))
+                if file.lower().endswith((".webp", ".png", ".jpg", ".jpeg", ".gif", ".bmp"))
+            ]
+        )
         image_files.reverse()
 
         self.list_widget.clear()
@@ -86,7 +91,7 @@ class ThumbnailViewer(QWidget):
             self.collection_combobox.setCurrentText(collection)
         else:
             self.list_widget.select_image(rel_path)
-    
+
     def add_image(self, rel_path):
         self.list_widget.insert_image(0, rel_path)
         self.list_widget.select_index(0, scroll_to=False)

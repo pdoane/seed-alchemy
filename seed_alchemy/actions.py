@@ -37,13 +37,13 @@ class ActionDef:
         if self.role is not None:
             action.setMenuRole(self.role)
         return action
-    
+
     def tool_button(self):
         button = ToolButton()
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
             button.setFont(fa.font)
-            #button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
+            # button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         elif self.icon is not None:
@@ -57,13 +57,13 @@ class ActionDef:
         button.setCheckable(self.checkable)
         button.setAutoExclusive(self.auto_exclusive)
         return button
-    
+
     def push_button(self):
         button = QPushButton()
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
             button.setFont(fa.font)
-            #button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
+            # button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         elif self.icon is not None:
@@ -77,36 +77,37 @@ class ActionDef:
         button.setAutoExclusive(self.auto_exclusive)
         return button
 
+
 # File
-preferences = ActionDef('Preferences...', empty_icon=False, role=QAction.MenuRole.PreferencesRole)
-quit = ActionDef('Exit', empty_icon=False, role=QAction.MenuRole.QuitRole)
+preferences = ActionDef("Preferences...", empty_icon=False, role=QAction.MenuRole.PreferencesRole)
+quit = ActionDef("Exit", empty_icon=False, role=QAction.MenuRole.QuitRole)
 
 # Modes
-image_mode = ActionDef('Image Generation', icon='img2img_icon.png', checkable=True, auto_exclusive=True)
+image_mode = ActionDef("Image Generation", icon="img2img_icon.png", checkable=True, auto_exclusive=True)
 
 # History
-back = ActionDef('Back', fa_icon=fa.icon_arrow_left, shortcut=Qt.CTRL | Qt.Key_BracketLeft)
-forward = ActionDef('Forward', fa_icon=fa.icon_arrow_right, shortcut=Qt.CTRL | Qt.Key_BracketRight)
+back = ActionDef("Back", fa_icon=fa.icon_arrow_left, shortcut=Qt.CTRL | Qt.Key_BracketLeft)
+forward = ActionDef("Forward", fa_icon=fa.icon_arrow_right, shortcut=Qt.CTRL | Qt.Key_BracketRight)
 
 # Image
-generate_image = ActionDef('Generate Image', shortcut=Qt.CTRL | Qt.Key_Return)
-cancel_generation = ActionDef('Cancel Generation', fa_icon=fa.icon_ban, shortcut=Qt.SHIFT | Qt.Key_X)
+generate_image = ActionDef("Generate Image", shortcut=Qt.CTRL | Qt.Key_Return)
+cancel_generation = ActionDef("Cancel Generation", fa_icon=fa.icon_ban, shortcut=Qt.SHIFT | Qt.Key_X)
 
-locate_source = ActionDef('Locate Source Image', fa_icon=fa.icon_compass)
+locate_source = ActionDef("Locate Source Image", fa_icon=fa.icon_compass)
 
-set_as_source_image = ActionDef('Set as Source Image', fa_icon=fa.icon_share)
-use_prompt = ActionDef('Use Prompt', fa_icon=fa.icon_quote_left, shortcut=Qt.Key_P)
-use_seed = ActionDef('Use Seed', fa_icon=fa.icon_seedling, shortcut=Qt.Key_S)
-use_source_images = ActionDef('Use Source Images', fa_icon=fa.icon_image)
-use_all = ActionDef('Use All', fa_icon=fa.icon_star_of_life, shortcut=Qt.Key_A)
-toggle_metadata = ActionDef('Toggle Metadata', fa_icon=fa.icon_circle_info, shortcut=Qt.Key_I, checkable=True)
-toggle_preview = ActionDef('Toggle Preview', fa_icon=fa.icon_magnifying_glass, checkable=True)
+set_as_source_image = ActionDef("Set as Source Image", fa_icon=fa.icon_share)
+use_prompt = ActionDef("Use Prompt", fa_icon=fa.icon_quote_left, shortcut=Qt.Key_P)
+use_seed = ActionDef("Use Seed", fa_icon=fa.icon_seedling, shortcut=Qt.Key_S)
+use_source_images = ActionDef("Use Source Images", fa_icon=fa.icon_image)
+use_all = ActionDef("Use All", fa_icon=fa.icon_star_of_life, shortcut=Qt.Key_A)
+toggle_metadata = ActionDef("Toggle Metadata", fa_icon=fa.icon_circle_info, shortcut=Qt.Key_I, checkable=True)
+toggle_preview = ActionDef("Toggle Preview", fa_icon=fa.icon_magnifying_glass, checkable=True)
 
-delete_image = ActionDef('Delete Image', fa_icon=fa.icon_trash, shortcut=Qt.CTRL | Qt.Key_Backspace)
-if sys.platform == 'darwin':
-    reveal_in_finder = ActionDef('Reveal in Finder', shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
-elif sys.platform == 'win32':
-    reveal_in_finder = ActionDef('Reveal in File Explorer', shortcut=Qt.SHIFT | Qt.ALT | Qt.Key_R)
+delete_image = ActionDef("Delete Image", fa_icon=fa.icon_trash, shortcut=Qt.CTRL | Qt.Key_Backspace)
+if sys.platform == "darwin":
+    reveal_in_finder = ActionDef("Reveal in Finder", shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
+elif sys.platform == "win32":
+    reveal_in_finder = ActionDef("Reveal in File Explorer", shortcut=Qt.SHIFT | Qt.ALT | Qt.Key_R)
 
 # Help
-about = ActionDef('About', empty_icon=False, role=QAction.MenuRole.AboutRole)
+about = ActionDef("About", empty_icon=False, role=QAction.MenuRole.AboutRole)

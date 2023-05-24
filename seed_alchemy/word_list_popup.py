@@ -1,8 +1,15 @@
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
-from PySide6.QtWidgets import (QDialog, QGraphicsBlurEffect, QLabel, QLineEdit,
-                               QListWidget, QListWidgetItem, QVBoxLayout,
-                               QWidget)
+from PySide6.QtWidgets import (
+    QDialog,
+    QGraphicsBlurEffect,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 class WordListItem(QListWidgetItem):
@@ -21,10 +28,10 @@ class WordListItem(QListWidgetItem):
     def get_rich_text(self):
         index = self.word.lower().find(self.matched_text.lower())
         before = self.word[:index]
-        match = self.word[index:index + len(self.matched_text)]
-        after = self.word[index + len(self.matched_text):]
+        match = self.word[index : index + len(self.matched_text)]
+        after = self.word[index + len(self.matched_text) :]
 
-        #return f"{before}<b><font color='red'>{match}</font></b>{after}"
+        # return f"{before}<b><font color='red'>{match}</font></b>{after}"
         return f"{before}<b>{match}</b>{after}"
 
 
@@ -95,11 +102,12 @@ class WordListWidget(QWidget):
 
         if not selected_row:
             self.list_widget.setCurrentRow(0)
-            
+
     def item_double_clicked(self, item):
         self.word_selected.emit(item.word)
         self.parent().close()
-        
+
+
 class WordListPopup(QDialog):
     word_selected = Signal(str)
 
@@ -128,7 +136,7 @@ class WordListPopup(QDialog):
     def closeEvent(self, event):
         self.parent().window().setGraphicsEffect(None)
         super().closeEvent(event)
-        
+
     def showEvent(self, event):
         self.word_assist_widget.line_edit.setFocus()
         super().showEvent(event)

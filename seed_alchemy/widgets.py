@@ -1,8 +1,19 @@
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QComboBox, QDoubleSpinBox, QFrame, QHBoxLayout,
-                               QLabel, QPushButton, QScrollArea, QSlider,
-                               QSpinBox, QStyle, QStyleOptionSlider,
-                               QToolButton, QWidget)
+from PySide6.QtWidgets import (
+    QComboBox,
+    QDoubleSpinBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QScrollArea,
+    QSlider,
+    QSpinBox,
+    QStyle,
+    QStyleOptionSlider,
+    QToolButton,
+    QWidget,
+)
 
 from . import font_awesome as fa
 
@@ -10,9 +21,11 @@ from . import font_awesome as fa
 def round_to_step(num, step):
     return round(num / step) * step
 
+
 class ComboBox(QComboBox):
     def wheelEvent(self, event):
         event.ignore()
+
 
 class DoubleSpinBox(QDoubleSpinBox):
     def __init__(self, parent=None):
@@ -29,6 +42,7 @@ class DoubleSpinBox(QDoubleSpinBox):
         else:
             super().keyPressEvent(event)
 
+
 class FrameWithCloseButton(QFrame):
     closed = Signal()
 
@@ -42,7 +56,7 @@ class FrameWithCloseButton(QFrame):
             self.close_button = QPushButton(self)
             self.close_button.setText(fa.icon_xmark)
             self.close_button.setFont(fa.font)
-            self.close_button.setToolTip('Remove')
+            self.close_button.setToolTip("Remove")
             self.close_button.setFixedSize(self.close_button.sizeHint())
             self.close_button.clicked.connect(self._emit_closed)
 
@@ -61,6 +75,7 @@ class FrameWithCloseButton(QFrame):
     def _emit_closed(self):
         self.closed.emit()
 
+
 class ScrollArea(QScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -69,10 +84,12 @@ class ScrollArea(QScrollArea):
         size = super().sizeHint()
         size.setWidth(size.width() + self.verticalScrollBar().width() + self.widget().contentsMargins().right())
         return size
-    
+
+
 class Slider(QSlider):
     def wheelEvent(self, event):
         event.ignore()
+
 
 class SpinBox(QSpinBox):
     def __init__(self, parent=None):
@@ -89,6 +106,7 @@ class SpinBox(QSpinBox):
         else:
             super().keyPressEvent(event)
 
+
 class ToolButton(QToolButton):
     about_to_show_menu = Signal()
 
@@ -99,6 +117,7 @@ class ToolButton(QToolButton):
         if self.popupMode() == QToolButton.InstantPopup:
             self.about_to_show_menu.emit()
         super().mousePressEvent(event)
+
 
 class FloatSliderSpinBox(QWidget):
     def __init__(self, name, value, minimum=0.0, maximum=1.0, single_step=0.01, parent=None):
@@ -150,9 +169,10 @@ class FloatSliderSpinBox(QWidget):
 
     def _to_slider_value(self, value):
         return round(value * 100.0)
-    
+
     def _from_slider_value(self, value):
         return round_to_step(value / 100.0, self.single_step)
+
 
 class IntSliderSpinBox(QWidget):
     def __init__(self, name, value, minimum=0, maximum=100, single_step=1, parent=None):

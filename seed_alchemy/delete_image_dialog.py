@@ -1,8 +1,7 @@
 from PIL import Image
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
-                               QStyle, QVBoxLayout)
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QStyle, QVBoxLayout
 
 from . import utils
 
@@ -11,7 +10,7 @@ class DeleteImageDialog(QDialog):
     def __init__(self, image_path: str, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle('Confirm Delete')
+        self.setWindowTitle("Confirm Delete")
 
         # Widgets
         icon_label = QLabel()
@@ -21,7 +20,7 @@ class DeleteImageDialog(QDialog):
         bold_font = QFont()
         bold_font.setWeight(QFont.Bold)
 
-        message_label = QLabel('Are you sure you want to delete this image?')
+        message_label = QLabel("Are you sure you want to delete this image?")
         message_label.setFont(bold_font)
 
         image_label = QLabel()
@@ -30,8 +29,8 @@ class DeleteImageDialog(QDialog):
             image_pixmap = QPixmap(utils.pil_to_qimage(image))
         image_label.setPixmap(image_pixmap)
 
-        yes_button = QPushButton('Yes')
-        no_button = QPushButton('No')
+        yes_button = QPushButton("Yes")
+        no_button = QPushButton("No")
         no_button.setDefault(True)
 
         # Layout

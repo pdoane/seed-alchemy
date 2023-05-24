@@ -12,19 +12,17 @@ import PIL
 import torch
 from diffusers.image_processor import VaeImageProcessor
 from diffusers.loaders import LoraLoaderMixin, TextualInversionLoaderMixin
-from diffusers.models import (AutoencoderKL, ControlNetModel,
-                              UNet2DConditionModel)
+from diffusers.models import AutoencoderKL, ControlNetModel, UNet2DConditionModel
 from diffusers.pipelines.pipeline_utils import DiffusionPipeline
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
-from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_controlnet import \
-    MultiControlNetModel
-from diffusers.pipelines.stable_diffusion.safety_checker import \
-    StableDiffusionSafetyChecker
+from diffusers.pipelines.stable_diffusion.pipeline_stable_diffusion_controlnet import MultiControlNetModel
+from diffusers.pipelines.stable_diffusion.safety_checker import StableDiffusionSafetyChecker
 from diffusers.schedulers import KarrasDiffusionSchedulers
 from diffusers.utils import PIL_INTERPOLATION, deprecate, logging, randn_tensor
 from transformers import CLIPImageProcessor, CLIPTextModel, CLIPTokenizer
 
 logger = logging.get_logger(__name__)  # pylint: disable=invalid-name
+
 
 def prepare_controlnet_conditioning_image(
     controlnet_conditioning_image,
@@ -68,6 +66,7 @@ def prepare_controlnet_conditioning_image(
         controlnet_conditioning_image = torch.cat([controlnet_conditioning_image] * 2)
 
     return controlnet_conditioning_image
+
 
 class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, LoraLoaderMixin):
     r"""
@@ -486,7 +485,7 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             raise ValueError(
                 f"If image batch size is not 1, image batch size must be same as prompt batch size. image batch size: {image_batch_size}, prompt batch size: {prompt_batch_size}"
             )
-    
+
     def get_timesteps(self, num_inference_steps, strength, device, is_txt2img):
         if is_txt2img:
             return self.scheduler.timesteps.to(device), num_inference_steps
@@ -499,7 +498,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
 
             return timesteps, num_inference_steps - t_start
 
-    def prepare_latents(self, image, timestep, batch_size, num_images_per_prompt, height, width, dtype, device, generator, latents=None):
+    def prepare_latents(
+        self, image, timestep, batch_size, num_images_per_prompt, height, width, dtype, device, generator, latents=None
+    ):
         if isinstance(generator, list) and len(generator) != batch_size:
             raise ValueError(
                 f"You have passed a list of generators of length {len(generator)}, but requested an effective batch"
@@ -613,7 +614,9 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
         callback_steps: int = 1,
         cross_attention_kwargs: Optional[Dict[str, Any]] = None,
         controlnet: Union[ControlNetModel, List[ControlNetModel], Tuple[ControlNetModel], MultiControlNetModel] = None,
-        controlnet_conditioning_image: Union[torch.FloatTensor, PIL.Image.Image, List[torch.FloatTensor], List[PIL.Image.Image]] = None,
+        controlnet_conditioning_image: Union[
+            torch.FloatTensor, PIL.Image.Image, List[torch.FloatTensor], List[PIL.Image.Image]
+        ] = None,
         controlnet_conditioning_scale: Union[float, List[float]] = 1.0,
         controlnet_guidance_start: float = 0.0,
         controlnet_guidance_end: float = 1.0,
@@ -740,7 +743,8 @@ class StableDiffusionPipeline(DiffusionPipeline, TextualInversionLoaderMixin, Lo
             controlnet_conditioning_image,
             controlnet_guidance_start,
             controlnet_guidance_end,
-            controlnet_conditioning_scale)
+            controlnet_conditioning_scale,
+        )
 
         # 2. Define call parameters
         if prompt is not None and isinstance(prompt, str):

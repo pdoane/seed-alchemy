@@ -1,9 +1,6 @@
-
-from PySide6.QtCore import (QAbstractListModel, QItemSelectionModel,
-                            QModelIndex, QPoint, QRect, QSize, Qt, Signal)
+from PySide6.QtCore import QAbstractListModel, QItemSelectionModel, QModelIndex, QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QIcon, QPainter, QPen
-from PySide6.QtWidgets import (QAbstractItemView, QListView, QListWidget,
-                               QStyle, QStyledItemDelegate)
+from PySide6.QtWidgets import QAbstractItemView, QListView, QListWidget, QStyle, QStyledItemDelegate
 
 from .thumbnail_loader import ThumbnailLoader
 
@@ -44,6 +41,7 @@ class ThumbnailModel(QAbstractListModel):
             self.cache[image_path] = pixmap
             self.dataChanged.emit(self.index(row), self.index(row))
 
+
 class ThumbnailSelectionDelegate(QStyledItemDelegate):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -53,8 +51,12 @@ class ThumbnailSelectionDelegate(QStyledItemDelegate):
 
         if option.state & QStyle.State_Selected:
             rect = QRect(option.rect)
-            checkmark_start = QPoint(rect.left() * 0.70 + rect.right() * 0.30, rect.top() * 0.50 + rect.bottom() * 0.50)
-            checkmark_middle = QPoint(rect.left() * 0.55 + rect.right() * 0.45, rect.top() * 0.35 + rect.bottom() * 0.65)
+            checkmark_start = QPoint(
+                rect.left() * 0.70 + rect.right() * 0.30, rect.top() * 0.50 + rect.bottom() * 0.50
+            )
+            checkmark_middle = QPoint(
+                rect.left() * 0.55 + rect.right() * 0.45, rect.top() * 0.35 + rect.bottom() * 0.65
+            )
             checkmark_end = QPoint(rect.left() * 0.25 + rect.right() * 0.75, rect.top() * 0.65 + rect.bottom() * 0.35)
 
             painter.save()
@@ -63,6 +65,7 @@ class ThumbnailSelectionDelegate(QStyledItemDelegate):
             painter.drawLine(checkmark_start, checkmark_middle)
             painter.drawLine(checkmark_middle, checkmark_end)
             painter.restore()
+
 
 class ThumbnailListWidget(QListView):
     image_selection_changed = Signal(str)
@@ -110,7 +113,7 @@ class ThumbnailListWidget(QListView):
         self.model.beginInsertRows(QModelIndex(), row, row)
         self.image_paths.append(path)
         self.model.endInsertRows()
-    
+
     def insert_image(self, row, path):
         self.model.beginInsertRows(QModelIndex(), row, row)
         self.image_paths.insert(row, path)

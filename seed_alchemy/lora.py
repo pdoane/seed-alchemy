@@ -9,24 +9,27 @@ from torch import Tensor
 LORA_PREFIX_UNET = "lora_unet"
 LORA_PREFIX_TEXT_ENCODER = "lora_te"
 
+
 class LoraModel:
     layer_elems: dict[str, dict[str, Tensor]]
+
 
 def load(path, device, dtype) -> LoraModel:
     model = LoraModel()
 
     _, ext = os.path.splitext(path)
-    if ext == '.safetensors':
+    if ext == ".safetensors":
         state_dict = safetensors.torch.load_file(path)
     else:
-        state_dict = torch.load(path, map_location='cpu')
+        state_dict = torch.load(path, map_location="cpu")
 
     model.layer_elems = defaultdict(dict)
     for key, value in state_dict.items():
-        layer, elem = key.split('.', 1)
+        layer, elem = key.split(".", 1)
         model.layer_elems[layer][elem] = value.to(device=device, dtype=dtype)
 
     return model
+
 
 def apply(pipe: DiffusionPipeline, models: list[LoraModel], multipliers: list[float]):
     # Restore previous weights
@@ -37,7 +40,6 @@ def apply(pipe: DiffusionPipeline, models: list[LoraModel], multipliers: list[fl
 
     for model, multiplier in zip(models, multipliers):
         for layer_name, elems in model.layer_elems.items():
-
             if "text" in layer_name:
                 layer_infos = layer_name.split(LORA_PREFIX_TEXT_ENCODER + "_")[-1].split("_")
                 curr_layer = pipe.text_encoder
@@ -61,9 +63,9 @@ def apply(pipe: DiffusionPipeline, models: list[LoraModel], multipliers: list[fl
                         temp_name = layer_infos.pop(0)
 
             # get elements for this layer
-            weight_up = elems['lora_up.weight']
-            weight_down = elems['lora_down.weight']
-            alpha = elems.get('alpha', None)
+            weight_up = elems["lora_up.weight"]
+            weight_down = elems["lora_down.weight"]
+            alpha = elems.get("alpha", None)
             if alpha is not None:
                 alpha = alpha.item() / weight_up.shape[1]
             else:
@@ -76,8 +78,14 @@ def apply(pipe: DiffusionPipeline, models: list[LoraModel], multipliers: list[fl
             # update weight
             with torch.no_grad():
                 if len(weight_up.shape) == 4:
-                    updown = multiplier * alpha * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2)).unsqueeze(2).unsqueeze(3)
+                    updown = (
+                        multiplier
+                        * alpha
+                        * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2))
+                        .unsqueeze(2)
+                        .unsqueeze(3)
+                    )
                 else:
                     updown = multiplier * alpha * torch.mm(weight_up, weight_down)
-            
+
             curr_layer.weight.data += updown

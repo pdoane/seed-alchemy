@@ -21,4 +21,3 @@ class AboutDialog(QDialog):
         layout.addWidget(ok_button)
 
         self.setLayout(layout)
-        
