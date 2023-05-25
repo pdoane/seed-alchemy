@@ -4,6 +4,9 @@ import random
 import shutil
 import sys
 
+from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+    download_from_original_stable_diffusion_ckpt,
+)
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, Qt, QTimer
 from PySide6.QtGui import QAction, QIcon
@@ -11,6 +14,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
     QDialog,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -172,6 +176,13 @@ class MainWindow(QMainWindow):
         image_menu.addAction(action_reveal_in_finder)
         image_menu.addSeparator()
 
+        # Tools Menu
+        convert_model_action = actions.convert_model.create(self)
+        convert_model_action.triggered.connect(self.on_convert_model)
+
+        tools_menu = QMenu("Tools", self)
+        tools_menu.addAction(convert_model_action)
+
         # Help Menu
         action_about = actions.about.create(self)
         action_about.triggered.connect(self.show_about_dialog)
@@ -184,6 +195,7 @@ class MainWindow(QMainWindow):
         menu_bar.addMenu(app_menu)
         menu_bar.addMenu(history_menu)
         menu_bar.addMenu(image_menu)
+        menu_bar.addMenu(tools_menu)
         menu_bar.addMenu(help_menu)
         self.setMenuBar(menu_bar)
 
@@ -1183,6 +1195,29 @@ class MainWindow(QMainWindow):
 
     def on_remove_file(self, path):
         self.thumbnail_viewer.remove_image(path)
+
+    def on_convert_model(self):
+        dialog = QFileDialog()
+        dialog.setNameFilter("Checkpoint files (*.ckpt);;Safetensor files (*.safetensors);;All files (*.*)")
+        dialog.selectNameFilter("Checkpoint files (*.ckpt);;Safetensor files (*.safetensors)")
+
+        if dialog.exec() == QFileDialog.Accepted:
+            checkpoint_path = dialog.selectedFiles()[0]
+            base_name, ext = os.path.splitext(checkpoint_path)
+            original_config_file = base_name + ".yaml"
+            if not os.path.exists(original_config_file):
+                original_config_file = None
+            from_safetensors = ext.lower() == ".safetensors"
+
+            print(checkpoint_path, original_config_file, from_safetensors)
+            pipe = download_from_original_stable_diffusion_ckpt(
+                checkpoint_path=checkpoint_path,
+                original_config_file=original_config_file,
+                from_safetensors=from_safetensors,
+            )
+
+            os.mkdir(base_name)
+            pipe.save_pretrained(base_name, safe_serialization=True)
 
     def hide_if_thread_running(self):
         if self.generate_thread:

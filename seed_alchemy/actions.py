@@ -109,5 +109,8 @@ if sys.platform == "darwin":
 elif sys.platform == "win32":
     reveal_in_finder = ActionDef("Reveal in File Explorer", shortcut=Qt.SHIFT | Qt.ALT | Qt.Key_R)
 
+# Tools
+convert_model = ActionDef("Convert .ckpt/.safetensors model...")
+
 # Help
 about = ActionDef("About", empty_icon=False, role=QAction.MenuRole.AboutRole)
