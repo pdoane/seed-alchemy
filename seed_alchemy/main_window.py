@@ -95,7 +95,6 @@ class MainWindow(QMainWindow):
         self.image_history.current_image_changed.connect(self.on_current_image_changed)
         self.thumbnail_loader = ThumbnailLoader()
 
-        self.scheduled_update = False
         self.generate_thread = None
         self.active_thread_count = 0
 
@@ -553,12 +552,6 @@ class MainWindow(QMainWindow):
             self.image_history.visit(selected_image)
 
     def update_config_frame_size(self):
-        if not self.scheduled_update:
-            self.scheduled_update = True
-            QTimer.singleShot(0, self.deferred_size_update)
-
-    def deferred_size_update(self):
-        self.scheduled_update = False
         self.config_frame.adjustSize()
 
         # Workaround QT issue where the size of QScrollArea.widget() is cached and not updated
@@ -781,21 +774,28 @@ class MainWindow(QMainWindow):
         if self.generate_thread:
             self.generate_thread.cancel = True
 
-    def on_add_control_net(self):
+    def on_add_control_net(self) -> ControlNetConditionUI:
+        condition_ui = self.add_control_net()
+        self.update_config_frame_size()
+        return condition_ui
+
+    def on_remove_control_net(self, condition_ui: ControlNetConditionUI) -> None:
+        self.remove_control_net(condition_ui)
+        self.update_config_frame_size()
+
+    def add_control_net(self) -> ControlNetConditionUI:
         condition_meta = ControlNetConditionMetadata()
         i = len(self.condition_uis)
         condition_ui = self.create_control_net_ui(condition_meta)
         self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
         self.condition_uis.append(condition_ui)
-        self.update_config_frame_size()
         return condition_ui
 
-    def on_remove_control_net(self, condition_ui: ControlNetConditionUI):
+    def remove_control_net(self, condition_ui: ControlNetConditionUI) -> None:
         index = self.control_net_group_box_layout.indexOf(condition_ui.frame) - self.control_net_dynamic_index
         del self.condition_uis[index]
         self.control_net_group_box_layout.removeWidget(condition_ui.frame)
         condition_ui.frame.setParent(None)
-        self.update_config_frame_size()
 
     def on_thumbnail_loaded(self, source_image_ui, pixmap):
         source_image_ui.label.setPixmap(pixmap)
@@ -1029,117 +1029,137 @@ class MainWindow(QMainWindow):
     def on_use_prompt(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            self.prompt_edit.setPlainText(image_metadata.prompt)
-            self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
+            self.use_prompt(image_metadata)
 
     def on_use_seed(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            self.manual_seed_group_box.setChecked(True)
-            self.seed_lineedit.setText(str(image_metadata.seed))
+            self.use_seed(image_metadata)
 
     def on_use_general(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
-            self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
-            self.width_spin_box.setValue(image_metadata.width)
-            self.height_spin_box.setValue(image_metadata.height)
-            self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
+            self.use_general(image_metadata)
 
     def on_use_source_images(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            img2img_meta = image_metadata.img2img
-            if img2img_meta:
-                self.img2img_source_ui.line_edit.setText(img2img_meta.source)
-
-            control_net_meta = image_metadata.control_net
-            if control_net_meta:
-                while len(self.condition_uis) < len(control_net_meta.conditions):
-                    self.on_add_control_net()
-
-                for i, condition_meta in enumerate(control_net_meta.conditions):
-                    condition_ui = self.condition_uis[i]
-                    condition_ui.source_image_ui.line_edit.setText(condition_meta.source)
+            self.use_source_images(image_metadata)
+            self.update_config_frame_size()
 
     def on_use_img2img(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            img2img_meta = image_metadata.img2img
-            if img2img_meta:
-                self.img2img_group_box.setChecked(True)
-                self.img2img_source_ui.line_edit.setText(img2img_meta.source)
-                self.img2img_noise.spin_box.setValue(img2img_meta.noise)
-            else:
-                self.img2img_group_box.setChecked(False)
-                self.img2img_source_ui.line_edit.setText("")
+            self.use_img2img(image_metadata)
 
     def on_use_control_net(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            for condition_ui in self.condition_uis:
-                self.control_net_group_box_layout.removeWidget(condition_ui.frame)
-                condition_ui.frame.setParent(None)
-
-            self.condition_uis = []
-
-            control_net_meta = image_metadata.control_net
-            if control_net_meta:
-                self.control_net_group_box.setChecked(True)
-                self.control_net_guidance_start.spin_box.setValue(control_net_meta.guidance_start)
-                self.control_net_guidance_end.spin_box.setValue(control_net_meta.guidance_end)
-
-                for i, condition_meta in enumerate(control_net_meta.conditions):
-                    condition_ui = self.create_control_net_ui(condition_meta)
-                    self.control_net_group_box_layout.insertWidget(
-                        self.control_net_dynamic_index + i, condition_ui.frame
-                    )
-                    self.condition_uis.append(condition_ui)
-            else:
-                self.control_net_group_box.setChecked(False)
-
+            self.use_control_net(image_metadata)
             self.update_config_frame_size()
 
     def on_use_post_processing(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            upscale_meta = image_metadata.upscale
-            if upscale_meta:
-                self.upscale_group_box.setChecked(True)
-                utils.set_current_data(self.upscale_factor_combo_box, upscale_meta.factor)
-                self.upscale_denoising.spin_box.setValue(upscale_meta.denoising)
-                self.upscale_blend.spin_box.setValue(upscale_meta.blend)
-            else:
-                self.upscale_group_box.setChecked(False)
-
-            face_meta = image_metadata.face
-            if face_meta:
-                self.face_restoration_group_box.setChecked(True)
-                self.face_blend.spin_box.setValue(face_meta.blend)
-            else:
-                self.face_restoration_group_box.setChecked(False)
-
-            high_res_meta = image_metadata.high_res
-            if high_res_meta:
-                self.high_res_group_box.setChecked(True)
-                self.high_res_factor.spin_box.setValue(high_res_meta.factor)
-                self.high_res_steps.spin_box.setValue(high_res_meta.steps)
-                self.high_res_guidance_scale.spin_box.setValue(high_res_meta.guidance_scale)
-                self.high_res_noise.spin_box.setValue(high_res_meta.noise)
-            else:
-                self.high_res_group_box.setChecked(False)
+            self.use_post_processing(image_metadata)
 
     def on_use_all(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            self.on_use_prompt()
-            self.on_use_seed()
-            self.on_use_general()
-            self.on_use_img2img()
-            self.on_use_control_net()
-            self.on_use_post_processing()
-            self.on_use_source_images()
+            self.use_prompt(image_metadata)
+            self.use_seed(image_metadata)
+            self.use_general(image_metadata)
+            self.use_img2img(image_metadata)
+            self.use_control_net(image_metadata)
+            self.use_post_processing(image_metadata)
+            self.use_source_images(image_metadata)
+            self.update_config_frame_size()
+
+    def use_prompt(self, image_metadata: ImageMetadata):
+        self.prompt_edit.setPlainText(image_metadata.prompt)
+        self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
+
+    def use_seed(self, image_metadata: ImageMetadata):
+        self.manual_seed_group_box.setChecked(True)
+        self.seed_lineedit.setText(str(image_metadata.seed))
+
+    def use_general(self, image_metadata: ImageMetadata):
+        self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
+        self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
+        self.width_spin_box.setValue(image_metadata.width)
+        self.height_spin_box.setValue(image_metadata.height)
+        self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
+
+    def use_source_images(self, image_metadata: ImageMetadata):
+        img2img_meta = image_metadata.img2img
+        if img2img_meta:
+            self.img2img_source_ui.line_edit.setText(img2img_meta.source)
+
+        control_net_meta = image_metadata.control_net
+        if control_net_meta:
+            while len(self.condition_uis) < len(control_net_meta.conditions):
+                self.add_control_net()
+
+            for i, condition_meta in enumerate(control_net_meta.conditions):
+                condition_ui = self.condition_uis[i]
+                condition_ui.source_image_ui.line_edit.setText(condition_meta.source)
+
+    def use_img2img(self, image_metadata: ImageMetadata):
+        img2img_meta = image_metadata.img2img
+        if img2img_meta:
+            self.img2img_group_box.setChecked(True)
+            self.img2img_source_ui.line_edit.setText(img2img_meta.source)
+            self.img2img_noise.spin_box.setValue(img2img_meta.noise)
+        else:
+            self.img2img_group_box.setChecked(False)
+            self.img2img_source_ui.line_edit.setText("")
+
+    def use_control_net(self, image_metadata: ImageMetadata):
+        for condition_ui in self.condition_uis:
+            self.control_net_group_box_layout.removeWidget(condition_ui.frame)
+            condition_ui.frame.setParent(None)
+
+        self.condition_uis = []
+
+        control_net_meta = image_metadata.control_net
+        if control_net_meta:
+            self.control_net_group_box.setChecked(True)
+            self.control_net_guidance_start.spin_box.setValue(control_net_meta.guidance_start)
+            self.control_net_guidance_end.spin_box.setValue(control_net_meta.guidance_end)
+
+            for i, condition_meta in enumerate(control_net_meta.conditions):
+                condition_ui = self.create_control_net_ui(condition_meta)
+                self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
+                self.condition_uis.append(condition_ui)
+        else:
+            self.control_net_group_box.setChecked(False)
+
+    def use_post_processing(self, image_metadata: ImageMetadata):
+        upscale_meta = image_metadata.upscale
+        if upscale_meta:
+            self.upscale_group_box.setChecked(True)
+            utils.set_current_data(self.upscale_factor_combo_box, upscale_meta.factor)
+            self.upscale_denoising.spin_box.setValue(upscale_meta.denoising)
+            self.upscale_blend.spin_box.setValue(upscale_meta.blend)
+        else:
+            self.upscale_group_box.setChecked(False)
+
+        face_meta = image_metadata.face
+        if face_meta:
+            self.face_restoration_group_box.setChecked(True)
+            self.face_blend.spin_box.setValue(face_meta.blend)
+        else:
+            self.face_restoration_group_box.setChecked(False)
+
+        high_res_meta = image_metadata.high_res
+        if high_res_meta:
+            self.high_res_group_box.setChecked(True)
+            self.high_res_factor.spin_box.setValue(high_res_meta.factor)
+            self.high_res_steps.spin_box.setValue(high_res_meta.steps)
+            self.high_res_guidance_scale.spin_box.setValue(high_res_meta.guidance_scale)
+            self.high_res_noise.spin_box.setValue(high_res_meta.noise)
+        else:
+            self.high_res_group_box.setChecked(False)
 
     def on_move_image(self, collection: str):
         current_collection = self.thumbnail_viewer.collection()

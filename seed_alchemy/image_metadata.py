@@ -66,7 +66,7 @@ class ImageMetadata:
     prompt: str = ""
     negative_prompt: str = ""
     seed: int = 1
-    num_inference_steps: int = 20
+    num_inference_steps: int = 30
     guidance_scale: float = 7.0
     width: int = 512
     height: int = 512
