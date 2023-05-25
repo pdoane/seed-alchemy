@@ -63,11 +63,11 @@ def apply(pipe: DiffusionPipeline, models: list[LoraModel], multipliers: list[fl
                         temp_name = layer_infos.pop(0)
 
             # get elements for this layer
-            weight_up = elems["lora_up.weight"]
-            weight_down = elems["lora_down.weight"]
+            up = elems["lora_up.weight"]
+            down = elems["lora_down.weight"]
             alpha = elems.get("alpha", None)
             if alpha is not None:
-                alpha = alpha.item() / weight_up.shape[1]
+                alpha = alpha.item() / up.shape[1]
             else:
                 alpha = 1.0
 
@@ -77,15 +77,13 @@ def apply(pipe: DiffusionPipeline, models: list[LoraModel], multipliers: list[fl
 
             # update weight
             with torch.no_grad():
-                if len(weight_up.shape) == 4:
-                    updown = (
-                        multiplier
-                        * alpha
-                        * torch.mm(weight_up.squeeze(3).squeeze(2), weight_down.squeeze(3).squeeze(2))
-                        .unsqueeze(2)
-                        .unsqueeze(3)
-                    )
+                if up.shape[2:] == (1, 1) and down.shape[2:] == (1, 1):
+                    updown = (up.squeeze(2).squeeze(2) @ down.squeeze(2).squeeze(2)).unsqueeze(2).unsqueeze(3)
+                elif up.shape[2:] == (3, 3) or down.shape[2:] == (3, 3):
+                    updown = torch.nn.functional.conv2d(down.permute(1, 0, 2, 3), up).permute(1, 0, 2, 3)
                 else:
-                    updown = multiplier * alpha * torch.mm(weight_up, weight_down)
+                    updown = up @ down
+
+                updown *= multiplier * alpha
 
             curr_layer.weight.data += updown
