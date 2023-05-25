@@ -26,13 +26,8 @@ class PromptTextEdit(QPlainTextEdit):
         self.spell_checker = SpellChecker()
 
         custom_words = ["3d", "useLora", "withLora"]
-        for entry in configuration.known_embeddings:
-            name, _ = os.path.splitext(entry)
-            custom_words.append(name)
-
-        for entry in configuration.known_loras:
-            name, _ = os.path.splitext(entry)
-            custom_words.append(name)
+        custom_words += configuration.textual_inversions.keys()
+        custom_words += configuration.loras.keys()
 
         self.spell_checker.word_frequency.load_words(custom_words)
 
@@ -81,11 +76,7 @@ class PromptTextEdit(QPlainTextEdit):
         popup = WordListPopup("Insert Textual Inversion", self)
         popup.word_selected.connect(self.handle_textual_inversion)
 
-        valid_words = []
-        for entry in configuration.known_embeddings:
-            name, _ = os.path.splitext(entry)
-            valid_words.append(name)
-        popup.set_valid_words(valid_words)
+        popup.set_valid_words(configuration.textual_inversions.keys())
 
         pos = self.parentWidget().mapToGlobal(self.geometry().bottomLeft())
         popup.move(pos)
@@ -101,11 +92,7 @@ class PromptTextEdit(QPlainTextEdit):
         popup = WordListPopup("Insert LoRA", self)
         popup.word_selected.connect(self.handle_lora)
 
-        valid_words = []
-        for entry in configuration.known_loras:
-            name, _ = os.path.splitext(entry)
-            valid_words.append(name)
-        popup.set_valid_words(valid_words)
+        popup.set_valid_words(configuration.loras.keys())
 
         pos = self.parentWidget().mapToGlobal(self.geometry().bottomLeft())
         popup.move(pos)

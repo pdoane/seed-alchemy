@@ -99,7 +99,7 @@ class ImagePipeline(PipelineBase):
                 self.control_net_names.append(control_net_name)
 
         # Pipeline
-        self.model = os.path.expanduser(image_metadata.model)
+        self.model = configuration.stable_diffusion_models[image_metadata.model]
 
         if isinstance(prev_pipeline, ImagePipeline) and prev_pipeline.model == self.model:
             self.pipe = prev_pipeline.pipe
@@ -133,19 +133,18 @@ class ImagePipeline(PipelineBase):
             # Textual Inversion
             if isinstance(self.pipe, TextualInversionLoaderMixin):
                 self.textual_inversion_manager = DiffusersTextualInversionManager(self.pipe)
-                for entry in configuration.known_embeddings:
-                    entry_path = configuration.get_embedding_path(entry)
-                    name, _ = os.path.splitext(entry)
+                for name, path in configuration.textual_inversions.items():
                     print("Loading textual inversion", name)
-                    self.pipe.load_textual_inversion(entry_path, name)
+                    self.pipe.load_textual_inversion(path, name)
 
     def set_loras(self, loras):
         lora_models = []
         lora_multipliers = []
         for lora_model, lora_weight in loras:
-            path = configuration.get_lora_path(lora_model)
-            lora_models.append(lora.load(path, configuration.torch_device, configuration.torch_dtype))
-            lora_multipliers.append(lora_weight)
+            path = configuration.loras.get(lora_model)
+            if path:
+                lora_models.append(lora.load(path, configuration.torch_device, configuration.torch_dtype))
+                lora_multipliers.append(lora_weight)
 
         lora.apply(self.pipe, lora_models, lora_multipliers)
 

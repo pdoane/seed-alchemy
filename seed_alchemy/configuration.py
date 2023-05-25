@@ -16,6 +16,7 @@ from diffusers import (
 )
 from PySide6.QtCore import QSettings, QSize
 
+from . import utils
 from .processors import (
     CannyProcessor,
     DepthMidasProcessor,
@@ -65,10 +66,9 @@ torch_dtype = torch.float32
 
 resources_path: str
 local_models_path: str
-known_embeddings: list[str] = []
-known_loras: list[str] = []
-lora_dict: dict[str, str] = {}
-known_stable_diffusion_models: list[str] = []
+textual_inversions: dict[str, str]
+loras: dict[str, str]
+stable_diffusion_models: dict[str, str]
 
 ICON_SIZE = QSize(24, 24)
 font_scale_factor = 1.0
@@ -218,8 +218,8 @@ def load_from_settings(settings: QSettings):
     global local_models_path
     local_models_path = settings.value("local_models_path")
 
-    global known_embeddings
-    known_embeddings = []
+    global textual_inversions
+    textual_inversions = {}
 
     embeddings_path = os.path.join(local_models_path, EMBEDDINGS_DIR)
     if os.path.exists(embeddings_path):
@@ -230,10 +230,11 @@ def load_from_settings(settings: QSettings):
             if not os.path.isfile(entry_path):
                 continue
 
-            known_embeddings.append(entry)
+            base_name, _ = os.path.splitext(entry)
+            textual_inversions[base_name] = os.path.join(local_models_path, EMBEDDINGS_DIR, entry)
 
-    global known_loras
-    known_loras = []
+    global loras
+    loras = {}
 
     loras_path = os.path.join(local_models_path, LORA_DIR)
     if os.path.exists(loras_path):
@@ -244,13 +245,11 @@ def load_from_settings(settings: QSettings):
             if not os.path.isfile(entry_path):
                 continue
 
-            known_loras.append(entry)
-
             base_name, _ = os.path.splitext(entry)
-            lora_dict[base_name] = entry
+            loras[base_name] = os.path.join(local_models_path, LORA_DIR, entry)
 
-    global known_stable_diffusion_models
-    known_stable_diffusion_models = []
+    global stable_diffusion_models
+    stable_diffusion_models = {}
 
     stable_diffusion_path = os.path.join(local_models_path, STABLE_DIFFUSION_DIR)
     if os.path.exists(stable_diffusion_path):
@@ -261,19 +260,12 @@ def load_from_settings(settings: QSettings):
             if not os.path.isdir(entry_path):
                 continue
 
-            known_stable_diffusion_models.append(entry)
+            base_name = os.path.basename(entry)
+            stable_diffusion_models[base_name] = os.path.join(local_models_path, STABLE_DIFFUSION_DIR, entry)
 
-
-def get_embedding_path(path):
-    return os.path.join(local_models_path, EMBEDDINGS_DIR, path)
-
-
-def get_lora_path(path):
-    return os.path.join(local_models_path, LORA_DIR, lora_dict[path])
-
-
-def get_stable_diffusion_model_path(path):
-    return os.path.join(local_models_path, STABLE_DIFFUSION_DIR, path)
+    for repo_id in utils.deserialize_string_list(settings.value("huggingface_models")):
+        base_name = os.path.basename(repo_id)
+        stable_diffusion_models[base_name] = repo_id
 
 
 def set_resources_path(path):
