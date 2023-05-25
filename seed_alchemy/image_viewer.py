@@ -71,7 +71,7 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.high_res.frame)
         vlayout.addStretch()
 
-    def update(self, metadata):
+    def update(self, metadata: ImageMetadata):
         self.path.value.setText(metadata.path)
         self.scheduler.value.setText(metadata.scheduler)
         self.model.value.setText(metadata.model)
@@ -82,53 +82,60 @@ class ImageMetadataFrame(QFrame):
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
         self.size.value.setText("{:d}x{:d}".format(metadata.width, metadata.height))
 
-        if metadata.img2img_enabled:
+        img2img_meta = metadata.img2img
+        if img2img_meta:
             self.img2img.frame.setVisible(True)
             self.img2img.value.setText(
                 "Source={:s}, Noise={:.2f}".format(
-                    metadata.img2img_source,
-                    metadata.img2img_noise,
+                    img2img_meta.source,
+                    img2img_meta.noise,
                 )
             )
         else:
             self.img2img.frame.setVisible(False)
 
-        if metadata.control_net_enabled:
+        control_net_meta = metadata.control_net
+        if control_net_meta:
             self.control_net.frame.setVisible(True)
             self.control_net.value.setText(
                 "Range=[{:.2f},{:.2f}], {:s}".format(
-                    metadata.control_net_guidance_start,
-                    metadata.control_net_guidance_end,
-                    json.dumps([control_net.to_dict() for control_net in metadata.control_nets]),
+                    control_net_meta.guidance_start,
+                    control_net_meta.guidance_end,
+                    json.dumps([condition_meta.to_dict() for condition_meta in control_net_meta.conditions]),
                 )
             )
         else:
             self.control_net.frame.setVisible(False)
 
-        if metadata.upscale_enabled:
+        upscale_meta = metadata.upscale
+        if upscale_meta:
             self.upscale.frame.setVisible(True)
             self.upscale.value.setText(
                 "{:d}x, Denoising={:.2f}, Blend={:.2f}".format(
-                    metadata.upscale_factor, metadata.upscale_denoising_strength, metadata.upscale_blend_strength
+                    upscale_meta.factor,
+                    upscale_meta.denoising,
+                    upscale_meta.blend,
                 )
             )
         else:
             self.upscale.frame.setVisible(False)
 
-        if metadata.face_enabled:
+        face_meta = metadata.face
+        if face_meta:
             self.face.frame.setVisible(True)
-            self.face.value.setText("Blend={:.2f}".format(metadata.face_blend_strength))
+            self.face.value.setText("Blend={:.2f}".format(face_meta.blend))
         else:
             self.face.frame.setVisible(False)
 
-        if metadata.high_res_enabled:
+        high_res_meta = metadata.high_res
+        if high_res_meta:
             self.high_res.frame.setVisible(True)
             self.high_res.value.setText(
                 "Factor={:.2f}, Steps={:d}, Guidance={:.2f}, Noise={:.2f}".format(
-                    metadata.high_res_factor,
-                    metadata.high_res_steps,
-                    metadata.high_res_guidance_scale,
-                    metadata.high_res_noise,
+                    high_res_meta.factor,
+                    high_res_meta.steps,
+                    high_res_meta.guidance_scale,
+                    high_res_meta.noise,
                 )
             )
         else:

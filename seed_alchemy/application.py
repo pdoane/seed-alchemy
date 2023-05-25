@@ -11,6 +11,14 @@ from PySide6.QtWidgets import QApplication
 from . import configuration
 from . import font_awesome as fa
 from .main_window import MainWindow
+from .image_metadata import (
+    ImageMetadata,
+    Img2ImgMetadata,
+    ControlNetMetadata,
+    UpscaleMetadata,
+    FaceRestorationMetadata,
+    HighResMetadata,
+)
 
 
 class Application(QApplication):
@@ -43,6 +51,13 @@ class Application(QApplication):
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)
 
         # Settings
+        image_meta = ImageMetadata()
+        img2img_meta = Img2ImgMetadata()
+        control_net_meta = ControlNetMetadata()
+        upscale_meta = UpscaleMetadata()
+        face_meta = FaceRestorationMetadata()
+        high_res_meta = HighResMetadata()
+
         self.settings = QSettings("settings.ini", QSettings.IniFormat)
         self.set_default_setting("local_models_path", "")
         self.set_default_setting("reduce_memory", True)
@@ -50,35 +65,35 @@ class Application(QApplication):
         self.set_default_setting("float32", not torch.cuda.is_available())
         self.set_default_setting("collection", "outputs")
         self.set_default_setting("type", "image")
-        self.set_default_setting("scheduler", "k_euler_a")
-        self.set_default_setting("model", "runwayml/stable-diffusion-v1-5")
-        self.set_default_setting("prompt", "")
-        self.set_default_setting("negative_prompt", "")
+        self.set_default_setting("scheduler", image_meta.scheduler)
+        self.set_default_setting("model", image_meta.model)
+        self.set_default_setting("prompt", image_meta.prompt)
+        self.set_default_setting("negative_prompt", image_meta.negative_prompt)
         self.set_default_setting("manual_seed", False)
-        self.set_default_setting("seed", 1)
+        self.set_default_setting("seed", image_meta.seed)
         self.set_default_setting("num_images_per_prompt", 1)
-        self.set_default_setting("num_inference_steps", 30)
-        self.set_default_setting("guidance_scale", 7.0)
-        self.set_default_setting("width", 512)
-        self.set_default_setting("height", 512)
+        self.set_default_setting("num_inference_steps", image_meta.num_inference_steps)
+        self.set_default_setting("guidance_scale", image_meta.guidance_scale)
+        self.set_default_setting("width", image_meta.width)
+        self.set_default_setting("height", image_meta.height)
         self.set_default_setting("img2img_enabled", False)
-        self.set_default_setting("img2img_source", "")
-        self.set_default_setting("img2img_noise", 0.5)
+        self.set_default_setting("img2img_source", img2img_meta.source)
+        self.set_default_setting("img2img_noise", img2img_meta.noise)
         self.set_default_setting("control_net_enabled", False)
-        self.set_default_setting("control_net_guidance_start", 0.0)
-        self.set_default_setting("control_net_guidance_end", 1.0)
-        self.set_default_setting("control_nets", "[]")
+        self.set_default_setting("control_net_guidance_start", control_net_meta.guidance_start)
+        self.set_default_setting("control_net_guidance_end", control_net_meta.guidance_end)
+        self.set_default_setting("control_net_conditions", "[]")
         self.set_default_setting("upscale_enabled", False)
-        self.set_default_setting("upscale_factor", 2)
-        self.set_default_setting("upscale_denoising_strength", 0.75)
-        self.set_default_setting("upscale_blend_strength", 0.75)
+        self.set_default_setting("upscale_factor", upscale_meta.factor)
+        self.set_default_setting("upscale_denoising", upscale_meta.denoising)
+        self.set_default_setting("upscale_blend", upscale_meta.blend)
         self.set_default_setting("face_enabled", False)
-        self.set_default_setting("face_blend_strength", 0.75)
+        self.set_default_setting("face_blend", face_meta.blend)
         self.set_default_setting("high_res_enabled", False)
-        self.set_default_setting("high_res_factor", 1.5)
-        self.set_default_setting("high_res_guidance_scale", 7.0)
-        self.set_default_setting("high_res_noise", 0.5)
-        self.set_default_setting("high_res_steps", 30)
+        self.set_default_setting("high_res_factor", high_res_meta.factor)
+        self.set_default_setting("high_res_guidance_scale", high_res_meta.guidance_scale)
+        self.set_default_setting("high_res_noise", high_res_meta.noise)
+        self.set_default_setting("high_res_steps", high_res_meta.steps)
 
         self.set_default_setting("install_control_net_v10", "False")
         self.set_default_setting("install_control_net_v11", "True")

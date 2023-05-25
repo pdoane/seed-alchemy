@@ -37,7 +37,7 @@ from .about_dialog import AboutDialog
 from .delete_image_dialog import DeleteImageDialog
 from .generate_thread import GenerateThread
 from .image_history import ImageHistory
-from .image_metadata import ControlNetMetadata, ImageMetadata
+from .image_metadata import ControlNetConditionMetadata, ImageMetadata
 from .image_viewer import ImageViewer
 from .preferences_dialog import PreferencesDialog
 from .processors import ProcessorBase
@@ -65,7 +65,7 @@ class SourceImageUI:
     context_menu: QMenu
 
 
-class ControlNetUI:
+class ControlNetConditionUI:
     frame: FrameWithCloseButton
     model_combo_box: ComboBox
     preprocessor_combo_box: ComboBox
@@ -78,7 +78,7 @@ class ControlNetUI:
 class MainWindow(QMainWindow):
     preview_preprocessor: ProcessorBase = None
     img2img_source_ui: SourceImageUI = None
-    control_net_uis: list[ControlNetUI] = []
+    condition_uis: list[ControlNetConditionUI] = []
     override_metadata = None
 
     def __init__(self, settings: QSettings, collections: list[str]):
@@ -360,10 +360,10 @@ class MainWindow(QMainWindow):
 
         # ControlNet
         self.control_net_guidance_start = FloatSliderSpinBox(
-            "Guidance Start", float(self.settings.value("control_net_guidance_start"))
+            "Guidance Start", self.settings.value("control_net_guidance_start", type=float)
         )
         self.control_net_guidance_end = FloatSliderSpinBox(
-            "Guidance End", float(self.settings.value("control_net_guidance_end"))
+            "Guidance End", self.settings.value("control_net_guidance_end", type=float)
         )
 
         self.control_net_add_button = QPushButton("Add Condition")
@@ -378,11 +378,14 @@ class MainWindow(QMainWindow):
         self.control_net_dynamic_index = self.control_net_group_box_layout.count()
         self.control_net_group_box_layout.addWidget(self.control_net_add_button)
 
-        control_net_metas = [ControlNetMetadata.from_dict(item) for item in json.loads(settings.value("control_nets"))]
-        for i, control_net_meta in enumerate(control_net_metas):
-            control_net_ui = self.create_control_net_ui(control_net_meta)
-            self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_ui.frame)
-            self.control_net_uis.append(control_net_ui)
+        condition_metas = [
+            ControlNetConditionMetadata.from_dict(item)
+            for item in json.loads(settings.value("control_net_conditions"))
+        ]
+        for i, condition_meta in enumerate(condition_metas):
+            condition_ui = self.create_control_net_ui(condition_meta)
+            self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
+            self.condition_uis.append(condition_ui)
 
         # Upscale
         upscale_factor_label = QLabel("Factor: ")
@@ -391,12 +394,8 @@ class MainWindow(QMainWindow):
         self.upscale_factor_combo_box.addItem("2x", 2)
         self.upscale_factor_combo_box.addItem("4x", 4)
         utils.set_current_data(self.upscale_factor_combo_box, self.settings.value("upscale_factor", type=int))
-        self.upscale_denoising_strength = FloatSliderSpinBox(
-            "Denoising", float(self.settings.value("upscale_denoising_strength"))
-        )
-        self.upscale_blend_strength = FloatSliderSpinBox(
-            "Strength", float(self.settings.value("upscale_blend_strength"))
-        )
+        self.upscale_denoising = FloatSliderSpinBox("Denoising", float(self.settings.value("upscale_denoising")))
+        self.upscale_blend = FloatSliderSpinBox("Strength", float(self.settings.value("upscale_blend")))
 
         self.upscale_group_box = QGroupBox("Upscaling")
         self.upscale_group_box.setCheckable(True)
@@ -408,18 +407,18 @@ class MainWindow(QMainWindow):
         upscale_factor_layout.addWidget(self.upscale_factor_combo_box)
         upscale_group_box_layout = QVBoxLayout(self.upscale_group_box)
         upscale_group_box_layout.addLayout(upscale_factor_layout)
-        upscale_group_box_layout.addWidget(self.upscale_denoising_strength)
-        upscale_group_box_layout.addWidget(self.upscale_blend_strength)
+        upscale_group_box_layout.addWidget(self.upscale_denoising)
+        upscale_group_box_layout.addWidget(self.upscale_blend)
 
         # Face Restoration
-        self.face_strength = FloatSliderSpinBox("Strength", float(self.settings.value("face_blend_strength")))
+        self.face_blend = FloatSliderSpinBox("Strength", float(self.settings.value("face_blend")))
 
-        self.face_strength_group_box = QGroupBox("Face Restoration")
-        self.face_strength_group_box.setCheckable(True)
-        self.face_strength_group_box.setChecked(self.settings.value("face_enabled", type=bool))
+        self.face_restoration_group_box = QGroupBox("Face Restoration")
+        self.face_restoration_group_box.setCheckable(True)
+        self.face_restoration_group_box.setChecked(self.settings.value("face_enabled", type=bool))
 
-        face_strength_group_box_layout = QVBoxLayout(self.face_strength_group_box)
-        face_strength_group_box_layout.addWidget(self.face_strength)
+        face_restoration_group_box_layout = QVBoxLayout(self.face_restoration_group_box)
+        face_restoration_group_box_layout.addWidget(self.face_blend)
 
         # High Resolution
         self.high_res_factor = FloatSliderSpinBox(
@@ -456,7 +455,7 @@ class MainWindow(QMainWindow):
         config_layout.addWidget(self.img2img_group_box)
         config_layout.addWidget(self.control_net_group_box)
         config_layout.addWidget(self.upscale_group_box)
-        config_layout.addWidget(self.face_strength_group_box)
+        config_layout.addWidget(self.face_restoration_group_box)
         config_layout.addWidget(self.high_res_group_box)
         config_layout.addStretch()
 
@@ -644,15 +643,15 @@ class MainWindow(QMainWindow):
     def show_source_image_context_menu(self, source_image_ui: SourceImageUI, point):
         source_image_ui.context_menu.exec(source_image_ui.label.mapToGlobal(point))
 
-    def create_control_net_ui(self, control_net_meta: ControlNetMetadata) -> ControlNetUI:
-        control_net_ui = ControlNetUI()
-        control_net_ui.frame = FrameWithCloseButton()
-        control_net_ui.frame.closed.connect(lambda: self.on_remove_control_net(control_net_ui))
+    def create_control_net_ui(self, condition_meta: ControlNetConditionMetadata) -> ControlNetConditionUI:
+        condition_ui = ControlNetConditionUI()
+        condition_ui.frame = FrameWithCloseButton()
+        condition_ui.frame.closed.connect(lambda: self.on_remove_control_net(condition_ui))
 
         model_label = QLabel("Model")
         model_label.setAlignment(Qt.AlignCenter)
-        control_net_ui.model_combo_box = ComboBox()
-        control_net_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        condition_ui.model_combo_box = ComboBox()
+        condition_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         control_net_models = []
         if self.settings.value("install_control_net_v10", type=bool):
@@ -661,43 +660,43 @@ class MainWindow(QMainWindow):
             control_net_models += configuration.control_net_v11_models
         if self.settings.value("install_control_net_mediapipe_v2", type=bool):
             control_net_models += configuration.control_net_mediapipe_v2_models
-        control_net_ui.model_combo_box.addItems(sorted(control_net_models))
-        control_net_ui.model_combo_box.setCurrentText(control_net_meta.model)
+        condition_ui.model_combo_box.addItems(sorted(control_net_models))
+        condition_ui.model_combo_box.setCurrentText(condition_meta.model)
 
         preprocessor_label = QLabel("Preprocessor")
         preprocessor_label.setAlignment(Qt.AlignCenter)
-        control_net_ui.preprocessor_combo_box = ComboBox()
-        control_net_ui.preprocessor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        control_net_ui.preprocessor_combo_box.addItems(configuration.control_net_preprocessors.keys())
-        control_net_ui.preprocessor_combo_box.currentTextChanged.connect(
-            lambda text: self.on_control_net_preprocessor_combo_box_changed(control_net_ui, text)
+        condition_ui.preprocessor_combo_box = ComboBox()
+        condition_ui.preprocessor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        condition_ui.preprocessor_combo_box.addItems(configuration.control_net_preprocessors.keys())
+        condition_ui.preprocessor_combo_box.currentTextChanged.connect(
+            lambda text: self.on_control_net_preprocessor_combo_box_changed(condition_ui, text)
         )
 
-        control_net_ui.source_image_ui = self.create_source_image_ui(control_net_meta.image_source)
+        condition_ui.source_image_ui = self.create_source_image_ui(condition_meta.source)
 
         sync_button = QPushButton(fa.icon_arrows_down_to_line)
         sync_button.setFont(fa.font)
         sync_button.setToolTip("Synchronize Model")
-        sync_button.clicked.connect(lambda: self.on_control_net_sync_button_clicked(control_net_ui))
+        sync_button.clicked.connect(lambda: self.on_control_net_sync_button_clicked(condition_ui))
 
         preview_preprocessor_button = QPushButton(fa.icon_eye)
         preview_preprocessor_button.setFont(fa.font)
         preview_preprocessor_button.setToolTip("Preview")
         preview_preprocessor_button.clicked.connect(
-            lambda: self.on_control_net_preview_preprocessor_button_clicked(control_net_ui)
+            lambda: self.on_control_net_preview_preprocessor_button_clicked(condition_ui)
         )
 
-        control_net_ui.scale = FloatSliderSpinBox("Scale", control_net_meta.scale, maximum=2.0)
+        condition_ui.scale = FloatSliderSpinBox("Scale", condition_meta.scale, maximum=2.0)
 
         model_vlayout = QVBoxLayout()
         model_vlayout.setContentsMargins(0, 0, 0, 0)
         model_vlayout.setSpacing(2)
         model_vlayout.addWidget(model_label)
-        model_vlayout.addWidget(control_net_ui.model_combo_box)
+        model_vlayout.addWidget(condition_ui.model_combo_box)
 
         preprocessor_hlayout = QHBoxLayout()
         preprocessor_hlayout.setContentsMargins(0, 0, 0, 0)
-        preprocessor_hlayout.addWidget(control_net_ui.preprocessor_combo_box)
+        preprocessor_hlayout.addWidget(condition_ui.preprocessor_combo_box)
         preprocessor_hlayout.addWidget(sync_button)
         preprocessor_hlayout.addWidget(preview_preprocessor_button)
 
@@ -707,18 +706,18 @@ class MainWindow(QMainWindow):
         preprocessor_vlayout.addWidget(preprocessor_label)
         preprocessor_vlayout.addLayout(preprocessor_hlayout)
 
-        control_net_layout = QVBoxLayout(control_net_ui.frame)
+        control_net_layout = QVBoxLayout(condition_ui.frame)
         control_net_layout.addLayout(preprocessor_vlayout)
         control_net_layout.addLayout(model_vlayout)
-        control_net_layout.addWidget(control_net_ui.source_image_ui.frame)
-        control_net_ui.params_layout_index = control_net_layout.count()
-        control_net_layout.addWidget(control_net_ui.scale)
+        control_net_layout.addWidget(condition_ui.source_image_ui.frame)
+        condition_ui.params_layout_index = control_net_layout.count()
+        control_net_layout.addWidget(condition_ui.scale)
 
-        control_net_ui.params = []
-        control_net_ui.preprocessor_combo_box.setCurrentText(control_net_meta.preprocessor)
-        self.set_control_net_param_values(control_net_ui, control_net_meta)
+        condition_ui.params = []
+        condition_ui.preprocessor_combo_box.setCurrentText(condition_meta.preprocessor)
+        self.set_control_net_param_values(condition_ui, condition_meta)
 
-        return control_net_ui
+        return condition_ui
 
     def populate_set_as_source_menu(self):
         self.set_as_source_menu.clear()
@@ -726,12 +725,10 @@ class MainWindow(QMainWindow):
         action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_ui))
         self.set_as_source_menu.addAction(action)
 
-        for i, control_net_ui in enumerate(self.control_net_uis):
+        for i, condition_ui in enumerate(self.condition_uis):
             action = QAction("Control Net {:d}".format(i + 1), self)
             action.triggered.connect(
-                lambda checked=False, control_net_ui=control_net_ui: self.on_set_as_source(
-                    control_net_ui.source_image_ui
-                )
+                lambda checked=False, condition_ui=condition_ui: self.on_set_as_source(condition_ui.source_image_ui)
             )
             self.set_as_source_menu.addAction(action)
 
@@ -776,51 +773,53 @@ class MainWindow(QMainWindow):
             self.generate_thread.cancel = True
 
     def on_add_control_net(self):
-        control_net_meta = ControlNetMetadata()
-        i = len(self.control_net_uis)
-        control_net_ui = self.create_control_net_ui(control_net_meta)
-        self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, control_net_ui.frame)
-        self.control_net_uis.append(control_net_ui)
+        condition_meta = ControlNetConditionMetadata()
+        i = len(self.condition_uis)
+        condition_ui = self.create_control_net_ui(condition_meta)
+        self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
+        self.condition_uis.append(condition_ui)
         self.update_config_frame_size()
-        return control_net_ui
+        return condition_ui
 
-    def on_remove_control_net(self, control_net_ui: ControlNetUI):
-        index = self.control_net_group_box_layout.indexOf(control_net_ui.frame) - self.control_net_dynamic_index
-        del self.control_net_uis[index]
-        self.control_net_group_box_layout.removeWidget(control_net_ui.frame)
-        control_net_ui.frame.setParent(None)
+    def on_remove_control_net(self, condition_ui: ControlNetConditionUI):
+        index = self.control_net_group_box_layout.indexOf(condition_ui.frame) - self.control_net_dynamic_index
+        del self.condition_uis[index]
+        self.control_net_group_box_layout.removeWidget(condition_ui.frame)
+        condition_ui.frame.setParent(None)
         self.update_config_frame_size()
 
     def on_thumbnail_loaded(self, source_image_ui, pixmap):
         source_image_ui.label.setPixmap(pixmap)
 
-    def get_control_net_param_values(self, control_net_ui: ControlNetUI) -> list[float]:
+    def get_control_net_param_values(self, condition_ui: ControlNetConditionUI) -> list[float]:
         result = []
 
-        preprocessor = control_net_ui.preprocessor_combo_box.currentText()
+        preprocessor = condition_ui.preprocessor_combo_box.currentText()
         preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
         if preprocessor_type:
-            for param_ui in control_net_ui.params:
+            for param_ui in condition_ui.params:
                 result.append(param_ui.spin_box.value())
 
         return result
 
-    def set_control_net_param_values(self, control_net_ui: ControlNetUI, control_net_meta: ControlNetMetadata) -> None:
-        preprocessor = control_net_ui.preprocessor_combo_box.currentText()
+    def set_control_net_param_values(
+        self, condition_ui: ControlNetConditionUI, condition_meta: ControlNetConditionMetadata
+    ) -> None:
+        preprocessor = condition_ui.preprocessor_combo_box.currentText()
         preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
         if preprocessor_type:
-            for i, param_ui in enumerate(control_net_ui.params):
-                value = utils.list_get(control_net_meta.params, i)
+            for i, param_ui in enumerate(condition_ui.params):
+                value = utils.list_get(condition_meta.params, i)
                 if value:
                     param_ui.spin_box.setValue(value)
 
-    def on_control_net_preprocessor_combo_box_changed(self, control_net_ui: ControlNetUI, text: str):
-        layout = control_net_ui.frame.layout()
-        for param in control_net_ui.params:
+    def on_control_net_preprocessor_combo_box_changed(self, condition_ui: ControlNetConditionUI, text: str):
+        layout = condition_ui.frame.layout()
+        for param in condition_ui.params:
             layout.removeWidget(param)
             param.setParent(None)
 
-        control_net_ui.params = []
+        condition_ui.params = []
 
         preprocessor_type = configuration.control_net_preprocessors.get(text)
         if preprocessor_type:
@@ -832,19 +831,19 @@ class MainWindow(QMainWindow):
                 else:
                     raise RuntimeError("Fatal error: Invalid type")
 
-                layout.insertWidget(control_net_ui.params_layout_index + i, param_ui)
-                control_net_ui.params.append(param_ui)
+                layout.insertWidget(condition_ui.params_layout_index + i, param_ui)
+                condition_ui.params.append(param_ui)
 
         self.update_config_frame_size()
 
-    def on_control_net_sync_button_clicked(self, control_net_ui: ControlNetUI):
-        preprocessor = control_net_ui.preprocessor_combo_box.currentText()
+    def on_control_net_sync_button_clicked(self, condition_ui: ControlNetConditionUI):
+        preprocessor = condition_ui.preprocessor_combo_box.currentText()
         models = configuration.control_net_preprocessors_to_models.get(preprocessor, [])
         found = False
         for model in models:
-            index = control_net_ui.model_combo_box.findText(model)
+            index = condition_ui.model_combo_box.findText(model)
             if index != -1:
-                control_net_ui.model_combo_box.setCurrentIndex(index)
+                condition_ui.model_combo_box.setCurrentIndex(index)
                 found = True
                 break
 
@@ -858,8 +857,8 @@ class MainWindow(QMainWindow):
             message_box.addButton(QMessageBox.Ok)
             message_box.exec()
 
-    def on_control_net_preview_preprocessor_button_clicked(self, control_net_ui: ControlNetUI):
-        source_path = control_net_ui.source_image_ui.line_edit.text()
+    def on_control_net_preview_preprocessor_button_clicked(self, condition_ui: ControlNetConditionUI):
+        source_path = condition_ui.source_image_ui.line_edit.text()
         width = self.width_spin_box.value()
         height = self.height_spin_box.value()
 
@@ -869,11 +868,9 @@ class MainWindow(QMainWindow):
             image = image.resize((width, height), Image.Resampling.LANCZOS)
             source_image = image.copy()
 
-        preprocessor_type = configuration.control_net_preprocessors[
-            control_net_ui.preprocessor_combo_box.currentText()
-        ]
+        preprocessor_type = configuration.control_net_preprocessors[condition_ui.preprocessor_combo_box.currentText()]
         if preprocessor_type:
-            params = self.get_control_net_param_values(control_net_ui)
+            params = self.get_control_net_param_values(condition_ui)
 
             if not isinstance(self.preview_preprocessor, preprocessor_type):
                 self.preview_preprocessor = preprocessor_type()
@@ -892,15 +889,15 @@ class MainWindow(QMainWindow):
         if not self.manual_seed_group_box.isChecked():
             self.randomize_seed()
 
-        control_net_metas = []
-        for control_net_ui in self.control_net_uis:
-            control_net_meta = ControlNetMetadata()
-            control_net_meta.model = control_net_ui.model_combo_box.currentText()
-            control_net_meta.preprocessor = control_net_ui.preprocessor_combo_box.currentText()
-            control_net_meta.image_source = control_net_ui.source_image_ui.line_edit.text()
-            control_net_meta.params = self.get_control_net_param_values(control_net_ui)
-            control_net_meta.scale = control_net_ui.scale.spin_box.value()
-            control_net_metas.append(control_net_meta)
+        condition_metas = []
+        for condition_ui in self.condition_uis:
+            condition_meta = ControlNetConditionMetadata()
+            condition_meta.model = condition_ui.model_combo_box.currentText()
+            condition_meta.preprocessor = condition_ui.preprocessor_combo_box.currentText()
+            condition_meta.source = condition_ui.source_image_ui.line_edit.text()
+            condition_meta.params = self.get_control_net_param_values(condition_ui)
+            condition_meta.scale = condition_ui.scale.spin_box.value()
+            condition_metas.append(condition_meta)
 
         self.settings.setValue("collection", self.thumbnail_viewer.collection())
         self.settings.setValue("type", self.type)
@@ -922,14 +919,14 @@ class MainWindow(QMainWindow):
         self.settings.setValue("control_net_guidance_start", self.control_net_guidance_start.spin_box.value())
         self.settings.setValue("control_net_guidance_end", self.control_net_guidance_end.spin_box.value())
         self.settings.setValue(
-            "control_nets", json.dumps([control_net.to_dict() for control_net in control_net_metas])
+            "control_net_conditions", json.dumps([condition_meta.to_dict() for condition_meta in condition_metas])
         )
         self.settings.setValue("upscale_enabled", self.upscale_group_box.isChecked())
         self.settings.setValue("upscale_factor", self.upscale_factor_combo_box.currentData())
-        self.settings.setValue("upscale_denoising_strength", self.upscale_denoising_strength.spin_box.value())
-        self.settings.setValue("upscale_blend_strength", self.upscale_blend_strength.spin_box.value())
-        self.settings.setValue("face_enabled", self.face_strength_group_box.isChecked())
-        self.settings.setValue("face_blend_strength", self.face_strength.spin_box.value())
+        self.settings.setValue("upscale_denoising", self.upscale_denoising.spin_box.value())
+        self.settings.setValue("upscale_blend", self.upscale_blend.spin_box.value())
+        self.settings.setValue("face_enabled", self.face_restoration_group_box.isChecked())
+        self.settings.setValue("face_blend", self.face_blend.spin_box.value())
         self.settings.setValue("high_res_enabled", self.high_res_group_box.isChecked())
         self.settings.setValue("high_res_factor", self.high_res_factor.spin_box.value())
         self.settings.setValue("high_res_steps", self.high_res_steps.spin_box.value())
@@ -983,7 +980,7 @@ class MainWindow(QMainWindow):
         self.generate_thread = None
 
     def randomize_seed(self):
-        seed = random.randint(0, 0x7FFF_FFFF_FFFF_FFFF)
+        seed = random.randint(0, 0x7FFF_FFFF)
         self.seed_lineedit.setText(str(seed))
 
     def on_seed_random_clicked(self):
@@ -1044,22 +1041,27 @@ class MainWindow(QMainWindow):
     def on_use_source_images(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            self.img2img_source_ui.line_edit.setText(image_metadata.img2img_source)
+            img2img_meta = image_metadata.img2img
+            if img2img_meta:
+                self.img2img_source_ui.line_edit.setText(img2img_meta.source)
 
-            while len(self.control_net_uis) < len(image_metadata.control_nets):
-                self.on_add_control_net()
+            control_net_meta = image_metadata.control_net
+            if control_net_meta:
+                while len(self.condition_uis) < len(control_net_meta.conditions):
+                    self.on_add_control_net()
 
-            for i, control_net_meta in enumerate(image_metadata.control_nets):
-                control_net_ui = self.control_net_uis[i]
-                control_net_ui.source_image_ui.line_edit.setText(control_net_meta.image_source)
+                for i, condition_meta in enumerate(control_net_meta.conditions):
+                    condition_ui = self.condition_uis[i]
+                    condition_ui.source_image_ui.line_edit.setText(condition_meta.source)
 
     def on_use_img2img(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            if image_metadata.img2img_enabled:
+            img2img_meta = image_metadata.img2img
+            if img2img_meta:
                 self.img2img_group_box.setChecked(True)
-                self.img2img_source_ui.line_edit.setText(image_metadata.img2img_source)
-                self.img2img_noise.spin_box.setValue(image_metadata.img2img_noise)
+                self.img2img_source_ui.line_edit.setText(img2img_meta.source)
+                self.img2img_noise.spin_box.setValue(img2img_meta.noise)
             else:
                 self.img2img_group_box.setChecked(False)
                 self.img2img_source_ui.line_edit.setText("")
@@ -1067,23 +1069,24 @@ class MainWindow(QMainWindow):
     def on_use_control_net(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            for control_net_ui in self.control_net_uis:
-                self.control_net_group_box_layout.removeWidget(control_net_ui.frame)
-                control_net_ui.frame.setParent(None)
+            for condition_ui in self.condition_uis:
+                self.control_net_group_box_layout.removeWidget(condition_ui.frame)
+                condition_ui.frame.setParent(None)
 
-            self.control_net_uis = []
+            self.condition_uis = []
 
-            if image_metadata.control_net_enabled:
+            control_net_meta = image_metadata.control_net
+            if control_net_meta:
                 self.control_net_group_box.setChecked(True)
-                self.control_net_guidance_start.spin_box.setValue(image_metadata.control_net_guidance_start)
-                self.control_net_guidance_end.spin_box.setValue(image_metadata.control_net_guidance_end)
+                self.control_net_guidance_start.spin_box.setValue(control_net_meta.guidance_start)
+                self.control_net_guidance_end.spin_box.setValue(control_net_meta.guidance_end)
 
-                for i, control_net_meta in enumerate(image_metadata.control_nets):
-                    control_net_ui = self.create_control_net_ui(control_net_meta)
+                for i, condition_meta in enumerate(control_net_meta.conditions):
+                    condition_ui = self.create_control_net_ui(condition_meta)
                     self.control_net_group_box_layout.insertWidget(
-                        self.control_net_dynamic_index + i, control_net_ui.frame
+                        self.control_net_dynamic_index + i, condition_ui.frame
                     )
-                    self.control_net_uis.append(control_net_ui)
+                    self.condition_uis.append(condition_ui)
             else:
                 self.control_net_group_box.setChecked(False)
 
@@ -1092,26 +1095,29 @@ class MainWindow(QMainWindow):
     def on_use_post_processing(self):
         image_metadata = self.get_current_metadata()
         if image_metadata is not None:
-            if image_metadata.upscale_enabled:
+            upscale_meta = image_metadata.upscale
+            if upscale_meta:
                 self.upscale_group_box.setChecked(True)
-                utils.set_current_data(self.upscale_factor_combo_box, image_metadata.upscale_factor)
-                self.upscale_denoising_strength.spin_box.setValue(image_metadata.upscale_denoising_strength)
-                self.upscale_blend_strength.spin_box.setValue(image_metadata.upscale_blend_strength)
+                utils.set_current_data(self.upscale_factor_combo_box, upscale_meta.factor)
+                self.upscale_denoising.spin_box.setValue(upscale_meta.denoising)
+                self.upscale_blend.spin_box.setValue(upscale_meta.blend)
             else:
                 self.upscale_group_box.setChecked(False)
 
-            if image_metadata.face_enabled:
-                self.face_strength_group_box.setChecked(True)
-                self.face_strength.spin_box.setValue(image_metadata.face_blend_strength)
+            face_meta = image_metadata.face
+            if face_meta:
+                self.face_restoration_group_box.setChecked(True)
+                self.face_blend.spin_box.setValue(face_meta.blend)
             else:
-                self.face_strength_group_box.setChecked(False)
+                self.face_restoration_group_box.setChecked(False)
 
-            if image_metadata.high_res_enabled:
+            high_res_meta = image_metadata.high_res
+            if high_res_meta:
                 self.high_res_group_box.setChecked(True)
-                self.high_res_factor.spin_box.setValue(image_metadata.high_res_factor)
-                self.high_res_steps.spin_box.setValue(image_metadata.high_res_steps)
-                self.high_res_guidance_scale.spin_box.setValue(image_metadata.high_res_guidance_scale)
-                self.high_res_noise.spin_box.setValue(image_metadata.high_res_noise)
+                self.high_res_factor.spin_box.setValue(high_res_meta.factor)
+                self.high_res_steps.spin_box.setValue(high_res_meta.steps)
+                self.high_res_guidance_scale.spin_box.setValue(high_res_meta.guidance_scale)
+                self.high_res_noise.spin_box.setValue(high_res_meta.noise)
             else:
                 self.high_res_group_box.setChecked(False)
 

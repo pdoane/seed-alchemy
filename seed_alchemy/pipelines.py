@@ -73,27 +73,30 @@ class ImagePipeline(PipelineBase):
 
         self.control_nets = []
         self.control_net_names = []
-        for control_net_meta in image_metadata.control_nets:
-            control_net_config = configuration.control_net_models[control_net_meta.model]
-            if control_net_config.subfolder is not None:
-                control_net_name = "{:s}/{:s}".format(control_net_config.repo_id, control_net_config.subfolder)
-            else:
-                control_net_name = control_net_config.repo_id
 
-            if control_net_name in prev_control_nets:
-                control_net = prev_control_nets[control_net_name]
-            else:
-                print("Loading ControlNet", control_net_name)
-                control_net = ControlNetModel.from_pretrained(
-                    control_net_config.repo_id,
-                    subfolder=control_net_config.subfolder,
-                    torch_dtype=configuration.torch_dtype,
-                )
-                control_net.to(configuration.torch_device)
-                control_net.set_attention_slice("auto")
+        control_net_meta = image_metadata.control_net
+        if control_net_meta:
+            for condition_meta in control_net_meta.conditions:
+                control_net_config = configuration.control_net_models[condition_meta.model]
+                if control_net_config.subfolder is not None:
+                    control_net_name = "{:s}/{:s}".format(control_net_config.repo_id, control_net_config.subfolder)
+                else:
+                    control_net_name = control_net_config.repo_id
 
-            self.control_nets.append(control_net)
-            self.control_net_names.append(control_net_name)
+                if control_net_name in prev_control_nets:
+                    control_net = prev_control_nets[control_net_name]
+                else:
+                    print("Loading ControlNet", control_net_name)
+                    control_net = ControlNetModel.from_pretrained(
+                        control_net_config.repo_id,
+                        subfolder=control_net_config.subfolder,
+                        torch_dtype=configuration.torch_dtype,
+                    )
+                    control_net.to(configuration.torch_device)
+                    control_net.set_attention_slice("auto")
+
+                self.control_nets.append(control_net)
+                self.control_net_names.append(control_net_name)
 
         # Pipeline
         self.model = os.path.expanduser(image_metadata.model)
@@ -150,9 +153,10 @@ class ImagePipeline(PipelineBase):
         # Image parameters
         image = None
         img2img_noise = 1.0
-        if req.image_metadata.img2img_enabled:
+        img2img_meta = req.image_metadata.img2img
+        if img2img_meta:
             image = req.source_image
-            img2img_noise = req.image_metadata.img2img_noise
+            img2img_noise = img2img_meta.noise
 
         # Controlnet parameters
         controlnet = None
@@ -160,14 +164,15 @@ class ImagePipeline(PipelineBase):
         controlnet_conditioning_scale = 1.0
         controlnet_guidance_start = 0.0
         controlnet_guidance_end = 1.0
-        if req.image_metadata.control_net_enabled:
+        control_net_meta = req.image_metadata.control_net
+        if control_net_meta:
             controlnet_conditioning_scale = []
-            for control_net_meta in req.image_metadata.control_nets:
-                controlnet_conditioning_scale.append(control_net_meta.scale)
-            controlnet_guidance_start = req.image_metadata.control_net_guidance_start
-            controlnet_guidance_end = req.image_metadata.control_net_guidance_end
+            for condition_meta in control_net_meta.conditions:
+                controlnet_conditioning_scale.append(condition_meta.scale)
+            controlnet_guidance_start = control_net_meta.guidance_start
+            controlnet_guidance_end = control_net_meta.guidance_end
 
-            if len(req.image_metadata.control_nets) == 1:
+            if len(control_net_meta.conditions) == 1:
                 controlnet = self.control_nets[0]
                 controlnet_conditioning_image = req.controlnet_conditioning_images[0]
                 controlnet_conditioning_scale = controlnet_conditioning_scale[0]

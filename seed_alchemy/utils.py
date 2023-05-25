@@ -3,7 +3,7 @@ import re
 import subprocess
 import sys
 import time
-from typing import Callable
+from typing import Any, Callable
 
 import requests
 import send2trash
@@ -171,3 +171,12 @@ def list_get(l, index, default=None):
         return l[index]
     except IndexError:
         return default
+
+
+def remove_none_fields(data: Any) -> Any:
+    if isinstance(data, dict):
+        return {k: remove_none_fields(v) for k, v in data.items() if v is not None}
+    elif isinstance(data, list):
+        return [remove_none_fields(elem) for elem in data]
+    else:
+        return data
