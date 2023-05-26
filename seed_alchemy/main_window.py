@@ -642,11 +642,9 @@ class MainWindow(QMainWindow):
         )
 
         # Update referenced images
-        full_path = os.path.join(configuration.IMAGES_PATH, image_path)
-        if os.path.exists(full_path):
-            if source_image_ui.previous_image_path:
-                self.thumbnail_model.remove_reference(source_image_ui.previous_image_path)
-            self.thumbnail_model.add_reference(image_path)
+        if source_image_ui.previous_image_path:
+            self.thumbnail_model.remove_reference(source_image_ui.previous_image_path)
+        self.thumbnail_model.add_reference(image_path)
         source_image_ui.previous_image_path = image_path
 
     def get_source_image_metadata(self, source_image_ui: SourceImageUI):
