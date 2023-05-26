@@ -48,6 +48,7 @@ from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
 from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_viewer import ThumbnailViewer
+from .thumbnail_model import ThumbnailModel
 from .widgets import (
     ComboBox,
     DoubleSpinBox,
@@ -63,10 +64,12 @@ if sys.platform == "darwin":
 
 
 class SourceImageUI:
-    frame: QFrame
-    label: QLabel
-    line_edit: QLineEdit
-    context_menu: QMenu
+    def __init__(self):
+        self.frame: QFrame = None
+        self.label: QLabel = None
+        self.line_edit: QLineEdit = None
+        self.context_menu: QMenu = None
+        self.previous_image_path: str = None
 
 
 class ControlNetConditionUI:
@@ -94,6 +97,7 @@ class MainWindow(QMainWindow):
         self.image_history = ImageHistory()
         self.image_history.current_image_changed.connect(self.on_current_image_changed)
         self.thumbnail_loader = ThumbnailLoader()
+        self.thumbnail_model = ThumbnailModel(self.thumbnail_loader, 100)
 
         self.generate_thread = None
         self.active_thread_count = 0
@@ -510,7 +514,7 @@ class MainWindow(QMainWindow):
         thumbnail_menu.addSeparator()
         thumbnail_menu.addAction(thumbnail_reveal_in_finder_action)
 
-        self.thumbnail_viewer = ThumbnailViewer(self.thumbnail_loader, self.settings, self.collections, thumbnail_menu)
+        self.thumbnail_viewer = ThumbnailViewer(self.thumbnail_model, self.settings, self.collections, thumbnail_menu)
         self.thumbnail_viewer.file_dropped.connect(self.on_thumbnail_file_dropped)
         self.thumbnail_viewer.list_widget.image_selection_changed.connect(self.on_thumbnail_selection_change)
 
@@ -625,11 +629,25 @@ class MainWindow(QMainWindow):
 
         return source_image_ui
 
+    def remove_source_image_ui(self, source_image_ui: SourceImageUI):
+        image_path = source_image_ui.line_edit.text()
+        full_path = os.path.join(configuration.IMAGES_PATH, image_path)
+        if os.path.exists(full_path):
+            self.thumbnail_model.remove_reference(image_path)
+
     def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
         image_path = source_image_ui.line_edit.text()
         self.thumbnail_loader.get(
             image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap)
         )
+
+        # Update referenced images
+        full_path = os.path.join(configuration.IMAGES_PATH, image_path)
+        if os.path.exists(full_path):
+            if source_image_ui.previous_image_path:
+                self.thumbnail_model.remove_reference(source_image_ui.previous_image_path)
+            self.thumbnail_model.add_reference(image_path)
+        source_image_ui.previous_image_path = image_path
 
     def get_source_image_metadata(self, source_image_ui: SourceImageUI):
         image_path = source_image_ui.line_edit.text()
@@ -792,6 +810,7 @@ class MainWindow(QMainWindow):
         return condition_ui
 
     def remove_control_net(self, condition_ui: ControlNetConditionUI) -> None:
+        self.remove_source_image_ui(condition_ui.source_image_ui)
         index = self.control_net_group_box_layout.indexOf(condition_ui.frame) - self.control_net_dynamic_index
         del self.condition_uis[index]
         self.control_net_group_box_layout.removeWidget(condition_ui.frame)

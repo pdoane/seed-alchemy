@@ -1,50 +1,28 @@
-from PySide6.QtCore import QAbstractListModel, QItemSelectionModel, QModelIndex, QPoint, QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPen
-from PySide6.QtWidgets import QAbstractItemView, QListView, QListWidget, QStyle, QStyledItemDelegate
+from PySide6.QtCore import (
+    QItemSelectionModel,
+    QModelIndex,
+    QPoint,
+    QRect,
+    QSize,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QListView,
+    QListWidget,
+    QStyle,
+    QStyledItemDelegate,
+)
 
-from .thumbnail_loader import ThumbnailLoader
-
-
-class ThumbnailModel(QAbstractListModel):
-    def __init__(self, loader: ThumbnailLoader, image_paths: list[str], icon_size: float):
-        super().__init__()
-        self.icon_size = icon_size
-        self.image_paths = image_paths
-        self.loader = loader
-        self.cache = {}
-
-    def update_icon_size(self, icon_size):
-        self.icon_size = icon_size
-        self.layoutChanged.emit()
-
-    def rowCount(self, parent=QModelIndex()):
-        return len(self.image_paths)
-
-    def data(self, index, role=Qt.DisplayRole):
-        if not index.isValid():
-            return None
-        if role == Qt.SizeHintRole:
-            return QSize(self.icon_size, self.icon_size)
-        if role != Qt.DecorationRole:
-            return None
-
-        image_path = self.image_paths[index.row()]
-        if image_path not in self.cache:
-            self.cache[image_path] = QIcon()
-            self.loader.get(image_path, 256, self.set_thumbnail)
-
-        return QIcon(self.cache[image_path])
-
-    def set_thumbnail(self, image_path, pixmap):
-        if image_path in self.image_paths:
-            row = self.image_paths.index(image_path)
-            self.cache[image_path] = pixmap
-            self.dataChanged.emit(self.index(row), self.index(row))
+from .thumbnail_model import ThumbnailModel
 
 
 class ThumbnailSelectionDelegate(QStyledItemDelegate):
-    def __init__(self, parent=None):
+    def __init__(self, model: ThumbnailModel, parent=None):
         super().__init__(parent)
+        self.model = model
 
     def paint(self, painter, option, index):
         super().paint(painter, option, index)
@@ -66,15 +44,25 @@ class ThumbnailSelectionDelegate(QStyledItemDelegate):
             painter.drawLine(checkmark_middle, checkmark_end)
             painter.restore()
 
+        image_path = self.model.image_paths[index.row()]
+        if image_path in self.model.referenced_images:
+            rect = QRect(option.rect)
+
+            painter.save()
+            painter.setPen(QPen(QColor(127, 0, 0), 8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.drawRect(QRect(rect.right() - 12, rect.top() + 4, 8, 8))
+            painter.restore()
+
 
 class ThumbnailListWidget(QListView):
     image_selection_changed = Signal(str)
 
-    def __init__(self, loader, parent=None):
+    def __init__(self, model, parent=None):
         super().__init__(parent)
-        self.base_icon_size = 100
+        self.model = model
+        self.base_icon_size = model.icon_size
         self.spacing = 8
-        self.image_paths = []
 
         self.setUniformItemSizes(True)
         self.setViewMode(QListWidget.IconMode)
@@ -83,9 +71,7 @@ class ThumbnailListWidget(QListView):
         self.setSpacing(self.spacing)
         self.setSelectionMode(QAbstractItemView.SingleSelection)
         self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.setItemDelegate(ThumbnailSelectionDelegate(self))
-
-        self.model = ThumbnailModel(loader, self.image_paths, self.base_icon_size)
+        self.setItemDelegate(ThumbnailSelectionDelegate(self.model, self))
         self.setModel(self.model)
         self.selectionModel().selectionChanged.connect(self.on_selection_changed)
 
@@ -100,36 +86,36 @@ class ThumbnailListWidget(QListView):
         self.model.update_icon_size(icon_size)
 
     def clear(self):
-        self.model.beginRemoveRows(QModelIndex(), 0, len(self.image_paths) - 1)
-        self.image_paths.clear()
+        self.model.beginRemoveRows(QModelIndex(), 0, len(self.model.image_paths) - 1)
+        self.model.image_paths.clear()
         self.model.endRemoveRows()
         self.model.cache.clear()
 
     def count(self):
-        return len(self.image_paths)
+        return len(self.model.image_paths)
 
     def add_image(self, path):
-        row = len(self.image_paths)
+        row = len(self.model.image_paths)
         self.model.beginInsertRows(QModelIndex(), row, row)
-        self.image_paths.append(path)
+        self.model.image_paths.append(path)
         self.model.endInsertRows()
 
     def insert_image(self, row, path):
         self.model.beginInsertRows(QModelIndex(), row, row)
-        self.image_paths.insert(row, path)
+        self.model.image_paths.insert(row, path)
         self.model.endInsertRows()
 
     def remove_image(self, path):
-        if path in self.image_paths:
-            row = self.image_paths.index(path)
+        if path in self.model.image_paths:
+            row = self.model.image_paths.index(path)
             self.model.beginRemoveRows(QModelIndex(), row, row)
-            self.image_paths.pop(row)
+            self.model.image_paths.pop(row)
             self.model.endRemoveRows()
             self.model.cache.pop(path, None)
 
     def select_image(self, path, scroll_to=True):
-        if path in self.image_paths:
-            row = self.image_paths.index(path)
+        if path in self.model.image_paths:
+            row = self.model.image_paths.index(path)
             index = self.model.index(row, 0)
             scrollbar_position = self.verticalScrollBar().value()
             self.selectionModel().setCurrentIndex(index, QItemSelectionModel.ClearAndSelect)

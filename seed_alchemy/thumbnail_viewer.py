@@ -5,14 +5,19 @@ from PySide6.QtWidgets import QComboBox, QMenu, QVBoxLayout, QWidget
 
 from . import configuration
 from .thumbnail_list_widget import ThumbnailListWidget
-from .thumbnail_loader import ThumbnailLoader
+from .thumbnail_model import ThumbnailModel
 
 
 class ThumbnailViewer(QWidget):
     file_dropped = Signal(str)
 
     def __init__(
-        self, loader: ThumbnailLoader, settings: QSettings, collections: list[str], context_menu: QMenu, parent=None
+        self,
+        model: ThumbnailModel,
+        settings: QSettings,
+        collections: list[str],
+        context_menu: QMenu,
+        parent=None,
     ):
         super().__init__(parent)
 
@@ -20,7 +25,7 @@ class ThumbnailViewer(QWidget):
 
         self.collection_combobox = QComboBox()
 
-        self.list_widget = ThumbnailListWidget(loader)
+        self.list_widget = ThumbnailListWidget(model)
         self.list_widget.customContextMenuRequested.connect(self.show_context_menu)
 
         thumbnail_layout = QVBoxLayout(self)
