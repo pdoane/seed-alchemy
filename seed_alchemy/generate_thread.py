@@ -117,7 +117,7 @@ class GenerateThread(QThread):
                     preprocessor_type = configuration.control_net_preprocessors.get(condition_meta.preprocessor)
                     if preprocessor_type:
                         if not isinstance(generate_preprocessor, preprocessor_type):
-                            generate_preprocessor = preprocessor_type()
+                            generate_preprocessor = preprocessor_type(configuration.torch_device)
                         controlnet_conditioning_image = generate_preprocessor(
                             controlnet_conditioning_image, condition_meta.params
                         )
@@ -168,7 +168,7 @@ class GenerateThread(QThread):
                 # ESRGAN
                 upscale_meta = self.req.image_metadata.upscale
                 if upscale_meta:
-                    esrgan = ESRGANProcessor()
+                    esrgan = ESRGANProcessor(configuration.torch_device)
                     esrgan.upscale_factor = upscale_meta.factor
                     esrgan.denoising_strength = upscale_meta.denoising
                     esrgan.blend_strength = upscale_meta.blend
@@ -180,7 +180,7 @@ class GenerateThread(QThread):
                 # GFPGAN
                 face_meta = self.req.image_metadata.face
                 if face_meta:
-                    gfpgan = GFPGANProcessor()
+                    gfpgan = GFPGANProcessor(configuration.torch_device)
                     gfpgan.upscale_factor = upscale_meta.factor if upscale_meta else 1
                     gfpgan.upscaled_image = upscaled_image
                     gfpgan.blend_strength = face_meta.blend

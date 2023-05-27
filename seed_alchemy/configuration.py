@@ -57,11 +57,11 @@ LORA_DIR = "lora"
 STABLE_DIFFUSION_DIR = "stable_diffusion"
 
 if torch.cuda.is_available():
-    torch_device = "cuda"
+    torch_device = torch.device("cuda")
 elif torch.backends.mps.is_available():
-    torch_device = "mps"
+    torch_device = torch.device("mps")
 else:
-    torch_device = "cpu"
+    torch_device = torch.device("cpu")
 torch_dtype = torch.float32
 
 resources_path: str

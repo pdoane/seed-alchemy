@@ -20,7 +20,7 @@ from controlnet_aux import (
     PidiNetDetector,
     ZoeDetector,
 )
-from controlnet_aux.util import HWC3, ade_palette, resize_image
+from controlnet_aux.util import HWC3, ade_palette
 from PIL import Image
 from transformers import AutoImageProcessor, UperNetForSemanticSegmentation
 
@@ -51,8 +51,9 @@ class CannyProcessor(ProcessorBase):
         ProcessorParameter(type=int, name="High", min=1, max=255, value=200),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.canny = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
@@ -63,61 +64,71 @@ class CannyProcessor(ProcessorBase):
 
 
 class DepthMidasProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.midas = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.midas is None:
             self.midas = MidasDetector.from_pretrained("lllyasviel/Annotators")
+            self.midas.to(self.device)
         image = self.midas(image)
         return image
 
 
 class DepthZoeProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.zoe = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.zoe is None:
             self.zoe = ZoeDetector.from_pretrained("lllyasviel/Annotators")
+            self.zoe.to(self.device)
         image = self.zoe(image)
         return image
 
 
 class LineartProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.lineart = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.lineart is None:
             self.lineart = LineartDetector.from_pretrained("lllyasviel/Annotators")
+            self.lineart.to(self.device)
         image = self.lineart(image)
         return image
 
 
 class LineartCoarseProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.lineart = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.lineart is None:
             self.lineart = LineartDetector.from_pretrained("lllyasviel/Annotators")
+            self.lineart.to(self.device)
         image = self.lineart(image, coarse=True)
         return image
 
 
 class LineartAnimeProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.lineart_anime = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.lineart_anime is None:
             self.lineart_anime = LineartAnimeDetector.from_pretrained("lllyasviel/Annotators")
+            self.lineart_anime.to(self.device)
         image = self.lineart_anime(image)
         return image
 
@@ -128,8 +139,9 @@ class MediapipeFaceProcessor(ProcessorBase):
         ProcessorParameter(type=float, name="Confidence", min=0.01, max=1.0, value=0.5, step=0.01),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.face_detector = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
@@ -145,25 +157,29 @@ class MlsdProcessor(ProcessorBase):
         ProcessorParameter(type=float, name="Distance", min=0.01, max=20.0, value=0.1, step=0.01),
     ]
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.mlsd = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.mlsd is None:
             self.mlsd = MLSDdetector.from_pretrained("lllyasviel/Annotators")
+            self.mlsd.to(self.device)
         image = self.mlsd(image, thr_v=params[0], thr_d=params[1])
         return image
 
 
 class NormalBaeProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.normal_bae = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.normal_bae is None:
             self.normal_bae = NormalBaeDetector.from_pretrained("lllyasviel/Annotators")
+            self.normal_bae.to(self.device)
         image = self.normal_bae(image)
         return image
 
@@ -171,97 +187,113 @@ class NormalBaeProcessor(ProcessorBase):
 class NormalMidasProcessor(ProcessorBase):
     params = [ProcessorParameter(type=float, name="Background", min=0.0, max=1.0, value=0.4, step=0.01)]
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.midas = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.midas is None:
             self.midas = MidasDetector.from_pretrained("lllyasviel/Annotators")
+            self.midas.to(self.device)
         _, image = self.midas(image, bg_th=params[0], depth_and_normal=True)
         return image
 
 
 class OpenposeProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.openpose = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained("lllyasviel/Annotators")
+            self.openpose.to(self.device)
         image = self.openpose(image, include_body=True, include_hand=False, include_face=False)
         return image
 
 
 class OpenposeFaceProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.openpose = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained("lllyasviel/Annotators")
+            self.openpose.to(self.device)
         image = self.openpose(image, include_body=True, include_hand=False, include_face=True)
         return image
 
 
 class OpenposeFaceOnlyProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.openpose = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained("lllyasviel/Annotators")
+            self.openpose.to(self.device)
         image = self.openpose(image, include_body=False, include_hand=False, include_face=True)
         return image
 
 
 class OpenposeFullProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.openpose = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained("lllyasviel/Annotators")
+            self.openpose.to(self.device)
         image = self.openpose(image, include_body=True, include_hand=True, include_face=True)
         return image
 
 
 class OpenposeHandProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.openpose = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.openpose is None:
             self.openpose = OpenposeDetector.from_pretrained("lllyasviel/Annotators")
+            self.openpose.to(self.device)
         image = self.openpose(image, include_body=True, include_hand=True, include_face=False)
         return image
 
 
 class ScribbleHEDProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.hed = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.hed is None:
             self.hed = HEDdetector.from_pretrained("lllyasviel/Annotators")
+            self.hed.to(self.device)
         image = self.hed(image, scribble=True)
         return image
 
 
 class ScribblePIDIProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.pidi = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained("lllyasviel/Annotators")
+            self.pidi.to(self.device)
         image = self.pidi(image, scribble=True)
         return image
 
@@ -269,8 +301,9 @@ class ScribblePIDIProcessor(ProcessorBase):
 class ScribbleXDoGProcessor(ProcessorBase):
     params = [ProcessorParameter(type=int, name="Threshold", min=1, max=64, value=32)]
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         thr = params[0]
@@ -290,8 +323,9 @@ class ScribbleXDoGProcessor(ProcessorBase):
 
 
 class ShuffleProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.content = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
@@ -302,8 +336,9 @@ class ShuffleProcessor(ProcessorBase):
 
 
 class SegProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.image_processor = None
         self.image_segmentor = None
 
@@ -326,49 +361,57 @@ class SegProcessor(ProcessorBase):
 
 
 class SoftEdgeHEDProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.hed = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.hed is None:
             self.hed = HEDdetector.from_pretrained("lllyasviel/Annotators")
+            self.hed.to(self.device)
         image = self.hed(image)
         return image
 
 
 class SoftEdgeHEDSafeProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.hed = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.hed is None:
             self.hed = HEDdetector.from_pretrained("lllyasviel/Annotators")
+            self.hed.to(self.device)
         image = self.hed(image, safe=True)
         return image
 
 
 class SoftEdgePIDIProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.pidi = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained("lllyasviel/Annotators")
+            self.pidi.to(self.device)
         image = self.pidi(image)
         return image
 
 
 class SoftEdgePIDISafeProcessor(ProcessorBase):
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.pidi = None
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
         if self.pidi is None:
             self.pidi = PidiNetDetector.from_pretrained("lllyasviel/Annotators")
+            self.pidi.to(self.device)
         image = self.pidi(image, safe=True)
         return image
 
@@ -385,8 +428,9 @@ class ESRGANProcessor(ProcessorBase):
     pre_pad: int = 0
     float32: bool = True
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.esrgan = None
 
     def load(self):
@@ -453,7 +497,7 @@ class ESRGANProcessor(ProcessorBase):
                 tile_pad=self.tile_pad,
                 pre_pad=self.pre_pad,
                 half=not self.float32,
-                device=configuration.torch_device,
+                device=self.device,
             )
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
@@ -487,8 +531,9 @@ class GFPGANProcessor(ProcessorBase):
     upscaled_image: Image.Image = None
     blend_strength: float = 1.0
 
-    def __init__(self) -> None:
+    def __init__(self, device):
         super().__init__()
+        self.device = device
         self.esrgan = None
         self.gfpgan = None
 
@@ -521,7 +566,7 @@ class GFPGANProcessor(ProcessorBase):
                 channel_multiplier=2,
                 bg_upsampler=self.esrgan,
                 model_rootpath=os.path.join(configuration.MODELS_PATH, "gfpgan"),
-                device=configuration.torch_device,
+                device=self.device,
             )
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:

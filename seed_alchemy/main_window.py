@@ -4,6 +4,7 @@ import random
 import shutil
 import sys
 
+import torch
 from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
     download_from_original_stable_diffusion_ckpt,
 )
@@ -47,8 +48,8 @@ from .preferences_dialog import PreferencesDialog
 from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
 from .thumbnail_loader import ThumbnailLoader
-from .thumbnail_viewer import ThumbnailViewer
 from .thumbnail_model import ThumbnailModel
+from .thumbnail_viewer import ThumbnailViewer
 from .widgets import (
     ComboBox,
     DoubleSpinBox,
@@ -899,7 +900,8 @@ class MainWindow(QMainWindow):
             params = self.get_control_net_param_values(condition_ui)
 
             if not isinstance(self.preview_preprocessor, preprocessor_type):
-                self.preview_preprocessor = preprocessor_type()
+                # Use CPU to avoid race conditions with torch use on the generate thread
+                self.preview_preprocessor = preprocessor_type(torch.device("cpu"))
             source_image = self.preview_preprocessor(source_image, params)
             if self.settings.value("reduce_memory", type=bool):
                 self.preview_preprocessor = None

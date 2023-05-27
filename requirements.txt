@@ -19,4 +19,4 @@ timm==0.6.13
 torch==2.0.1 ; sys_platform == 'darwin'
 torch==2.0.1+cu117 ; sys_platform == 'win32'
 urllib3<2.0.0
-git+https://github.com/pdoane/controlnet_aux.git@c82da0d800a5606f393228f15fb21426a2fe9739
+git+https://github.com/pdoane/controlnet_aux.git@9fd18ba19b296b4ecef6ade30571058cba1bf9aa
