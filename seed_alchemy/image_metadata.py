@@ -83,7 +83,7 @@ class ImageMetadata:
         self.prompt = settings.value("prompt", type=str)
         self.negative_prompt = settings.value("negative_prompt", type=str)
 
-        self.seed = settings.value("seed", type=int)
+        self.seed = int(settings.value("seed"))  # type=int loses precision
         self.num_inference_steps = settings.value("num_inference_steps", type=int)
         self.guidance_scale = settings.value("guidance_scale", type=float)
         self.width = settings.value("width", type=int)

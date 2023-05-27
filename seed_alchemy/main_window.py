@@ -1246,7 +1246,6 @@ class MainWindow(QMainWindow):
                 original_config_file = None
             from_safetensors = ext.lower() == ".safetensors"
 
-            print(checkpoint_path, original_config_file, from_safetensors)
             pipe = download_from_original_stable_diffusion_ckpt(
                 checkpoint_path=checkpoint_path,
                 original_config_file=original_config_file,
