@@ -453,6 +453,7 @@ class ESRGANProcessor(ProcessorBase):
                 tile_pad=self.tile_pad,
                 pre_pad=self.pre_pad,
                 half=not self.float32,
+                device=configuration.torch_device,
             )
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
@@ -520,6 +521,7 @@ class GFPGANProcessor(ProcessorBase):
                 channel_multiplier=2,
                 bg_upsampler=self.esrgan,
                 model_rootpath=os.path.join(configuration.MODELS_PATH, "gfpgan"),
+                device=configuration.torch_device,
             )
 
     def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
