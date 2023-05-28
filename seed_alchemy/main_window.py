@@ -1134,9 +1134,8 @@ class MainWindow(QMainWindow):
             self.img2img_source_ui.line_edit.setText("")
 
     def use_control_net(self, image_metadata: ImageMetadata):
-        for condition_ui in self.condition_uis:
-            self.control_net_group_box_layout.removeWidget(condition_ui.frame)
-            condition_ui.frame.setParent(None)
+        for condition_ui in self.condition_uis.copy():
+            self.remove_control_net(condition_ui)
 
         self.condition_uis = []
 
