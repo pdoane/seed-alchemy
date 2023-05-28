@@ -1,6 +1,9 @@
 from dataclasses import dataclass
+
 from .processors import (
     CannyProcessor,
+    DepthLeresBoostProcessor,
+    DepthLeresProcessor,
     DepthMidasProcessor,
     DepthZoeProcessor,
     LineartAnimeProcessor,
@@ -30,6 +33,8 @@ from .processors import (
 preprocessors: dict[str, ProcessorBase] = {
     "none": None,
     "canny": CannyProcessor,
+    "depth_leres": DepthLeresProcessor,
+    "depth_leres++": DepthLeresBoostProcessor,
     "depth_midas": DepthMidasProcessor,
     "depth_zoe": DepthZoeProcessor,
     "lineart_anime": LineartAnimeProcessor,
@@ -58,6 +63,8 @@ preprocessors: dict[str, ProcessorBase] = {
 preprocessors_to_models: dict[str, list[str]] = {
     "none": [],
     "canny": ["control_v11p_sd15_canny", "control_sd15_canny"],
+    "depth_leres": ["control_v11f1p_sd15_depth"],
+    "depth_leres++": ["control_v11f1p_sd15_depth"],
     "depth_midas": ["control_v11f1p_sd15_depth", "control_sd15_depth"],
     "depth_zoe": ["control_v11f1p_sd15_depth"],
     "lineart_anime": ["control_v11p_sd15s2_lineart_anime"],

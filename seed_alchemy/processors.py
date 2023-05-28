@@ -10,6 +10,7 @@ from controlnet_aux import (
     CannyDetector,
     ContentShuffleDetector,
     HEDdetector,
+    LeresDetector,
     LineartAnimeDetector,
     LineartDetector,
     MediapipeFaceDetector,
@@ -60,6 +61,44 @@ class CannyProcessor(ProcessorBase):
         if self.canny is None:
             self.canny = CannyDetector()
         image = self.canny(image, params[0], params[1])
+        return image
+
+
+class DepthLeresProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=float, name="Near", min=0.0, max=1.0, value=0.0, step=0.01),
+        ProcessorParameter(type=float, name="Background", min=0.0, max=1.0, value=0.0, step=0.01),
+    ]
+
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        self.leres = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.leres is None:
+            self.leres = LeresDetector.from_pretrained("lllyasviel/Annotators")
+            self.leres.to(self.device)
+        image = self.leres(image, thr_a=params[0] * 100, thr_b=params[1] * 100)
+        return image
+
+
+class DepthLeresBoostProcessor(ProcessorBase):
+    params = [
+        ProcessorParameter(type=float, name="Near", min=0.0, max=1.0, value=0.0, step=0.01),
+        ProcessorParameter(type=float, name="Background", min=0.0, max=1.0, value=0.0, step=0.01),
+    ]
+
+    def __init__(self, device):
+        super().__init__()
+        self.device = device
+        self.leres = None
+
+    def __call__(self, image: Image.Image, params: list[float]) -> Image.Image:
+        if self.leres is None:
+            self.leres = LeresDetector.from_pretrained("lllyasviel/Annotators")
+            self.leres.to(self.device)
+        image = self.leres(image, thr_a=params[0] * 100, thr_b=params[1] * 100, boost=True)
         return image
 
 
