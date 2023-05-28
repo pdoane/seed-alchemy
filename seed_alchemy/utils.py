@@ -9,11 +9,8 @@ import requests
 import send2trash
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QIcon, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication, QFrame
+from PySide6.QtGui import QIcon, QImage, QPixmap
 
-from . import configuration
-from . import font_awesome as fa
 
 if sys.platform == "darwin":
     from AppKit import NSURL, NSWorkspace
@@ -114,37 +111,6 @@ def empty_qicon():
         empty_pixmap.fill(Qt.transparent)
         empty_icon = QIcon(empty_pixmap)
     return empty_icon
-
-
-def create_fontawesome_icon(icon_code, color=Qt.white):
-    app_instance = QApplication.instance()
-    device_pixel_ratio = app_instance.devicePixelRatio()
-
-    font_size = 12 * configuration.font_scale_factor * device_pixel_ratio
-    pixmap_size = 16 * device_pixel_ratio
-    font = QFont(fa.font_family, font_size)
-    pixmap = QPixmap(pixmap_size, pixmap_size)
-    pixmap.fill(Qt.transparent)
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    painter.setFont(font)
-
-    if color:
-        painter.setPen(color)
-
-    painter.drawText(pixmap.rect(), Qt.AlignCenter, icon_code)
-    painter.end()
-
-    pixmap.setDevicePixelRatio(device_pixel_ratio)
-
-    return QIcon(pixmap)
-
-
-def horizontal_separator():
-    separator = QFrame()
-    separator.setFrameShape(QFrame.HLine)
-    return separator
 
 
 def pil_to_qimage(pil_image: Image.Image):

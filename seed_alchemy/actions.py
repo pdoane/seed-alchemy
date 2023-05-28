@@ -24,7 +24,7 @@ class ActionDef:
 
     def create(self, parent: QObject = None):
         if self.fa_icon is not None:
-            action = QAction(QIcon(utils.create_fontawesome_icon(self.fa_icon)), self.text, parent)
+            action = QAction(QIcon(fa.create_icon(self.fa_icon)), self.text, parent)
         elif self.icon is not None:
             action = QAction(QIcon(configuration.get_resource_path(self.icon)), self.text, parent)
         elif self.empty_icon:
@@ -43,7 +43,7 @@ class ActionDef:
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
             button.setFont(fa.font)
-            # button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
+            # button.setIcon(fa.create_icon(self.fa_icon))
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         elif self.icon is not None:
@@ -63,7 +63,7 @@ class ActionDef:
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
             button.setFont(fa.font)
-            # button.setIcon(utils.create_fontawesome_icon(self.fa_icon))
+            # button.setIcon(fa.create_icon(self.fa_icon))
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         elif self.icon is not None:

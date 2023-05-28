@@ -11,7 +11,7 @@ from diffusers import ControlNetModel, DiffusionPipeline
 from diffusers.loaders import TextualInversionLoaderMixin
 from PIL import Image
 
-from . import configuration, lora
+from . import configuration, control_net_config, lora
 from .image_metadata import ImageMetadata
 from .stable_diffusion_pipeline import StableDiffusionPipeline
 
@@ -77,19 +77,21 @@ class ImagePipeline(PipelineBase):
         control_net_meta = image_metadata.control_net
         if control_net_meta:
             for condition_meta in control_net_meta.conditions:
-                control_net_config = configuration.control_net_models[condition_meta.model]
-                if control_net_config.subfolder is not None:
-                    control_net_name = "{:s}/{:s}".format(control_net_config.repo_id, control_net_config.subfolder)
+                control_net_model_config = control_net_config.models[condition_meta.model]
+                if control_net_model_config.subfolder is not None:
+                    control_net_name = "{:s}/{:s}".format(
+                        control_net_model_config.repo_id, control_net_model_config.subfolder
+                    )
                 else:
-                    control_net_name = control_net_config.repo_id
+                    control_net_name = control_net_model_config.repo_id
 
                 if control_net_name in prev_control_nets:
                     control_net = prev_control_nets[control_net_name]
                 else:
                     print("Loading ControlNet", control_net_name)
                     control_net = ControlNetModel.from_pretrained(
-                        control_net_config.repo_id,
-                        subfolder=control_net_config.subfolder,
+                        control_net_model_config.repo_id,
+                        subfolder=control_net_model_config.subfolder,
                         torch_dtype=configuration.torch_dtype,
                     )
                     control_net.to(configuration.torch_device)

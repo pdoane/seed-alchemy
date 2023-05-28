@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import actions, configuration
+from . import actions, configuration, control_net_config
 from . import font_awesome as fa
 from . import utils
 from .about_dialog import AboutDialog
@@ -110,7 +110,7 @@ class MainWindow(QMainWindow):
 
         # Set as Source Menu
         self.set_as_source_menu = QMenu("Set as Source", self)
-        self.set_as_source_menu.setIcon(QIcon(utils.create_fontawesome_icon(fa.icon_share)))
+        self.set_as_source_menu.setIcon(QIcon(fa.create_icon(fa.icon_share)))
         self.set_as_source_menu.addAction(QAction("Dummy...", self))
         self.set_as_source_menu.aboutToShow.connect(self.populate_set_as_source_menu)
 
@@ -674,11 +674,11 @@ class MainWindow(QMainWindow):
 
         control_net_models = []
         if self.settings.value("install_control_net_v10", type=bool):
-            control_net_models += configuration.control_net_v10_models
+            control_net_models += control_net_config.v10_models
         if self.settings.value("install_control_net_v11", type=bool):
-            control_net_models += configuration.control_net_v11_models
+            control_net_models += control_net_config.v11_models
         if self.settings.value("install_control_net_mediapipe_v2", type=bool):
-            control_net_models += configuration.control_net_mediapipe_v2_models
+            control_net_models += control_net_config.mediapipe_v2_models
         condition_ui.model_combo_box.addItems(sorted(control_net_models))
         condition_ui.model_combo_box.setCurrentText(condition_meta.model)
 
@@ -686,7 +686,7 @@ class MainWindow(QMainWindow):
         preprocessor_label.setAlignment(Qt.AlignCenter)
         condition_ui.preprocessor_combo_box = ComboBox()
         condition_ui.preprocessor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        condition_ui.preprocessor_combo_box.addItems(configuration.control_net_preprocessors.keys())
+        condition_ui.preprocessor_combo_box.addItems(control_net_config.preprocessors.keys())
         condition_ui.preprocessor_combo_box.currentTextChanged.connect(
             lambda text: self.on_control_net_preprocessor_combo_box_changed(condition_ui, text)
         )
@@ -822,7 +822,7 @@ class MainWindow(QMainWindow):
         result = []
 
         preprocessor = condition_ui.preprocessor_combo_box.currentText()
-        preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
+        preprocessor_type = control_net_config.preprocessors.get(preprocessor)
         if preprocessor_type:
             for param_ui in condition_ui.params:
                 result.append(param_ui.spin_box.value())
@@ -833,7 +833,7 @@ class MainWindow(QMainWindow):
         self, condition_ui: ControlNetConditionUI, condition_meta: ControlNetConditionMetadata
     ) -> None:
         preprocessor = condition_ui.preprocessor_combo_box.currentText()
-        preprocessor_type = configuration.control_net_preprocessors.get(preprocessor)
+        preprocessor_type = control_net_config.preprocessors.get(preprocessor)
         if preprocessor_type:
             for i, param_ui in enumerate(condition_ui.params):
                 value = utils.list_get(condition_meta.params, i)
@@ -848,7 +848,7 @@ class MainWindow(QMainWindow):
 
         condition_ui.params = []
 
-        preprocessor_type = configuration.control_net_preprocessors.get(text)
+        preprocessor_type = control_net_config.preprocessors.get(text)
         if preprocessor_type:
             for i, param in enumerate(preprocessor_type.params):
                 if param.type == int:
@@ -865,7 +865,7 @@ class MainWindow(QMainWindow):
 
     def on_control_net_sync_button_clicked(self, condition_ui: ControlNetConditionUI):
         preprocessor = condition_ui.preprocessor_combo_box.currentText()
-        models = configuration.control_net_preprocessors_to_models.get(preprocessor, [])
+        models = control_net_config.preprocessors_to_models.get(preprocessor, [])
         found = False
         for model in models:
             index = condition_ui.model_combo_box.findText(model)
@@ -895,7 +895,7 @@ class MainWindow(QMainWindow):
             image = image.resize((width, height), Image.Resampling.LANCZOS)
             source_image = image.copy()
 
-        preprocessor_type = configuration.control_net_preprocessors[condition_ui.preprocessor_combo_box.currentText()]
+        preprocessor_type = control_net_config.preprocessors[condition_ui.preprocessor_combo_box.currentText()]
         if preprocessor_type:
             params = self.get_control_net_param_values(condition_ui)
 

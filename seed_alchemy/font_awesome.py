@@ -1,6 +1,8 @@
 import os
 
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QApplication
 
 from . import configuration
 
@@ -16,6 +18,31 @@ def load():
     font_families = QFontDatabase.applicationFontFamilies(font_id)
     font_family = font_families[0] if font_families else ""
     font = QFont(font_family, 12 * configuration.font_scale_factor)
+
+
+def create_icon(icon_code, color=Qt.white):
+    app_instance = QApplication.instance()
+    device_pixel_ratio = app_instance.devicePixelRatio()
+
+    font_size = 12 * configuration.font_scale_factor * device_pixel_ratio
+    pixmap_size = 16 * device_pixel_ratio
+    font = QFont(font_family, font_size)
+    pixmap = QPixmap(pixmap_size, pixmap_size)
+    pixmap.fill(Qt.transparent)
+
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setFont(font)
+
+    if color:
+        painter.setPen(color)
+
+    painter.drawText(pixmap.rect(), Qt.AlignCenter, icon_code)
+    painter.end()
+
+    pixmap.setDevicePixelRatio(device_pixel_ratio)
+
+    return QIcon(pixmap)
 
 
 icon_0 = "\u0030"

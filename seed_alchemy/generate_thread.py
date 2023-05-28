@@ -7,8 +7,8 @@ from compel import Compel, PromptParser
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, QThread, Signal
 
-from . import configuration, utils
-from .image_metadata import ImageMetadata, ControlNetMetadata, Img2ImgMetadata
+from . import configuration, control_net_config, utils
+from .image_metadata import ControlNetMetadata, ImageMetadata, Img2ImgMetadata
 from .pipelines import GenerateRequest, ImagePipeline, PipelineCache
 from .processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
 
@@ -114,7 +114,7 @@ class GenerateThread(QThread):
                     controlnet_conditioning_image = image.copy()
 
                 if condition_meta.preprocessor is not None:
-                    preprocessor_type = configuration.control_net_preprocessors.get(condition_meta.preprocessor)
+                    preprocessor_type = control_net_config.preprocessors.get(condition_meta.preprocessor)
                     if preprocessor_type:
                         if not isinstance(generate_preprocessor, preprocessor_type):
                             generate_preprocessor = preprocessor_type(configuration.torch_device)

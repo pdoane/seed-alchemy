@@ -4,16 +4,14 @@
 # Exposed model_rootpath for FaceRestoreHelper
 
 import cv2
-import os
 import torch
 from basicsr.utils import img2tensor, tensor2img
 from basicsr.utils.download_util import load_file_from_url
 from facexlib.utils.face_restoration_helper import FaceRestoreHelper
-from torchvision.transforms.functional import normalize
-
 from gfpgan.archs.gfpgan_bilinear_arch import GFPGANBilinear
 from gfpgan.archs.gfpganv1_arch import GFPGANv1
 from gfpgan.archs.gfpganv1_clean_arch import GFPGANv1Clean
+from torchvision.transforms.functional import normalize
 
 
 class GFPGANer:
