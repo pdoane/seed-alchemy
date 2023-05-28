@@ -26,14 +26,14 @@ class Application(QApplication):
     collections: list[str] = []
 
     def __init__(self, argv):
-        super().__init__(argv)
-
         if sys.platform == "darwin":
             from Foundation import NSBundle
 
             bundle = NSBundle.mainBundle()
             info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
             info_dict["CFBundleName"] = configuration.APP_NAME
+
+        super().__init__(argv)
 
         parser = argparse.ArgumentParser(description=configuration.APP_NAME)
         parser.add_argument("--root")
