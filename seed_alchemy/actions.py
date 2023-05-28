@@ -78,16 +78,23 @@ class ActionDef:
         return button
 
 
+# Modes
+image_mode = ActionDef("Image Generation", icon="img2img_icon.png", checkable=True, auto_exclusive=True)
+prompt_mode = ActionDef("Prompt", checkable=True, auto_exclusive=True)
+
 # File
 preferences = ActionDef("Preferences...", empty_icon=False, role=QAction.MenuRole.PreferencesRole)
 quit = ActionDef("Exit", empty_icon=False, role=QAction.MenuRole.QuitRole)
 
-# Modes
-image_mode = ActionDef("Image Generation", icon="img2img_icon.png", checkable=True, auto_exclusive=True)
-
 # History
 back = ActionDef("Back", fa_icon=fa.icon_arrow_left, shortcut=Qt.CTRL | Qt.Key_BracketLeft)
 forward = ActionDef("Forward", fa_icon=fa.icon_arrow_right, shortcut=Qt.CTRL | Qt.Key_BracketRight)
+
+# Prompt
+insert_textual_inversion = ActionDef("Insert Textual Inversion...")
+insert_lora = ActionDef("Insert LoRA...")
+
+set_as_image_prompt = ActionDef("Set as Image Prompt", fa_icon=fa.icon_share)
 
 # Image
 generate_image = ActionDef("Generate Image", shortcut=Qt.CTRL | Qt.Key_Return)
@@ -108,6 +115,8 @@ if sys.platform == "darwin":
     reveal_in_finder = ActionDef("Reveal in Finder", shortcut=Qt.CTRL | Qt.ALT | Qt.Key_R)
 elif sys.platform == "win32":
     reveal_in_finder = ActionDef("Reveal in File Explorer", shortcut=Qt.SHIFT | Qt.ALT | Qt.Key_R)
+
+interrogate = ActionDef("Interrogate CLIP")
 
 # Tools
 convert_model = ActionDef("Convert .ckpt/.safetensors model...")

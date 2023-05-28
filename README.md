@@ -19,7 +19,9 @@
 - High-resolution fix
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
-- Image generation with real-time preview of latent space
+- Prompt Generator
+- Clip Interrogator
+- Real-time preview of latent space
 - Thumbnail viewer with collections
 
 ## Installation
@@ -46,6 +48,8 @@
 Near-term:
 - Outpainting
 - Inpainting
+- Async support for Promptgen/Clip Interrogator
+- Interrogate mode for settings
 
 Evaluate:
 - ControlNet Control Mode (previously Guess Mode)

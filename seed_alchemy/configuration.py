@@ -42,6 +42,7 @@ local_models_path: str
 textual_inversions: dict[str, str]
 loras: dict[str, str]
 stable_diffusion_models: dict[str, str]
+promptgen_models: dict[str, str]
 
 ICON_SIZE = QSize(24, 24)
 font_scale_factor = 1.0
@@ -119,6 +120,13 @@ def load_from_settings(settings: QSettings):
     for repo_id in utils.deserialize_string_list(settings.value("huggingface_models")):
         base_name = os.path.basename(repo_id)
         stable_diffusion_models[base_name] = repo_id
+
+    global promptgen_models
+    promptgen_models = {}
+
+    for repo_id in utils.deserialize_string_list(settings.value("huggingface_promptgen")):
+        base_name = os.path.basename(repo_id)
+        promptgen_models[base_name] = repo_id
 
 
 def set_resources_path(path):

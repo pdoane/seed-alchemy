@@ -4,21 +4,21 @@ import sys
 
 import qdarktheme
 import torch
-from PySide6.QtCore import QEvent, QSettings
+from PySide6.QtCore import QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from . import configuration
 from . import font_awesome as fa
-from .main_window import MainWindow
 from .image_metadata import (
-    ImageMetadata,
-    Img2ImgMetadata,
     ControlNetMetadata,
-    UpscaleMetadata,
     FaceRestorationMetadata,
     HighResMetadata,
+    ImageMetadata,
+    Img2ImgMetadata,
+    UpscaleMetadata,
 )
+from .main_window import MainWindow
 
 
 class Application(QApplication):
@@ -64,7 +64,7 @@ class Application(QApplication):
         self.set_default_setting("safety_checker", True)
         self.set_default_setting("float32", not torch.cuda.is_available())
         self.set_default_setting("collection", "outputs")
-        self.set_default_setting("type", "image")
+        self.set_default_setting("mode", "image")
         self.set_default_setting("scheduler", image_meta.scheduler)
         self.set_default_setting("model", image_meta.model)
         self.set_default_setting("prompt", image_meta.prompt)
@@ -99,6 +99,23 @@ class Application(QApplication):
         self.set_default_setting("install_control_net_v11", "True")
         self.set_default_setting("install_control_net_mediapipe_v2", "True")
         self.set_default_setting("huggingface_models", ["runwayml/stable-diffusion-v1-5"])
+        self.set_default_setting("huggingface_promptgen", ["AUTOMATIC/promptgen-lexart"])
+
+        self.settings.beginGroup("promptgen")
+        self.set_default_setting("prompt", "")
+        self.set_default_setting("model", "AUTOMATIC/promptgen-lexart")
+        self.set_default_setting("count", 1)
+        self.set_default_setting("temperature", 1.0)
+        self.set_default_setting("top_k", 12)
+        self.set_default_setting("top_p", 1.0)
+        self.set_default_setting("num_beams", 1)
+        self.set_default_setting("repetition_penalty", 1.0)
+        self.set_default_setting("length_penalty", 1.0)
+        self.set_default_setting("min_length", 20)
+        self.set_default_setting("max_length", 150)
+        self.set_default_setting("seed", 1)
+        self.set_default_setting("manual_seed", False)
+        self.settings.endGroup()
 
         configuration.load_from_settings(self.settings)
 
@@ -127,9 +144,3 @@ class Application(QApplication):
     def set_default_setting(self, key: str, value):
         if not self.settings.contains(key):
             self.settings.setValue(key, value)
-
-    def event(self, event):
-        if event.type() == QEvent.Quit:
-            if self.main_window.hide_if_thread_running():
-                return False
-        return super().event(event)

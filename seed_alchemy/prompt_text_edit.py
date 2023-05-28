@@ -1,4 +1,3 @@
-import os
 import re
 
 from PySide6.QtCore import Qt, Signal
@@ -6,7 +5,7 @@ from PySide6.QtGui import QAction, QColor, QFontMetrics, QTextCharFormat, QTextC
 from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
 from spellchecker import SpellChecker
 
-from . import configuration
+from . import configuration, actions
 from .word_list_popup import WordListPopup
 
 
@@ -18,9 +17,9 @@ class PromptTextEdit(QPlainTextEdit):
     def __init__(self, desired_lines, placeholder_text, parent=None):
         super().__init__(parent)
 
-        self.insert_textual_inversion_action = QAction("Insert Textual Inversion...")
+        self.insert_textual_inversion_action = actions.insert_textual_inversion.create(self)
         self.insert_textual_inversion_action.triggered.connect(self.on_insert_textual_inversion)
-        self.insert_lora_action = QAction("Insert LoRA...")
+        self.insert_lora_action = actions.insert_lora.create(self)
         self.insert_lora_action.triggered.connect(self.on_insert_lora)
 
         self.spell_checker = SpellChecker()
