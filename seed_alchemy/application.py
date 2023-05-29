@@ -43,9 +43,6 @@ class Application(QApplication):
         if args.root:
             os.chdir(os.path.expanduser(args.root))
 
-        dpi = QApplication.primaryScreen().logicalDotsPerInch()
-        configuration.font_scale_factor = 96 / dpi
-
         # Directories
         os.makedirs(configuration.IMAGES_PATH, exist_ok=True)
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)

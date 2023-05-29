@@ -44,10 +44,6 @@ loras: dict[str, str]
 stable_diffusion_models: dict[str, str]
 promptgen_models: dict[str, str]
 
-ICON_SIZE = QSize(24, 24)
-font_scale_factor = 1.0
-
-
 schedulers: dict[str, SchedulerMixin] = {
     "ddim": DDIMScheduler,
     "ddpm": DDPMScheduler,

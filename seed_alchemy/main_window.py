@@ -6,7 +6,6 @@ from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
 )
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
-    QApplication,
     QButtonGroup,
     QFileDialog,
     QMainWindow,
@@ -78,8 +77,8 @@ class MainWindow(QMainWindow):
         mode_toolbar.setMovable(False)
         self.addToolBar(Qt.LeftToolBarArea, mode_toolbar)
 
-        image_mode_button = actions.image_mode.tool_button()
-        prompt_mode_button = actions.prompt_mode.tool_button()
+        image_mode_button = actions.image_mode.mode_button()
+        prompt_mode_button = actions.prompt_mode.mode_button()
 
         mode_toolbar.addWidget(image_mode_button)
         mode_toolbar.addWidget(prompt_mode_button)

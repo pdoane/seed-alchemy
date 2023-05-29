@@ -49,6 +49,7 @@ from .widgets import (
     ScrollArea,
     SpinBox,
 )
+from .icon_engine import FontAwesomeIconEngine
 
 if sys.platform == "darwin":
     from AppKit import NSApplication
@@ -95,7 +96,7 @@ class ImageModeWidget(QWidget):
 
         # Set as Source Menu
         self.set_as_source_menu = QMenu("Set as Source", self)
-        self.set_as_source_menu.setIcon(QIcon(fa.create_icon(fa.icon_share)))
+        self.set_as_source_menu.setIcon(QIcon(FontAwesomeIconEngine(fa.icon_share)))
         self.set_as_source_menu.addAction(QAction("Dummy...", self))
         self.set_as_source_menu.aboutToShow.connect(self.populate_set_as_source_menu)
 

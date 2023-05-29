@@ -1,48 +1,28 @@
 import os
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont, QFontDatabase, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QFont, QFontDatabase, QGuiApplication
 
 from . import configuration
 
-font_family: str = None
+font_family: str
 font: QFont = None
+pixmap_font: QFont = None
+mode_font: QFont = None
 
 
 def load():
-    global font_family, font
+    global font_family, font, pixmap_font, mode_font
 
     abs_path = os.path.abspath(configuration.get_resource_path("fa-solid-900.ttf"))
     font_id = QFontDatabase.addApplicationFont(abs_path)
     font_families = QFontDatabase.applicationFontFamilies(font_id)
     font_family = font_families[0] if font_families else ""
-    font = QFont(font_family, 12 * configuration.font_scale_factor)
 
-
-def create_icon(icon_code, color=Qt.white):
-    app_instance = QApplication.instance()
-    device_pixel_ratio = app_instance.devicePixelRatio()
-
-    font_size = 12 * configuration.font_scale_factor * device_pixel_ratio
-    pixmap_size = 16 * device_pixel_ratio
-    font = QFont(font_family, font_size)
-    pixmap = QPixmap(pixmap_size, pixmap_size)
-    pixmap.fill(Qt.transparent)
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    painter.setFont(font)
-
-    if color:
-        painter.setPen(color)
-
-    painter.drawText(pixmap.rect(), Qt.AlignCenter, icon_code)
-    painter.end()
-
-    pixmap.setDevicePixelRatio(device_pixel_ratio)
-
-    return QIcon(pixmap)
+    font_scale_factor = 96 / QGuiApplication.primaryScreen().logicalDotsPerInch()
+    device_pixel_ratio = QGuiApplication.instance().devicePixelRatio()
+    font = QFont(font_family, 12 * font_scale_factor)
+    pixmap_font = QFont(font_family, 12 * font_scale_factor * device_pixel_ratio)
+    mode_font = QFont(font_family, 18 * font_scale_factor)
 
 
 icon_0 = "\u0030"

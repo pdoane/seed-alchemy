@@ -136,6 +136,7 @@ class PromptModeWidget(QWidget):
         self.config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
         config_layout = QVBoxLayout(self.config_frame)
+        config_layout.setContentsMargins(0, 0, 0, 0)
         config_layout.addWidget(self.prompt_edit)
         config_layout.addWidget(general_group_box)
         config_layout.addWidget(self.manual_seed_group_box)

@@ -2,12 +2,12 @@ import sys
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Qt
-from PySide6.QtGui import QAction, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QFont
 from PySide6.QtWidgets import QPushButton
 
-from . import configuration
 from . import font_awesome as fa
 from . import utils
+from .icon_engine import FontAwesomeIconEngine, PixmapIconEngine
 from .widgets import ToolButton
 
 
@@ -24,9 +24,9 @@ class ActionDef:
 
     def create(self, parent: QObject = None):
         if self.fa_icon is not None:
-            action = QAction(QIcon(fa.create_icon(self.fa_icon)), self.text, parent)
+            action = QAction(QIcon(FontAwesomeIconEngine(self.fa_icon)), self.text, parent)
         elif self.icon is not None:
-            action = QAction(QIcon(configuration.get_resource_path(self.icon)), self.text, parent)
+            action = QAction(QIcon(PixmapIconEngine(self.icon)), self.text, parent)
         elif self.empty_icon:
             action = QAction(utils.empty_qicon(), self.text, parent)
         else:
@@ -39,17 +39,22 @@ class ActionDef:
         return action
 
     def tool_button(self):
-        button = ToolButton()
+        return self._tool_button(fa.font)
+
+    def mode_button(self):
+        button = self._tool_button(fa.mode_font)
+        button.setFixedSize(40, 40)
+        return button
+
+    def push_button(self):
+        button = QPushButton()
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
             button.setFont(fa.font)
-            # button.setIcon(fa.create_icon(self.fa_icon))
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         elif self.icon is not None:
-            button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
-            button.setIconSize(configuration.ICON_SIZE)
-            button.setToolButtonStyle(Qt.ToolButtonIconOnly)
+            button.setIcon(QIcon(PixmapIconEngine(self.icon)))
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         else:
@@ -58,17 +63,16 @@ class ActionDef:
         button.setAutoExclusive(self.auto_exclusive)
         return button
 
-    def push_button(self):
-        button = QPushButton()
+    def _tool_button(self, font):
+        button = ToolButton()
         if self.fa_icon is not None:
             button.setText(self.fa_icon)
-            button.setFont(fa.font)
-            # button.setIcon(fa.create_icon(self.fa_icon))
+            button.setFont(font)
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         elif self.icon is not None:
-            button.setIcon(QIcon(configuration.get_resource_path(self.icon)))
-            button.setIconSize(configuration.ICON_SIZE)
+            button.setIcon(QIcon(PixmapIconEngine(self.icon)))
+            button.setToolButtonStyle(Qt.ToolButtonIconOnly)
             button.setToolTip(self.text)
             button.setToolTipDuration(0)
         else:
@@ -79,8 +83,8 @@ class ActionDef:
 
 
 # Modes
-image_mode = ActionDef("Image Generation", icon="img2img_icon.png", checkable=True, auto_exclusive=True)
-prompt_mode = ActionDef("Prompt", checkable=True, auto_exclusive=True)
+image_mode = ActionDef("Image Generation", fa_icon=fa.icon_image, checkable=True, auto_exclusive=True)
+prompt_mode = ActionDef("Prompt Generation", fa_icon=fa.icon_comments, checkable=True, auto_exclusive=True)
 
 # File
 preferences = ActionDef("Preferences...", empty_icon=False, role=QAction.MenuRole.PreferencesRole)
