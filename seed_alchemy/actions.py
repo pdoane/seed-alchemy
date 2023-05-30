@@ -85,6 +85,7 @@ class ActionDef:
 # Modes
 image_mode = ActionDef("Image Generation", fa_icon=fa.icon_image, checkable=True, auto_exclusive=True)
 prompt_mode = ActionDef("Prompt Generation", fa_icon=fa.icon_comments, checkable=True, auto_exclusive=True)
+interrogate_mode = ActionDef("Interrogate Image", fa_icon=fa.icon_question, checkable=True, auto_exclusive=True)
 
 # File
 preferences = ActionDef("Preferences...", empty_icon=False, role=QAction.MenuRole.PreferencesRole)

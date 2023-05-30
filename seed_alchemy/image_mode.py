@@ -5,9 +5,8 @@ import shutil
 import sys
 
 import torch
-from clip_interrogator import Config, Interrogator
 from PIL import Image, PngImagePlugin
-from PySide6.QtCore import Qt, QTimer, QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
     QApplication,
@@ -32,11 +31,13 @@ from . import font_awesome as fa
 from . import utils
 from .delete_image_dialog import DeleteImageDialog
 from .generate_thread import GenerateThread
+from .icon_engine import FontAwesomeIconEngine
 from .image_history import ImageHistory
 from .image_metadata import ControlNetConditionMetadata, ImageMetadata
 from .image_viewer import ImageViewer
 from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
+from .source_image_widget import SourceImageWidget
 from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_model import ThumbnailModel
 from .thumbnail_viewer import ThumbnailViewer
@@ -49,26 +50,16 @@ from .widgets import (
     ScrollArea,
     SpinBox,
 )
-from .icon_engine import FontAwesomeIconEngine
 
 if sys.platform == "darwin":
     from AppKit import NSApplication
-
-
-class SourceImageUI:
-    def __init__(self):
-        self.frame: QFrame = None
-        self.label: QLabel = None
-        self.line_edit: QLineEdit = None
-        self.context_menu: QMenu = None
-        self.previous_image_path: str = None
 
 
 class ControlNetConditionUI:
     frame: FrameWithCloseButton
     model_combo_box: ComboBox
     preprocessor_combo_box: ComboBox
-    source_image_ui: SourceImageUI
+    source_image_widget: SourceImageWidget
     params_layout_index: int
     params: list[QWidget]
     scale: FloatSliderSpinBox
@@ -76,13 +67,14 @@ class ControlNetConditionUI:
 
 class ImageModeWidget(QWidget):
     preview_preprocessor: ProcessorBase = None
-    img2img_source_ui: SourceImageUI = None
+    img2img_source_widget: SourceImageWidget = None
     condition_uis: list[ControlNetConditionUI] = []
     override_metadata = None
 
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
 
+        self.main_window = main_window
         self.progress_bar = main_window.progress_bar
         self.settings: QSettings = main_window.settings
         self.collections = main_window.collections
@@ -95,10 +87,10 @@ class ImageModeWidget(QWidget):
         self.generate_thread = None
 
         # Set as Source Menu
-        self.set_as_source_menu = QMenu("Set as Source", self)
-        self.set_as_source_menu.setIcon(QIcon(FontAwesomeIconEngine(fa.icon_share)))
-        self.set_as_source_menu.addAction(QAction("Dummy...", self))
-        self.set_as_source_menu.aboutToShow.connect(self.populate_set_as_source_menu)
+        self.current_image_set_as_source_menu = QMenu("Set as Source", self)
+        self.current_image_set_as_source_menu.setIcon(QIcon(FontAwesomeIconEngine(fa.icon_share)))
+        self.current_image_set_as_source_menu.addAction(QAction("Dummy...", self))
+        self.current_image_set_as_source_menu.aboutToShow.connect(self.populate_current_image_set_as_source_menu)
 
         # Move To Menu
         self.move_image_menu = QMenu("Move To", self)
@@ -241,7 +233,7 @@ class ImageModeWidget(QWidget):
         manual_seed_group_box_layout.addWidget(self.seed_frame)
 
         # Image to Image
-        self.img2img_source_ui = self.create_source_image_ui()
+        self.img2img_source_widget = self.create_source_image_widget()
 
         self.img2img_noise = FloatSliderSpinBox("Noise")
 
@@ -249,7 +241,7 @@ class ImageModeWidget(QWidget):
         self.img2img_group_box.setCheckable(True)
 
         img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
-        img2img_group_box_layout.addWidget(self.img2img_source_ui.frame)
+        img2img_group_box_layout.addWidget(self.img2img_source_widget)
         img2img_group_box_layout.addWidget(self.img2img_noise)
 
         # ControlNet
@@ -327,7 +319,7 @@ class ImageModeWidget(QWidget):
 
         # Image viewer
         self.image_viewer = ImageViewer(self.image_history)
-        self.image_viewer.set_as_source_image_button.setMenu(self.set_as_source_menu)
+        self.image_viewer.set_as_source_image_button.setMenu(self.current_image_set_as_source_menu)
         self.image_viewer.use_prompt_button.clicked.connect(self.on_use_prompt)
         self.image_viewer.use_seed_button.clicked.connect(self.on_use_seed)
         self.image_viewer.use_source_images_button.clicked.connect(self.on_use_source_images)
@@ -356,7 +348,7 @@ class ImageModeWidget(QWidget):
         thumbnail_reveal_in_finder_action.triggered.connect(self.on_reveal_in_finder)
 
         thumbnail_menu = QMenu(self)
-        thumbnail_menu.addMenu(self.set_as_source_menu)
+        thumbnail_menu.addMenu(self.current_image_set_as_source_menu)
         thumbnail_menu.addSeparator()
         thumbnail_menu.addAction(thumbnail_use_prompt_action)
         thumbnail_menu.addAction(thumbnail_use_seed_action)
@@ -401,7 +393,7 @@ class ImageModeWidget(QWidget):
         self.scheduler_combo_box.setCurrentText(self.settings.value("scheduler"))
         self.seed_line_edit.setText(str(self.settings.value("seed")))
         self.manual_seed_group_box.setChecked(self.settings.value("manual_seed", type=bool))
-        self.img2img_source_ui.line_edit.setText(self.settings.value("img2img_source", type=str))
+        self.img2img_source_widget.line_edit.setText(self.settings.value("img2img_source", type=str))
         self.img2img_noise.setValue(float(self.settings.value("img2img_noise")))
         self.img2img_group_box.setChecked(self.settings.value("img2img_enabled", type=bool))
         self.control_net_guidance_start.setValue(self.settings.value("control_net_guidance_start", type=float))
@@ -452,8 +444,6 @@ class ImageModeWidget(QWidget):
         action_generate_image.triggered.connect(self.on_generate_image)
         action_cancel_generation = actions.cancel_generation.create(self)
         action_cancel_generation.triggered.connect(self.on_cancel_generation)
-        action_interrogate = actions.interrogate.create(self)
-        action_interrogate.triggered.connect(self.on_interrogate)
         action_use_prompt = actions.use_prompt.create(self)
         action_use_prompt.triggered.connect(self.on_use_prompt)
         action_use_seed = actions.use_seed.create(self)
@@ -475,8 +465,7 @@ class ImageModeWidget(QWidget):
         image_menu.addAction(action_generate_image)
         image_menu.addAction(action_cancel_generation)
         image_menu.addSeparator()
-        image_menu.addMenu(self.set_as_source_menu)
-        image_menu.addAction(action_interrogate)
+        image_menu.addMenu(self.current_image_set_as_source_menu)
         image_menu.addSeparator()
         image_menu.addAction(action_use_prompt)
         image_menu.addAction(action_use_seed)
@@ -504,100 +493,31 @@ class ImageModeWidget(QWidget):
         self.config_scroll_area.updateGeometry()
         self.config_scroll_area.verticalScrollBar().setValue(scroll_pos)
 
-    def get_current_metadata(self):
-        if self.override_metadata is not None:
-            return self.override_metadata
-        else:
-            return self.image_viewer.metadata
-
-    def set_override_metadata(self, metadata):
-        self.override_metadata = metadata
-
-    def create_source_image_ui(self) -> SourceImageUI:
-        source_image_ui = SourceImageUI()
-
-        source_image_ui.frame = QFrame()
-        source_image_ui.frame.setContentsMargins(0, 0, 0, 0)
-
-        source_label = QLabel("Source")
-        source_label.setAlignment(Qt.AlignCenter)
-
-        source_image_ui.label = QLabel()
-        source_image_ui.label.setFrameStyle(QFrame.Box)
-        source_image_ui.label.setContextMenuPolicy(Qt.CustomContextMenu)
-        source_image_ui.label.setFixedSize(96, 96)
-        source_image_ui.label.customContextMenuRequested.connect(
-            lambda point: self.show_source_image_context_menu(source_image_ui, point)
+    def create_source_image_widget(self) -> SourceImageWidget:
+        source_image_widget = SourceImageWidget(self.thumbnail_loader, self.thumbnail_model)
+        source_image_widget.label.customContextMenuRequested.connect(
+            lambda point: self.show_source_image_context_menu(source_image_widget, point)
         )
+        return source_image_widget
 
-        source_image_ui.line_edit = QLineEdit()
-        source_image_ui.line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        source_image_ui.line_edit.textChanged.connect(lambda: self.on_source_image_ui_text_changed(source_image_ui))
-        source_image_ui.line_edit.setPlaceholderText("Image Path")
+    def show_source_image_context_menu(self, source_image_widget: SourceImageWidget, point):
+        image_metadata = source_image_widget.get_metadata()
 
         locate_source_action = actions.locate_source.create(self)
         locate_source_action.triggered.connect(
-            lambda: self.thumbnail_viewer.select_image(source_image_ui.line_edit.text())
+            lambda: self.thumbnail_viewer.select_image(source_image_widget.line_edit.text())
         )
 
-        source_image_ui.context_menu = QMenu(self)
-        source_image_ui.context_menu.aboutToShow.connect(
-            lambda: self.set_override_metadata(self.get_source_image_metadata(source_image_ui))
-        )
-        source_image_ui.context_menu.aboutToHide.connect(
-            lambda: QTimer.singleShot(0, lambda: self.set_override_metadata(None))
-        )
-        source_image_ui.context_menu.addAction(locate_source_action)
-        source_image_ui.context_menu.addSeparator()
-        source_image_ui.context_menu.addMenu(self.set_as_source_menu)
+        set_as_source_menu = QMenu("Set as Source", self)
+        set_as_source_menu.setIcon(QIcon(FontAwesomeIconEngine(fa.icon_share)))
+        self.build_set_as_source_menu(set_as_source_menu, image_metadata)
 
-        vlayout = QVBoxLayout()
-        vlayout.setContentsMargins(0, 0, 0, 0)
-        vlayout.setSpacing(2)
-        vlayout.addStretch(1)
-        vlayout.addWidget(source_label)
-        vlayout.addWidget(source_image_ui.line_edit)
-        vlayout.addStretch(2)
+        context_menu = QMenu(self)
+        context_menu.addAction(locate_source_action)
+        context_menu.addSeparator()
+        context_menu.addMenu(set_as_source_menu)
 
-        hlayout = QHBoxLayout(source_image_ui.frame)
-        hlayout.setContentsMargins(0, 0, 0, 0)
-        hlayout.setSpacing(2)
-        hlayout.addLayout(vlayout)
-        hlayout.addWidget(source_image_ui.label)
-
-        return source_image_ui
-
-    def remove_source_image_ui(self, source_image_ui: SourceImageUI):
-        image_path = source_image_ui.line_edit.text()
-        full_path = os.path.join(configuration.IMAGES_PATH, image_path)
-        if os.path.exists(full_path):
-            self.thumbnail_model.remove_reference(image_path)
-
-    def on_source_image_ui_text_changed(self, source_image_ui: SourceImageUI):
-        image_path = source_image_ui.line_edit.text()
-        self.thumbnail_loader.get(
-            image_path, 96, lambda image_path, pixmap: self.on_thumbnail_loaded(source_image_ui, pixmap)
-        )
-
-        # Update referenced images
-        if source_image_ui.previous_image_path:
-            self.thumbnail_model.remove_reference(source_image_ui.previous_image_path)
-        self.thumbnail_model.add_reference(image_path)
-        source_image_ui.previous_image_path = image_path
-
-    def get_source_image_metadata(self, source_image_ui: SourceImageUI):
-        image_path = source_image_ui.line_edit.text()
-        if image_path:
-            full_path = os.path.join(configuration.IMAGES_PATH, image_path)
-            with Image.open(full_path) as image:
-                metadata = ImageMetadata()
-                metadata.path = image_path
-                metadata.load_from_image(image)
-                return metadata
-        return None
-
-    def show_source_image_context_menu(self, source_image_ui: SourceImageUI, point):
-        source_image_ui.context_menu.exec(source_image_ui.label.mapToGlobal(point))
+        context_menu.exec(source_image_widget.label.mapToGlobal(point))
 
     def create_control_net_ui(self, condition_meta: ControlNetConditionMetadata) -> ControlNetConditionUI:
         condition_ui = ControlNetConditionUI()
@@ -628,8 +548,8 @@ class ImageModeWidget(QWidget):
             lambda text: self.on_control_net_preprocessor_combo_box_changed(condition_ui, text)
         )
 
-        condition_ui.source_image_ui = self.create_source_image_ui()
-        condition_ui.source_image_ui.line_edit.setText(condition_meta.source)
+        condition_ui.source_image_widget = self.create_source_image_widget()
+        condition_ui.source_image_widget.line_edit.setText(condition_meta.source)
 
         sync_button = QPushButton(fa.icon_arrows_down_to_line)
         sync_button.setFont(fa.font)
@@ -643,7 +563,8 @@ class ImageModeWidget(QWidget):
             lambda: self.on_control_net_preview_preprocessor_button_clicked(condition_ui)
         )
 
-        condition_ui.scale = FloatSliderSpinBox("Scale", condition_meta.scale, maximum=2.0)
+        condition_ui.scale = FloatSliderSpinBox("Scale", maximum=2.0)
+        condition_ui.scale.setValue(condition_meta.scale)
 
         model_vlayout = QVBoxLayout()
         model_vlayout.setContentsMargins(0, 0, 0, 0)
@@ -666,7 +587,7 @@ class ImageModeWidget(QWidget):
         control_net_layout = QVBoxLayout(condition_ui.frame)
         control_net_layout.addLayout(preprocessor_vlayout)
         control_net_layout.addLayout(model_vlayout)
-        control_net_layout.addWidget(condition_ui.source_image_ui.frame)
+        control_net_layout.addWidget(condition_ui.source_image_widget)
         condition_ui.params_layout_index = control_net_layout.count()
         control_net_layout.addWidget(condition_ui.scale)
 
@@ -676,35 +597,50 @@ class ImageModeWidget(QWidget):
 
         return condition_ui
 
-    def populate_set_as_source_menu(self):
-        self.set_as_source_menu.clear()
+    def populate_current_image_set_as_source_menu(self):
+        self.current_image_set_as_source_menu.clear()
+        self.build_set_as_source_menu(self.current_image_set_as_source_menu, self.image_viewer.metadata)
+
+    def build_set_as_source_menu(self, menu: QMenu, image_metadata: ImageMetadata):
         action = QAction("Image to Image", self)
-        action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_ui))
-        self.set_as_source_menu.addAction(action)
+        action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_widget, image_metadata))
+        menu.addAction(action)
 
         for i, condition_ui in enumerate(self.condition_uis):
+            source_image_widget = condition_ui.source_image_widget
             action = QAction("Control Net {:d}".format(i + 1), self)
             action.triggered.connect(
-                lambda checked=False, condition_ui=condition_ui: self.on_set_as_source(condition_ui.source_image_ui)
+                lambda checked=False, source_image_widget=source_image_widget: self.on_set_as_source(
+                    source_image_widget, image_metadata
+                )
             )
-            self.set_as_source_menu.addAction(action)
+            menu.addAction(action)
 
-        self.set_as_source_menu.addSeparator()
+        action = QAction("Control Net New Condition", self)
+        action.triggered.connect(
+            lambda: self.on_set_as_source(self.on_add_control_net().source_image_widget, image_metadata)
+        )
+        menu.addAction(action)
 
-        action = QAction("New Control Net Condition", self)
-        action.triggered.connect(lambda: self.on_set_as_source(self.on_add_control_net().source_image_ui))
-        self.set_as_source_menu.addAction(action)
+        menu.addSeparator()
 
-    def on_set_as_source(self, source_image_ui: SourceImageUI):
-        image_metadata = self.get_current_metadata()
+        action = QAction("Interrogate", self)
+        action.triggered.connect(lambda: self.on_interrogate(image_metadata.path))
+        menu.addAction(action)
+
+    def on_set_as_source(self, source_image_widget: SourceImageWidget, image_metadata: ImageMetadata):
         if image_metadata is not None:
-            source_image_ui.line_edit.setText(image_metadata.path)
-            if source_image_ui == self.img2img_source_ui:
+            source_image_widget.line_edit.setText(image_metadata.path)
+            if source_image_widget == self.img2img_source_widget:
                 self.img2img_group_box.setChecked(True)
                 self.width_spin_box.setValue(image_metadata.width)
                 self.height_spin_box.setValue(image_metadata.height)
             else:
                 self.control_net_group_box.setChecked(True)
+
+    def on_interrogate(self, image_path):
+        interrogate_mode_widget = self.main_window.set_mode("interrogate")
+        interrogate_mode_widget.source_image_widget.line_edit.setText(image_path)
 
     def on_cancel_generation(self):
         if self.generate_thread:
@@ -728,14 +664,11 @@ class ImageModeWidget(QWidget):
         return condition_ui
 
     def remove_control_net(self, condition_ui: ControlNetConditionUI) -> None:
-        self.remove_source_image_ui(condition_ui.source_image_ui)
+        condition_ui.source_image_widget.destroy()
         index = self.control_net_group_box_layout.indexOf(condition_ui.frame) - self.control_net_dynamic_index
         del self.condition_uis[index]
         self.control_net_group_box_layout.removeWidget(condition_ui.frame)
         condition_ui.frame.setParent(None)
-
-    def on_thumbnail_loaded(self, source_image_ui, pixmap):
-        source_image_ui.label.setPixmap(pixmap)
 
     def get_control_net_param_values(self, condition_ui: ControlNetConditionUI) -> list[float]:
         result = []
@@ -771,11 +704,12 @@ class ImageModeWidget(QWidget):
         if preprocessor_type:
             for i, param in enumerate(preprocessor_type.params):
                 if param.type == int:
-                    param_ui = IntSliderSpinBox(param.name, param.value, param.min, param.max, param.step)
+                    param_ui = IntSliderSpinBox(param.name, param.min, param.max, param.step)
                 elif param.type == float:
-                    param_ui = FloatSliderSpinBox(param.name, param.value, param.min, param.max, param.step)
+                    param_ui = FloatSliderSpinBox(param.name, param.min, param.max, param.step)
                 else:
                     raise RuntimeError("Fatal error: Invalid type")
+                param_ui.setValue(param.value)
 
                 layout.insertWidget(condition_ui.params_layout_index + i, param_ui)
                 condition_ui.params.append(param_ui)
@@ -804,7 +738,7 @@ class ImageModeWidget(QWidget):
             message_box.exec()
 
     def on_control_net_preview_preprocessor_button_clicked(self, condition_ui: ControlNetConditionUI):
-        source_path = condition_ui.source_image_ui.line_edit.text()
+        source_path = condition_ui.source_image_widget.line_edit.text()
         width = self.width_spin_box.value()
         height = self.height_spin_box.value()
 
@@ -841,7 +775,7 @@ class ImageModeWidget(QWidget):
             condition_meta = ControlNetConditionMetadata()
             condition_meta.model = condition_ui.model_combo_box.currentText()
             condition_meta.preprocessor = condition_ui.preprocessor_combo_box.currentText()
-            condition_meta.source = condition_ui.source_image_ui.line_edit.text()
+            condition_meta.source = condition_ui.source_image_widget.line_edit.text()
             condition_meta.params = self.get_control_net_param_values(condition_ui)
             condition_meta.scale = condition_ui.scale.value()
             condition_metas.append(condition_meta)
@@ -859,7 +793,7 @@ class ImageModeWidget(QWidget):
         self.settings.setValue("width", self.width_spin_box.value())
         self.settings.setValue("height", self.height_spin_box.value())
         self.settings.setValue("img2img_enabled", self.img2img_group_box.isChecked())
-        self.settings.setValue("img2img_source", self.img2img_source_ui.line_edit.text())
+        self.settings.setValue("img2img_source", self.img2img_source_widget.line_edit.text())
         self.settings.setValue("img2img_noise", self.img2img_noise.value())
         self.settings.setValue("control_net_enabled", self.control_net_group_box.isChecked())
         self.settings.setValue("control_net_guidance_start", self.control_net_guidance_start.value())
@@ -969,61 +903,45 @@ class ImageModeWidget(QWidget):
     def on_insert_lora(self):
         self.prompt_edit.on_insert_lora()
 
-    def on_interrogate(self):
-        ci = Interrogator(
-            Config(
-                clip_model_name="ViT-L-14/openai",
-                cache_path=os.path.join(configuration.MODELS_PATH, "interrogator"),
-                device=torch.device,
-            )
-        )
-        image_metadata = self.get_current_metadata()
-        if image_metadata is not None:
-            full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
-            with Image.open(full_path) as image:
-                prompt = ci.interrogate(image)
-
-        self.prompt_edit.setPlainText(prompt)
-
     def on_use_prompt(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_prompt(image_metadata)
 
     def on_use_seed(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_seed(image_metadata)
 
     def on_use_general(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_general(image_metadata)
 
     def on_use_source_images(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_source_images(image_metadata)
             self.update_config_frame_size()
 
     def on_use_img2img(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_img2img(image_metadata)
 
     def on_use_control_net(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_control_net(image_metadata)
             self.update_config_frame_size()
 
     def on_use_post_processing(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_post_processing(image_metadata)
 
     def on_use_all(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.use_prompt(image_metadata)
             self.use_seed(image_metadata)
@@ -1052,7 +970,7 @@ class ImageModeWidget(QWidget):
     def use_source_images(self, image_metadata: ImageMetadata):
         img2img_meta = image_metadata.img2img
         if img2img_meta:
-            self.img2img_source_ui.line_edit.setText(img2img_meta.source)
+            self.img2img_source_widget.line_edit.setText(img2img_meta.source)
 
         control_net_meta = image_metadata.control_net
         if control_net_meta:
@@ -1061,17 +979,17 @@ class ImageModeWidget(QWidget):
 
             for i, condition_meta in enumerate(control_net_meta.conditions):
                 condition_ui = self.condition_uis[i]
-                condition_ui.source_image_ui.line_edit.setText(condition_meta.source)
+                condition_ui.source_image_widget.line_edit.setText(condition_meta.source)
 
     def use_img2img(self, image_metadata: ImageMetadata):
         img2img_meta = image_metadata.img2img
         if img2img_meta:
             self.img2img_group_box.setChecked(True)
-            self.img2img_source_ui.line_edit.setText(img2img_meta.source)
+            self.img2img_source_widget.line_edit.setText(img2img_meta.source)
             self.img2img_noise.setValue(img2img_meta.noise)
         else:
             self.img2img_group_box.setChecked(False)
-            self.img2img_source_ui.line_edit.setText("")
+            self.img2img_source_widget.line_edit.setText("")
 
     def use_control_net(self, image_metadata: ImageMetadata):
         for condition_ui in self.condition_uis.copy():
@@ -1124,7 +1042,7 @@ class ImageModeWidget(QWidget):
         if collection == current_collection:
             return
 
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             source_path = image_metadata.path
 
@@ -1144,7 +1062,7 @@ class ImageModeWidget(QWidget):
             self.on_add_file(output_path)
 
     def on_delete(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             full_path = os.path.join(configuration.IMAGES_PATH, image_metadata.path)
             dialog = DeleteImageDialog(full_path)
@@ -1157,7 +1075,7 @@ class ImageModeWidget(QWidget):
                 focused_widget.setFocus()
 
     def on_reveal_in_finder(self):
-        image_metadata = self.get_current_metadata()
+        image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             full_path = os.path.abspath(os.path.join(configuration.IMAGES_PATH, image_metadata.path))
             utils.reveal_in_finder(full_path)

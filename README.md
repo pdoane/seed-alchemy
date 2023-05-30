@@ -46,17 +46,18 @@
 ## Roadmap
 
 Near-term:
+- ControlNet depth leres
+- ControlNet segmentation models
+- Async support for Promptgen/Clip Interrogator
 - Outpainting
 - Inpainting
-- Async support for Promptgen/Clip Interrogator
-- Interrogate mode for settings
 
 Evaluate:
-- ControlNet Control Mode (previously Guess Mode)
+- Prompt Cutoff (https://github.com/hnmr293/sd-webui-cutoff)
 - ControlNet Reference-Only control
+- ControlNet Control Mode (previously Guess Mode)
 - ControlNet T2I-Adapter
 - ControlNet High-resolution control image sampling
-- Clip Interrogator
 - Long Prompt Weighting
 - Self-Attention Guidance
 - MultiDiffusion
