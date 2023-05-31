@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-
 from .processors import (
     CannyProcessor,
     DepthMidasProcessor,
@@ -104,7 +103,7 @@ models: dict[str, ControlNetModel] = {
     "control_v11f1p_sd15_depth": ControlNetModel(repo_id="lllyasviel/control_v11f1p_sd15_depth"),
     #'control_v11p_sd15_inpaint': ControlNetModel(repo_id='lllyasviel/control_v11p_sd15_inpaint'),
     "control_v11e_sd15_ip2p": ControlNetModel(repo_id="lllyasviel/control_v11e_sd15_ip2p"),
-    "control_v11p_sd15_lineart": ControlNetModel(repo_id="lllyasviel/control_v11p_sd15_linear  t"),
+    "control_v11p_sd15_lineart": ControlNetModel(repo_id="lllyasviel/control_v11p_sd15_lineart"),
     "control_v11p_sd15s2_lineart_anime": ControlNetModel(repo_id="lllyasviel/control_v11p_sd15s2_lineart_anime"),
     "control_v11p_sd15_mlsd": ControlNetModel(repo_id="lllyasviel/control_v11p_sd15_mlsd"),
     "control_v11p_sd15_normalbae": ControlNetModel(repo_id="lllyasviel/control_v11p_sd15_normalbae"),
