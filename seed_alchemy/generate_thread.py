@@ -4,6 +4,7 @@ import traceback
 
 import torch
 from compel import Compel, PromptParser
+from compel.diffusers_textual_inversion_manager import DiffusersTextualInversionManager
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, QThread, Signal
 
@@ -143,10 +144,11 @@ class GenerateThread(QThread):
         pipeline.set_loras(loras)
 
         # prompt weighting
+        textual_inversion_manager = DiffusersTextualInversionManager(pipe)
         compel_proc = Compel(
             tokenizer=pipe.tokenizer,
             text_encoder=pipe.text_encoder,
-            textual_inversion_manager=pipeline.textual_inversion_manager,
+            textual_inversion_manager=textual_inversion_manager,
         )
         self.req.prompt_embeds = compel_proc(self.req.image_metadata.prompt)
         self.req.negative_prompt_embeds = compel_proc(self.req.image_metadata.negative_prompt)

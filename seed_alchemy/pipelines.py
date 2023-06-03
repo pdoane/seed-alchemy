@@ -1,12 +1,10 @@
 import gc
-import os
 import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable
 
 import torch
-from compel.embeddings_provider import BaseTextualInversionManager
 from diffusers import ControlNetModel, DiffusionPipeline
 from diffusers.loaders import TextualInversionLoaderMixin
 from PIL import Image
@@ -14,19 +12,6 @@ from PIL import Image
 from . import configuration, control_net_config, lora
 from .image_metadata import ImageMetadata
 from .stable_diffusion_pipeline import StableDiffusionPipeline
-
-
-class DiffusersTextualInversionManager(BaseTextualInversionManager):
-    def __init__(self, pipe):
-        self.pipe = pipe
-
-    def expand_textual_inversion_token_ids_if_necessary(self, token_ids: list[int]) -> list[int]:
-        if len(token_ids) == 0:
-            return token_ids
-
-        prompt = self.pipe.tokenizer.decode(token_ids)
-        prompt = self.pipe.maybe_convert_prompt(prompt, self.pipe.tokenizer)
-        return self.pipe.tokenizer.encode(prompt, add_special_tokens=False)
 
 
 @dataclass
@@ -58,7 +43,6 @@ class ImagePipeline(PipelineBase):
     model: str = None
     control_nets: list[ControlNetModel] = []
     control_net_model_names: list[str] = []
-    textual_inversion_manager: DiffusersTextualInversionManager = None
 
     def __init__(self, pipeline_cache: PipelineCache, image_metadata: ImageMetadata) -> None:
         super().__init__()
@@ -105,7 +89,6 @@ class ImagePipeline(PipelineBase):
 
         if isinstance(prev_pipeline, ImagePipeline) and prev_pipeline.model == self.model:
             self.pipe = prev_pipeline.pipe
-            self.textual_inversion_manager = prev_pipeline.textual_inversion_manager
         else:
             prev_pipeline = None
             pipeline_cache.pipeline = None
@@ -134,7 +117,6 @@ class ImagePipeline(PipelineBase):
 
             # Textual Inversion
             if isinstance(self.pipe, TextualInversionLoaderMixin):
-                self.textual_inversion_manager = DiffusersTextualInversionManager(self.pipe)
                 for name, path in configuration.textual_inversions.items():
                     print("Loading textual inversion", name)
                     self.pipe.load_textual_inversion(path, name)
