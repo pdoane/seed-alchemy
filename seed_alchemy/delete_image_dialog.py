@@ -30,8 +30,8 @@ class DeleteImageDialog(QDialog):
         image_label.setPixmap(image_pixmap)
 
         yes_button = QPushButton("Yes")
+        yes_button.setDefault(True)
         no_button = QPushButton("No")
-        no_button.setDefault(True)
 
         # Layout
         message_and_image_layout = QVBoxLayout()
