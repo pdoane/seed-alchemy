@@ -1,23 +1,25 @@
 --extra-index-url https://download.pytorch.org/whl/cu117
-accelerate==0.19.0
+accelerate==0.20.1
 clip-interrogator==0.6.0
-compel==1.1.6
+compel==1.2.1
 dataclasses-json==0.5.7
-diffusers==0.16.1
 gfpgan==1.3.8
-mediapipe==0.10.0 ; sys_platform == 'darwin'
-numpy==1.23.5
+mediapipe==0.10.1 ; sys_platform == 'darwin'
+numpy==1.24.3
 omegaconf==2.3.0
-pyobjc-core==9.1.1 ; sys_platform == 'darwin'
-pyobjc-framework-Cocoa==9.1.1 ; sys_platform == 'darwin'
+pyobjc-core==9.2 ; sys_platform == 'darwin'
+pyobjc-framework-Cocoa==9.2 ; sys_platform == 'darwin'
 pyqtdarktheme==2.1.0
-PySide6==6.5.0
+PySide6==6.5.1.1
 pyspellchecker==0.7.2
 realesrgan==0.3.0
 safetensors==0.3.1
 send2trash==1.8.2
+# timm 0.9 not working with zoedepth
 timm==0.6.13
 torch==2.0.1 ; sys_platform == 'darwin'
 torch==2.0.1+cu117 ; sys_platform == 'win32'
+# urlib3 2 not working with SSL dependency
 urllib3<2.0.0
-git+https://github.com/pdoane/controlnet_aux.git@b4edc8d4494e80063fa554b93385647616586d07
+git+https://github.com/pdoane/controlnet_aux.git@ea7ec81e09a31f293e149111099545e076674d67
+git+https://github.com/huggingface/diffusers.git@v0.17.0-release

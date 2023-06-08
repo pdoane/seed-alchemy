@@ -117,9 +117,15 @@ class ImagePipeline(PipelineBase):
 
             # Textual Inversion
             if isinstance(self.pipe, TextualInversionLoaderMixin):
+                paths = []
+                tokens = []
                 for name, path in configuration.textual_inversions.items():
-                    print("Loading textual inversion", name)
-                    self.pipe.load_textual_inversion(path, name)
+                    paths.append(path)
+                    tokens.append(name)
+
+                if paths is not []:
+                    print("Loading Textual Inversions")
+                    self.pipe.load_textual_inversion(paths, tokens)
 
     def set_loras(self, loras):
         lora_models = []
