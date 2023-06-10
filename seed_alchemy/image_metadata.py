@@ -77,7 +77,7 @@ class ImageMetadata:
     high_res: Optional[HighResMetadata] = None
 
     def load_from_settings(self, settings):
-        self.model = settings.value("model")
+        self.model = settings.value("model", type=str)
         self.safety_checker = settings.value("safety_checker", type=bool)
         self.scheduler = settings.value("scheduler", type=str)
         self.prompt = settings.value("prompt", type=str)
