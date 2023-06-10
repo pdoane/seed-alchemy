@@ -19,6 +19,7 @@ from .image_metadata import (
     UpscaleMetadata,
 )
 from .main_window import MainWindow
+from .prompt_mode import PromptMetadata
 
 
 class Application(QApplication):
@@ -98,19 +99,21 @@ class Application(QApplication):
         self.set_default_setting("huggingface_models", ["runwayml/stable-diffusion-v1-5"])
         self.set_default_setting("huggingface_promptgen", ["AUTOMATIC/promptgen-lexart"])
 
+        prompt_meta = PromptMetadata()
+
         self.settings.beginGroup("promptgen")
-        self.set_default_setting("prompt", "")
-        self.set_default_setting("model", "AUTOMATIC/promptgen-lexart")
-        self.set_default_setting("count", 5)
-        self.set_default_setting("temperature", 1.0)
-        self.set_default_setting("top_k", 12)
-        self.set_default_setting("top_p", 1.0)
-        self.set_default_setting("num_beams", 1)
-        self.set_default_setting("repetition_penalty", 1.0)
-        self.set_default_setting("length_penalty", 1.0)
-        self.set_default_setting("min_length", 20)
-        self.set_default_setting("max_length", 150)
-        self.set_default_setting("seed", 1)
+        self.set_default_setting("model", prompt_meta.model)
+        self.set_default_setting("prompt", prompt_meta.prompt)
+        self.set_default_setting("count", prompt_meta.count)
+        self.set_default_setting("temperature", prompt_meta.temperature)
+        self.set_default_setting("top_k", prompt_meta.top_k)
+        self.set_default_setting("top_p", prompt_meta.top_p)
+        self.set_default_setting("num_beams", prompt_meta.num_beams)
+        self.set_default_setting("repetition_penalty", prompt_meta.repetition_penalty)
+        self.set_default_setting("length_penalty", prompt_meta.length_penalty)
+        self.set_default_setting("min_length", prompt_meta.min_length)
+        self.set_default_setting("max_length", prompt_meta.max_length)
+        self.set_default_setting("seed", prompt_meta.seed)
         self.set_default_setting("manual_seed", False)
         self.settings.endGroup()
 

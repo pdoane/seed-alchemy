@@ -19,13 +19,11 @@ from PySide6.QtWidgets import (
 
 from . import actions, configuration
 from .about_dialog import AboutDialog
+from .backend import Backend
 from .image_mode import ImageModeWidget
+from .interrogate_mode import InterrogateModeWidget
 from .preferences_dialog import PreferencesDialog
 from .prompt_mode import PromptModeWidget
-from .interrogate_mode import InterrogateModeWidget
-
-if sys.platform == "darwin":
-    from AppKit import NSApplication
 
 
 class MainWindow(QMainWindow):
@@ -72,6 +70,9 @@ class MainWindow(QMainWindow):
         self.progress_bar.setFixedHeight(8)
         self.progress_bar.setMinimum(0)
         self.progress_bar.setStyleSheet("QProgressBar { border: none; }")
+
+        # Backend
+        self.backend = Backend(self.progress_bar)
 
         # Modes
         mode_toolbar = QToolBar()

@@ -1,17 +1,16 @@
-import gc
 import os
-import traceback
 
 import torch
 from compel import Compel, PromptParser
 from compel.diffusers_textual_inversion_manager import DiffusersTextualInversionManager
 from PIL import Image, PngImagePlugin
-from PySide6.QtCore import QSettings, QThread, Signal
+from PySide6.QtCore import QSettings, Signal
 
 from . import configuration, control_net_config, utils
 from .image_metadata import ControlNetMetadata, ImageMetadata, Img2ImgMetadata
 from .pipelines import GenerateRequest, ImagePipeline, PipelineCache
 from .processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
+from .backend import BackendTask, CancelTaskException
 
 pipeline_cache: PipelineCache = PipelineCache()
 generate_preprocessor: ProcessorBase = None
@@ -49,18 +48,13 @@ def align_down(n: int, align: int) -> int:
     return align * (n // align)
 
 
-class CancelThreadException(Exception):
-    pass
-
-
-class GenerateThread(QThread):
+class GenerateImageTask(BackendTask):
     task_progress = Signal(int)
     image_preview = Signal(Image.Image)
     image_complete = Signal(str)
-    task_complete = Signal()
 
-    def __init__(self, settings: QSettings, parent=None):
-        super().__init__(parent)
+    def __init__(self, settings: QSettings):
+        super().__init__()
 
         self.cancel = False
         self.step = 0
@@ -71,17 +65,6 @@ class GenerateThread(QThread):
         self.req.image_metadata.load_from_settings(settings)
         self.req.num_images_per_prompt = int(settings.value("num_images_per_prompt", 1))
         self.req.callback = self.generate_callback
-
-    def run(self):
-        try:
-            self.run_()
-        except CancelThreadException:
-            pass
-        except Exception as e:
-            traceback.print_exc()
-
-        self.task_complete.emit()
-        gc.collect()
 
     def run_(self):
         global generate_preprocessor
@@ -270,7 +253,7 @@ class GenerateThread(QThread):
 
     def next_step(self):
         if self.cancel:
-            raise CancelThreadException()
+            raise CancelTaskException()
 
         self.step += 1
         steps = self.compute_total_steps()

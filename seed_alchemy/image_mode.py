@@ -2,9 +2,7 @@ import json
 import os
 import random
 import shutil
-import sys
 
-import torch
 from PIL import Image, PngImagePlugin
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QAction, QIcon
@@ -30,11 +28,12 @@ from . import actions, configuration, control_net_config
 from . import font_awesome as fa
 from . import utils
 from .delete_image_dialog import DeleteImageDialog
-from .generate_thread import GenerateThread
+from .generate_thread import GenerateImageTask
 from .icon_engine import FontAwesomeIconEngine
 from .image_history import ImageHistory
 from .image_metadata import ControlNetConditionMetadata, ImageMetadata
 from .image_viewer import ImageViewer
+from .preprocess_task import PreprocessTask
 from .processors import ProcessorBase
 from .prompt_text_edit import PromptTextEdit
 from .source_image_widget import SourceImageWidget
@@ -50,9 +49,6 @@ from .widgets import (
     ScrollArea,
     SpinBox,
 )
-
-if sys.platform == "darwin":
-    from AppKit import NSApplication
 
 
 class ControlNetConditionUI:
@@ -75,7 +71,7 @@ class ImageModeWidget(QWidget):
         super().__init__(parent)
 
         self.main_window = main_window
-        self.progress_bar = main_window.progress_bar
+        self.backend = main_window.backend
         self.settings: QSettings = main_window.settings
         self.collections = main_window.collections
         self.image_history = ImageHistory()
@@ -84,7 +80,7 @@ class ImageModeWidget(QWidget):
         QApplication.instance().aboutToQuit.connect(self.thumbnail_loader.shutdown)
         self.thumbnail_model = ThumbnailModel(self.thumbnail_loader, 100)
 
-        self.generate_thread = None
+        self.generate_task = None
 
         # Set as Source Menu
         self.current_image_set_as_source_menu = QMenu("Set as Source", self)
@@ -643,8 +639,8 @@ class ImageModeWidget(QWidget):
         interrogate_mode_widget.source_image_widget.line_edit.setText(image_path)
 
     def on_cancel_generation(self):
-        if self.generate_thread:
-            self.generate_thread.cancel = True
+        if self.generate_task:
+            self.generate_task.cancel = True
 
     def on_add_control_net(self) -> ControlNetConditionUI:
         condition_ui = self.add_control_net()
@@ -748,23 +744,25 @@ class ImageModeWidget(QWidget):
             image = image.resize((width, height), Image.Resampling.LANCZOS)
             source_image = image.copy()
 
-        preprocessor_type = control_net_config.preprocessors[condition_ui.preprocessor_combo_box.currentText()]
-        if preprocessor_type:
-            params = self.get_control_net_param_values(condition_ui)
+        preprocessor_name = condition_ui.preprocessor_combo_box.currentText()
+        params = self.get_control_net_param_values(condition_ui)
 
-            if not isinstance(self.preview_preprocessor, preprocessor_type):
-                # Use CPU to avoid race conditions with torch use on the generate thread
-                self.preview_preprocessor = preprocessor_type(torch.device("cpu"))
-            source_image = self.preview_preprocessor(source_image, params)
-            if self.settings.value("reduce_memory", type=bool):
-                self.preview_preprocessor = None
-            output_path = "preprocessed.png"
-            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
-            source_image.save(full_path)
-            self.image_viewer.set_current_image(output_path)
+        self.preprocess_task = PreprocessTask(
+            source_image=source_image,
+            preprocessor_name=preprocessor_name,
+            params=params,
+        )
+        self.preprocess_task.image_completed.connect(self.on_preprocess_complete)
+        self.backend.start(self.preprocess_task)
+
+    def on_preprocess_complete(self, image):
+        output_path = "preprocessed.png"
+        full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+        image.save(full_path)
+        self.image_viewer.set_current_image(output_path)
 
     def on_generate_image(self):
-        if self.generate_thread:
+        if self.generate_task:
             return
 
         if not self.manual_seed_group_box.isChecked():
@@ -813,39 +811,16 @@ class ImageModeWidget(QWidget):
         self.settings.setValue("high_res_guidance_scale", self.high_res_guidance_scale.value())
         self.settings.setValue("high_res_noise", self.high_res_noise.value())
 
-        self.update_progress(0, 0)
         self.generate_button.setEnabled(False)
-        self.generate_thread = GenerateThread(self.settings, self)
-        self.generate_thread.task_progress.connect(self.update_progress)
-        self.generate_thread.image_preview.connect(self.image_preview)
-        self.generate_thread.image_complete.connect(self.image_complete)
-        self.generate_thread.task_complete.connect(self.generate_complete)
-        self.generate_thread.start()
+        self.generate_task = GenerateImageTask(self.settings)
+        self.generate_task.task_progress.connect(self.update_progress)
+        self.generate_task.image_preview.connect(self.image_preview)
+        self.generate_task.image_complete.connect(self.image_complete)
+        self.generate_task.completed.connect(self.generate_complete)
+        self.backend.start(self.generate_task)
 
     def update_progress(self, progress_amount, maximum_amount=100):
-        self.progress_bar.setMaximum(maximum_amount)
-        if maximum_amount == 0:
-            self.progress_bar.setStyleSheet(
-                "QProgressBar { border: none; } QProgressBar:chunk { background-color: grey; }"
-            )
-        else:
-            self.progress_bar.setStyleSheet(
-                "QProgressBar { border: none; } QProgressBar:chunk { background-color: blue; }"
-            )
-        if progress_amount is not None:
-            self.progress_bar.setValue(progress_amount)
-        else:
-            self.progress_bar.setValue(0)
-
-        if sys.platform == "darwin":
-            sharedApplication = NSApplication.sharedApplication()
-            dockTile = sharedApplication.dockTile()
-            if maximum_amount == 0:
-                dockTile.setBadgeLabel_("...")
-            elif progress_amount is not None:
-                dockTile.setBadgeLabel_("{:d}%".format(progress_amount))
-            else:
-                dockTile.setBadgeLabel_(None)
+        self.backend.update_progress(progress_amount, maximum_amount)
 
     def image_preview(self, preview_image):
         self.image_viewer.set_preview_image(preview_image)
@@ -855,9 +830,8 @@ class ImageModeWidget(QWidget):
 
     def generate_complete(self):
         self.generate_button.setEnabled(True)
-        self.update_progress(None)
         self.image_viewer.set_preview_image(None)
-        self.generate_thread = None
+        self.generate_task = None
 
     def randomize_seed(self):
         seed = random.randint(0, 0x7FFF_FFFF)
@@ -1093,10 +1067,8 @@ class ImageModeWidget(QWidget):
         self.thumbnail_viewer.remove_image(path)
 
     def on_close(self):
-        if self.generate_thread:
-            self.generate_thread.cancel = True
-            self.generate_thread.finished.connect(self.quit)
-            return False
+        if self.generate_task:
+            self.generate_task.cancel = True
         return True
 
     def on_key_press(self, event):

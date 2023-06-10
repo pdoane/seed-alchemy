@@ -8,14 +8,13 @@ from PySide6.QtGui import QPixmap
 from . import configuration, utils
 
 
-class ThumbnailRunnable(QRunnable):
-    def __init__(self, loader):
-        super().__init__()
-        self.loader = loader
-        self.signals = ThumbnailRunnable.Signals()
+class ThumbnailRunnable(QObject, QRunnable):
+    thumbnail_loaded = Signal(str, QPixmap)
 
-    class Signals(QObject):
-        thumbnail_loaded = Signal(str, QPixmap)
+    def __init__(self, loader):
+        QObject.__init__(self)
+        QRunnable.__init__(self)
+        self.loader = loader
 
     def run(self):
         while not self.loader.is_shutting_down:
@@ -41,9 +40,9 @@ class ThumbnailRunnable(QRunnable):
             pixmap = QPixmap(16, 16)
             pixmap.fill(Qt.transparent)
 
-        self.signals.thumbnail_loaded.connect(callback)
-        self.signals.thumbnail_loaded.emit(image_path, pixmap)
-        self.signals.thumbnail_loaded.disconnect(callback)
+        self.thumbnail_loaded.connect(callback)
+        self.thumbnail_loaded.emit(image_path, pixmap)
+        self.thumbnail_loaded.disconnect(callback)
 
 
 class ThumbnailLoader(QObject):

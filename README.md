@@ -46,9 +46,7 @@
 ## Roadmap
 
 Near-term:
-- ControlNet depth leres
 - ControlNet segmentation models
-- Async support for Promptgen/Clip Interrogator
 - Outpainting
 - Inpainting
 

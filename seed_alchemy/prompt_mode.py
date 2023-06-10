@@ -1,9 +1,11 @@
 import random
+from dataclasses import dataclass
+from typing import List
 
 import numpy as np
 import torch
 import transformers
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtWidgets import (
     QFrame,
     QGroupBox,
@@ -17,9 +19,10 @@ from PySide6.QtWidgets import (
 )
 
 from . import configuration
+from .backend import Backend, BackendTask
+from .prompt_result_widget import PromptResultWidget
 from .prompt_text_edit import PromptTextEdit
 from .widgets import ComboBox, FloatSliderSpinBox, IntSliderSpinBox, ScrollArea
-from .prompt_result_widget import PromptResultWidget
 
 
 def set_seed(seed):
@@ -27,13 +30,89 @@ def set_seed(seed):
     torch.manual_seed(seed)
 
 
+@dataclass
+class PromptMetadata:
+    model: str = "AUTOMATIC/promptgen-lexart"
+    prompt: str = ""
+    temperature: float = 1.0
+    top_k: int = 12
+    top_p: float = 1.0
+    num_beams: int = 1
+    repetition_penalty: float = 1.0
+    length_penalty: float = 1.0
+    min_length: int = 20
+    max_length: int = 150
+    count: int = 5
+    seed: int = 1
+
+    def load_from_settings(self, settings: QSettings):
+        settings.beginGroup("promptgen")
+        self.model = settings.value("model", type=str)
+        self.prompt = settings.value("prompt", type=str)
+        self.temperature = settings.value("temperature", type=float)
+        self.top_k = settings.value("top_k", type=int)
+        self.top_p = settings.value("top_p", type=float)
+        self.num_beams = settings.value("num_beams", type=int)
+        self.repetition_penalty = settings.value("repetition_penalty", type=float)
+        self.length_penalty = settings.value("length_penalty", type=float)
+        self.min_length = settings.value("min_length", type=int)
+        self.max_length = settings.value("max_length", type=int)
+        self.count = settings.value("count", type=int)
+        self.seed = settings.value("seed", type=int)
+        settings.endGroup()
+
+
+class GeneratePromptTask(BackendTask):
+    results = Signal(list)
+
+    def __init__(self, metadata: PromptMetadata):
+        super().__init__()
+        self.metadata = metadata
+
+    def run_(self):
+        # Model
+        repo_id = configuration.promptgen_models[self.metadata.model]
+
+        tokenizer = transformers.AutoTokenizer.from_pretrained(repo_id)
+        model = transformers.AutoModelForCausalLM.from_pretrained(repo_id)
+        # model.to(configuration.torch_device)
+
+        # Input ids
+        input_ids = tokenizer(self.metadata.prompt, return_tensors="pt").input_ids
+        if input_ids.shape[1] == 0:
+            input_ids = torch.asarray([[tokenizer.bos_token_id]], dtype=torch.long)
+        input_ids = input_ids.repeat((self.metadata.count, 1))
+        # input_ids = input_ids.to(configuration.torch_device)
+
+        # Generate
+        set_seed(self.metadata.seed)
+        outputs = model.generate(
+            input_ids,
+            min_length=self.metadata.min_length,
+            max_length=self.metadata.max_length,
+            do_sample=True,
+            num_beams=self.metadata.num_beams,
+            temperature=self.metadata.temperature,
+            top_k=self.metadata.top_k,
+            top_p=self.metadata.top_p,
+            repetition_penalty=self.metadata.repetition_penalty,
+            length_penalty=self.metadata.length_penalty,
+            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+        )
+
+        prompts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+        self.results.emit(prompts)
+
+
 class PromptModeWidget(QWidget):
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
 
         self.main_window = main_window
+        self.backend: Backend = main_window.backend
         self.settings: QSettings = main_window.settings
         self.result_widgets: list[PromptResultWidget] = []
+        self.generate_task: GeneratePromptTask = None
 
         # Generate
         self.generate_button = QPushButton("Generate")
@@ -175,79 +254,48 @@ class PromptModeWidget(QWidget):
         self.seed_line_edit.setText(str(seed))
 
     def on_generate(self):
+        if self.generate_task is not None:
+            return
         if not self.manual_seed_group_box.isChecked():
             self.randomize_seed()
 
-        prompt = self.prompt_edit.toPlainText()
-        model_name = self.model_combo_box.currentText()
-        temperature = self.temperature.value()
-        top_k = self.top_k.value()
-        top_p = self.top_p.value()
-        num_beams = self.num_beams.value()
-        repetition_penalty = self.repetition_penalty.value()
-        length_penalty = self.length_penalty.value()
-        min_length = self.min_length.value()
-        max_length = self.max_length.value()
-        count = self.prompt_count.value()
-        seed = int(self.seed_line_edit.text())
-
         self.settings.beginGroup("promptgen")
-        self.settings.setValue("prompt", prompt)
-        self.settings.setValue("model", model_name)
-        self.settings.setValue("temperature", temperature)
-        self.settings.setValue("top_k", top_k)
-        self.settings.setValue("top_p", top_p)
-        self.settings.setValue("num_beams", num_beams)
-        self.settings.setValue("repetition_penalty", repetition_penalty)
-        self.settings.setValue("length_penalty", length_penalty)
-        self.settings.setValue("min_length", min_length)
-        self.settings.setValue("max_length", max_length)
-        self.settings.setValue("count", count)
-        self.settings.setValue("seed", seed)
+        self.settings.setValue("prompt", self.prompt_edit.toPlainText())
+        self.settings.setValue("model", self.model_combo_box.currentText())
+        self.settings.setValue("temperature", self.temperature.value())
+        self.settings.setValue("top_k", self.top_k.value())
+        self.settings.setValue("top_p", self.top_p.value())
+        self.settings.setValue("num_beams", self.num_beams.value())
+        self.settings.setValue("repetition_penalty", self.repetition_penalty.value())
+        self.settings.setValue("length_penalty", self.length_penalty.value())
+        self.settings.setValue("min_length", self.min_length.value())
+        self.settings.setValue("max_length", self.max_length.value())
+        self.settings.setValue("count", self.prompt_count.value())
+        self.settings.setValue("seed", int(self.seed_line_edit.text()))
         self.settings.setValue("manual_seed", self.manual_seed_group_box.isChecked())
         self.settings.endGroup()
 
-        while len(self.result_widgets) < count:
+        self.metadata = PromptMetadata()
+        self.metadata.load_from_settings(self.settings)
+
+        self.generate_button.setEnabled(False)
+        self.generate_task = GeneratePromptTask(self.metadata)
+        self.generate_task.results.connect(self.on_results)
+        self.backend.start(self.generate_task)
+
+    def on_results(self, prompts):
+        while len(self.result_widgets) < self.metadata.count:
             result_widget = PromptResultWidget(self.main_window)
             self.result_layout.insertWidget(self.result_layout_index, result_widget)
             self.result_widgets.append(result_widget)
 
-        while len(self.result_widgets) > count:
+        while len(self.result_widgets) > self.metadata.count:
             result_widget = self.result_widgets.pop()
             self.result_layout.removeWidget(result_widget)
             result_widget.setParent(None)
 
-        # Model
-        repo_id = configuration.promptgen_models[model_name]
-
-        tokenizer = transformers.AutoTokenizer.from_pretrained(repo_id)
-        model = transformers.AutoModelForCausalLM.from_pretrained(repo_id)
-        # model.to(configuration.torch_device)
-
-        # Input ids
-        input_ids = tokenizer(prompt, return_tensors="pt").input_ids
-        if input_ids.shape[1] == 0:
-            input_ids = torch.asarray([[tokenizer.bos_token_id]], dtype=torch.long)
-        input_ids = input_ids.repeat((count, 1))
-        # input_ids = input_ids.to(configuration.torch_device)
-
-        # Generate
-        set_seed(seed)
-        outputs = model.generate(
-            input_ids,
-            min_length=min_length,
-            max_length=max_length,
-            do_sample=True,
-            num_beams=num_beams,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p,
-            repetition_penalty=repetition_penalty,
-            length_penalty=length_penalty,
-            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
-        )
-
-        prompts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
         for i, prompt in enumerate(prompts):
             result_widget = self.result_widgets[i]
             result_widget.label.setText(prompt)
+        self.generate_button.setEnabled(True)
+        self.generate_task = None
