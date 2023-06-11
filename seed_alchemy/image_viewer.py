@@ -1,3 +1,4 @@
+import darkdetect
 import json
 import os
 
@@ -36,8 +37,9 @@ class MetadataRow:
 class ImageMetadataFrame(QFrame):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.theme = darkdetect.theme()
 
-        self.setStyleSheet("background-color: rgba(0, 0, 0, 127);")
+        self.on_theme_changed()
 
         self.path = MetadataRow("Path:")
         self.model = MetadataRow("Model:")
@@ -70,6 +72,20 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.face.frame)
         vlayout.addWidget(self.high_res.frame)
         vlayout.addStretch()
+
+    def paintEvent(self, event):
+        theme = darkdetect.theme()
+        if self.theme != theme:
+            self.theme = theme
+            self.on_theme_changed()
+
+        super().paintEvent(event)
+
+    def on_theme_changed(self):
+        if self.theme == "Dark":
+            self.setStyleSheet("background-color: rgba(0, 0, 0, 127);")
+        else:
+            self.setStyleSheet("background-color: rgba(255, 255, 255, 180);")
 
     def update(self, metadata: ImageMetadata):
         self.path.value.setText(metadata.path)
