@@ -33,6 +33,10 @@ class PromptResultWidget(QFrame):
         layout.addWidget(self.set_as_image_prompt_button)
         layout.addWidget(self.label)
 
+    def set_text(self, str):
+        self.label.setText(str)
+        self.label.setEnabled(True)
+
     def on_set_as_image_prompt(self):
         self.label.setEnabled(False)
         image_mode_widget = self.main_window.set_mode("image")

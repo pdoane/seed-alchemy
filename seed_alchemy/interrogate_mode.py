@@ -266,6 +266,6 @@ class InterrogateModeWidget(QWidget):
     def on_results(self, caption: str, prompt: str):
         self.prompt.show()
         self.caption_label.setText("Caption: " + caption)
-        self.prompt.label.setText(prompt)
+        self.prompt.set_text(prompt)
         self.interrogate_button.setEnabled(True)
         self.interrogate_task = None

@@ -296,6 +296,7 @@ class PromptModeWidget(QWidget):
 
         for i, prompt in enumerate(prompts):
             result_widget = self.result_widgets[i]
-            result_widget.label.setText(prompt)
+            result_widget.set_text(prompt)
+
         self.generate_button.setEnabled(True)
         self.generate_task = None
