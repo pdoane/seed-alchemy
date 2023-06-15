@@ -20,10 +20,18 @@ from PySide6.QtWidgets import (
 from . import actions, configuration
 from .about_dialog import AboutDialog
 from .backend import Backend
+from .canvas_mode import CanvasModeWidget
 from .image_mode import ImageModeWidget
 from .interrogate_mode import InterrogateModeWidget
 from .preferences_dialog import PreferencesDialog
 from .prompt_mode import PromptModeWidget
+from .gallery_mode import GalleryModeWidget
+
+IMAGE_MODE = 0
+CANVAS_MODE = 1
+GALLERY_MODE = 2
+PROMPT_MODE = 3
+INTERROGATE_MODE = 4
 
 
 class MainWindow(QMainWindow):
@@ -80,22 +88,30 @@ class MainWindow(QMainWindow):
         self.addToolBar(Qt.LeftToolBarArea, mode_toolbar)
 
         image_mode_button = actions.image_mode.mode_button()
+        canvas_mode_button = actions.canvas_mode.mode_button()
+        gallery_mode_button = actions.gallery_mode.mode_button()
         prompt_mode_button = actions.prompt_mode.mode_button()
         interrogate_mode_button = actions.interrogate_mode.mode_button()
 
         mode_toolbar.addWidget(image_mode_button)
+        mode_toolbar.addWidget(canvas_mode_button)
+        mode_toolbar.addWidget(gallery_mode_button)
         mode_toolbar.addWidget(prompt_mode_button)
         mode_toolbar.addWidget(interrogate_mode_button)
 
         self.button_group = QButtonGroup()
-        self.button_group.addButton(image_mode_button, 0)
-        self.button_group.addButton(prompt_mode_button, 1)
-        self.button_group.addButton(interrogate_mode_button, 2)
+        self.button_group.addButton(image_mode_button, IMAGE_MODE)
+        self.button_group.addButton(canvas_mode_button, CANVAS_MODE)
+        self.button_group.addButton(gallery_mode_button, GALLERY_MODE)
+        self.button_group.addButton(prompt_mode_button, PROMPT_MODE)
+        self.button_group.addButton(interrogate_mode_button, INTERROGATE_MODE)
         self.button_group.idToggled.connect(self.on_mode_changed)
 
         # Stacked Layout
         self.stacked_layout = QStackedLayout()
         self.stacked_layout.addWidget(ImageModeWidget(self))
+        self.stacked_layout.addWidget(CanvasModeWidget(self))
+        self.stacked_layout.addWidget(GalleryModeWidget(self))
         self.stacked_layout.addWidget(PromptModeWidget(self))
         self.stacked_layout.addWidget(InterrogateModeWidget(self))
 
@@ -120,11 +136,15 @@ class MainWindow(QMainWindow):
         self.settings.setValue("mode", mode)
 
         if mode == "image":
-            index = 0
+            index = IMAGE_MODE
+        elif mode == "canvas":
+            index = CANVAS_MODE
+        elif mode == "gallery":
+            index = GALLERY_MODE
         elif mode == "prompt":
-            index = 1
+            index = PROMPT_MODE
         elif mode == "interrogate":
-            index = 2
+            index = INTERROGATE_MODE
 
         self.button_group.button(index).setChecked(True)
         self.stacked_layout.setCurrentIndex(index)
@@ -143,11 +163,15 @@ class MainWindow(QMainWindow):
     def on_mode_changed(self, button_id, checked):
         if not checked:
             return
-        if button_id == 0:
+        if button_id == IMAGE_MODE:
             self.set_mode("image")
-        elif button_id == 1:
+        elif button_id == CANVAS_MODE:
+            self.set_mode("canvas")
+        elif button_id == GALLERY_MODE:
+            self.set_mode("gallery")
+        elif button_id == PROMPT_MODE:
             self.set_mode("prompt")
-        elif button_id == 2:
+        elif button_id == INTERROGATE_MODE:
             self.set_mode("interrogate")
 
     def show_about_dialog(self):

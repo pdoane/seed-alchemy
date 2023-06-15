@@ -9,8 +9,7 @@ import requests
 import send2trash
 from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon, QImage, QPixmap
-
+from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QPainter, QPixmap
 
 if sys.platform == "darwin":
     from AppKit import NSURL, NSWorkspace
@@ -146,3 +145,12 @@ def remove_none_fields(data: Any) -> Any:
         return [remove_none_fields(elem) for elem in data]
     else:
         return data
+
+
+def checkerboard_qbrush() -> QBrush:
+    pixmap = QPixmap(16, 16)
+    pixmap.fill(QColor(211, 211, 211))
+    with QPainter(pixmap) as painter:
+        painter.fillRect(0, 0, 8, 8, QColor(169, 169, 169))
+        painter.fillRect(8, 8, 8, 8, QColor(169, 169, 169))
+    return QBrush(pixmap)

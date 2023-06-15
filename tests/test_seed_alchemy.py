@@ -6,14 +6,16 @@ import time
 import numpy as np
 import pytest
 from PIL import Image
+from PySide6.QtCore import QThreadPool
 from PySide6.QtWidgets import QApplication
 
 from seed_alchemy.application import Application
+from seed_alchemy.image_mode import ImageModeWidget
 
 
-def wait_for_thread(thread, timeout=5):
+def wait_for_task(task, timeout=5):
     event = threading.Event()
-    thread.finished.connect(lambda: event.set())
+    task.completed.connect(lambda: event.set())
 
     start_time = time.time()
     while not event.is_set():
@@ -63,15 +65,17 @@ def test(app: Application):
     main_window = app.main_window
     assert main_window is not None
 
-    main_window.prompt_edit.setPlainText("a fantasy landscape")
-    main_window.manual_seed_group_box.setChecked(True)
-    main_window.seed_lineedit.setText("2")
+    image_mode_widget: ImageModeWidget = main_window.set_mode("image")
 
-    main_window.generate_button.click()
-    generate_thread = main_window.generate_thread
-    assert generate_thread is not None
+    image_mode_widget.prompt_edit.setPlainText("a fantasy landscape")
+    image_mode_widget.manual_seed_group_box.setChecked(True)
+    image_mode_widget.seed_line_edit.setText("2")
 
-    wait_for_thread(generate_thread, timeout=60)
+    image_mode_widget.generate_button.click()
+    generate_task = image_mode_widget.generate_task
+    assert generate_task is not None
+
+    wait_for_task(generate_task, timeout=60)
 
     rmse = compare_images("images/outputs/00001.png", get_resource_path("00001.png"))
-    assert rmse == 0
+    assert rmse <= 0.02

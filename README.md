@@ -23,6 +23,7 @@
 - Clip Interrogator
 - Real-time preview of latent space
 - Thumbnail viewer with collections
+- Canvas mode (IN DEVELOPMENT)
 
 ## Installation
 
@@ -30,7 +31,7 @@
 
 1. Install [Python](https://www.python.org/downloads/windows/), checking "Add Python to PATH".
 2. Install [git](https://git-scm.com/download/win).
-3. Download this repository, for example by running `git clone https://github.com/pdoane/simple-diffusion.git`.
+3. Download this repository, for example by running `git clone https://github.com/pdoane/seed-alchemy.git`.
 4. Execute `install.bat` from Windows Explorer as normal, non-administrator, user.
    Use this also to update when requirements/dependency versions change
 5. Execute `run.bat` from Windows Explorer as normal, non-administrator, user.
@@ -38,7 +39,7 @@
 ### macOS
 
 1. Install Python and git, one option is via the MacOS Developer Tools
-2. Download this repository, for example by running `git clone https://github.com/pdoane/simple-diffusion.git`.
+2. Download this repository, for example by running `git clone https://github.com/pdoane/seed-alchemy.git`.
 3. Navigate a terminal to the directory containing this project.
 4. Execute `install.sh` (use this also to update when requirements/dependency versions change)
 5. Execute `run.sh`
@@ -46,16 +47,43 @@
 ## Roadmap
 
 Near-term:
-- ControlNet segmentation models
-- Outpainting
-- Inpainting
+- Canvas Mode
+  - Painting
+    - Sketch
+    - Brush size
+    - Color picker
+    - Eye dropper
+    - Selection
+      - Marquee
+      - Lasso
+      - Smart mode: Foreground/background/prompt
+      - Blur
+      - All/None/Invert
+    - Fill/Clear
+    - Undo
+  - Generation
+    - Image
+    - Outpainting
+    - Inpainting
+    - Sketch
+    - Blending
+  - Elements
+    - Stack UI
+    - Reordering
+    - Upscale/downscale
+    - Collapse
+- Image Browser
+- Project files (replaces --root)
+- Replace collections with directory hierarchy
+- Image Gallery
+- PNG/JPEG metadata viewer
+- ControlNet
+  - Segmentation models
+  - Reference-Only control
+  - Control Mode (previously Guess Mode)
+- Long Prompt support
+- A1111 style weighting 
 
 Evaluate:
-- Prompt Cutoff (https://github.com/hnmr293/sd-webui-cutoff)
-- ControlNet Reference-Only control
-- ControlNet Control Mode (previously Guess Mode)
 - ControlNet T2I-Adapter
 - ControlNet High-resolution control image sampling
-- Long Prompt Weighting
-- Self-Attention Guidance
-- MultiDiffusion

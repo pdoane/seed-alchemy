@@ -39,7 +39,9 @@ class ActionDef:
         return action
 
     def tool_button(self):
-        return self._tool_button(fa.font)
+        button = self._tool_button(fa.font)
+        button.setFixedSize(32, 32)
+        return button
 
     def mode_button(self):
         button = self._tool_button(fa.mode_font)
@@ -84,6 +86,8 @@ class ActionDef:
 
 # Modes
 image_mode = ActionDef("Image Generation", fa_icon=fa.icon_image, checkable=True, auto_exclusive=True)
+canvas_mode = ActionDef("Image Canvas", fa_icon=fa.icon_brush, checkable=True, auto_exclusive=True)
+gallery_mode = ActionDef("Image Gallery", fa_icon=fa.icon_images, checkable=True, auto_exclusive=True)
 prompt_mode = ActionDef("Prompt Generation", fa_icon=fa.icon_comments, checkable=True, auto_exclusive=True)
 interrogate_mode = ActionDef("Interrogate Image", fa_icon=fa.icon_question, checkable=True, auto_exclusive=True)
 
@@ -128,3 +132,8 @@ convert_model = ActionDef("Convert .ckpt/.safetensors model...")
 
 # Help
 about = ActionDef("About", empty_icon=False, role=QAction.MenuRole.AboutRole)
+
+# Canvas
+selection = ActionDef("Selection", fa_icon=fa.icon_arrow_pointer, checkable=True, auto_exclusive=True)
+brush = ActionDef("Brush", fa_icon=fa.icon_paintbrush, checkable=True, auto_exclusive=True)
+eraser = ActionDef("Eraser", fa_icon=fa.icon_eraser, checkable=True, auto_exclusive=True)

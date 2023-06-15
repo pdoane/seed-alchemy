@@ -612,7 +612,7 @@ class ImageModeWidget(QWidget):
             )
             menu.addAction(action)
 
-        action = QAction("Control Net New Condition", self)
+        action = QAction("Control Net (New Condition)", self)
         action.triggered.connect(
             lambda: self.on_set_as_source(self.on_add_control_net().source_image_widget, image_metadata)
         )
@@ -620,8 +620,12 @@ class ImageModeWidget(QWidget):
 
         menu.addSeparator()
 
+        action = QAction("Canvas", self)
+        action.triggered.connect(lambda: self.on_canvas_mode(image_metadata.path))
+        menu.addAction(action)
+
         action = QAction("Interrogate", self)
-        action.triggered.connect(lambda: self.on_interrogate(image_metadata.path))
+        action.triggered.connect(lambda: self.on_interrogate_mode(image_metadata.path))
         menu.addAction(action)
 
     def on_set_as_source(self, source_image_widget: SourceImageWidget, image_metadata: ImageMetadata):
@@ -634,7 +638,11 @@ class ImageModeWidget(QWidget):
             else:
                 self.control_net_group_box.setChecked(True)
 
-    def on_interrogate(self, image_path):
+    def on_canvas_mode(self, image_path):
+        canvas_mode_widget = self.main_window.set_mode("canvas")
+        canvas_mode_widget.add_image(image_path)
+
+    def on_interrogate_mode(self, image_path):
         interrogate_mode_widget = self.main_window.set_mode("interrogate")
         interrogate_mode_widget.source_image_widget.line_edit.setText(image_path)
 
