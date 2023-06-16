@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 from PIL import Image
+from PySide6.QtCore import QSettings
 
 from . import utils
 
@@ -58,6 +59,14 @@ class HighResMetadata:
 
 @dataclass_json
 @dataclass
+class InpaintMetadata:
+    source: str = ""
+    use_alpha_channel: bool = False
+    invert_mask: bool = False
+
+
+@dataclass_json
+@dataclass
 class ImageMetadata:
     model: str = "stabilityai/stable-diffusion-2-1-base"
     safety_checker: bool = True
@@ -75,8 +84,9 @@ class ImageMetadata:
     upscale: Optional[UpscaleMetadata] = None
     face: Optional[FaceRestorationMetadata] = None
     high_res: Optional[HighResMetadata] = None
+    inpaint: Optional[InpaintMetadata] = None
 
-    def load_from_settings(self, settings):
+    def load_from_settings(self, settings: QSettings):
         self.model = settings.value("model", type=str)
         self.safety_checker = settings.value("safety_checker", type=bool)
         self.scheduler = settings.value("scheduler", type=str)
@@ -121,6 +131,13 @@ class ImageMetadata:
                 steps=settings.value("high_res_steps", type=int),
                 guidance_scale=settings.value("high_res_guidance_scale", type=float),
                 noise=settings.value("high_res_noise", type=float),
+            )
+
+        if settings.value("inpaint_enabled", type=bool):
+            self.inpaint = InpaintMetadata(
+                source=settings.value("inpaint_source", type=str),
+                use_alpha_channel=settings.value("inpaint_use_alpha_channel", type=bool),
+                invert_mask=settings.value("inpaint_invert_mask", type=bool),
             )
 
     def load_from_image(self, image: Image.Image):

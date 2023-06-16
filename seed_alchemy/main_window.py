@@ -1,11 +1,11 @@
 import os
-import sys
 
 from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
     download_from_original_stable_diffusion_ckpt,
 )
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QFileDialog,
     QMainWindow,
@@ -21,11 +21,13 @@ from . import actions, configuration
 from .about_dialog import AboutDialog
 from .backend import Backend
 from .canvas_mode import CanvasModeWidget
+from .gallery_mode import GalleryModeWidget
 from .image_mode import ImageModeWidget
 from .interrogate_mode import InterrogateModeWidget
 from .preferences_dialog import PreferencesDialog
 from .prompt_mode import PromptModeWidget
-from .gallery_mode import GalleryModeWidget
+from .thumbnail_loader import ThumbnailLoader
+from .thumbnail_model import ThumbnailModel
 
 IMAGE_MODE = 0
 CANVAS_MODE = 1
@@ -41,9 +43,9 @@ class MainWindow(QMainWindow):
         self.mode = "image"
         self.settings = settings
         self.collections = collections
-
-        self.generate_thread = None
-        self.active_thread_count = 0
+        self.thumbnail_loader = ThumbnailLoader()
+        QApplication.instance().aboutToQuit.connect(self.thumbnail_loader.shutdown)
+        self.thumbnail_model = ThumbnailModel(self.thumbnail_loader, 100)
 
         self.setFocusPolicy(Qt.ClickFocus)
 

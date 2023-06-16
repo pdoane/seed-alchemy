@@ -1,4 +1,6 @@
-from PySide6.QtCore import Qt, QLine, QRectF, QPoint
+import math
+
+from PySide6.QtCore import QLine, QPoint, QRectF, Qt
 from PySide6.QtGui import QPainter, QPen, QTransform
 from PySide6.QtWidgets import QGraphicsView
 
@@ -41,10 +43,10 @@ class CanvasView(QGraphicsView):
         super().drawBackground(painter, rect)
 
         # Grid
-        left = int(rect.left())
-        right = int(rect.right())
-        top = int(rect.top())
-        bottom = int(rect.bottom())
+        left = math.floor(rect.left())
+        right = math.ceil(rect.right())
+        top = math.floor(rect.top())
+        bottom = math.ceil(rect.bottom())
 
         first_left = left - (left % 64)
         first_top = top - (top % 64)

@@ -1,16 +1,18 @@
-from PySide6.QtCore import QRectF, Qt
+from PySide6.QtCore import QObject, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QPainterPath, QPainterPathStroker, QPen
 from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem
 
 
-class CanvasGenerationArea(QGraphicsRectItem):
-    def __init__(self, rect, parent=None):
-        super().__init__(rect, parent)
+class CanvasGenerationArea(QGraphicsRectItem, QObject):
+    image_size_changed = Signal(QSize)
+
+    def __init__(self, parent=None):
+        QGraphicsRectItem.__init__(self, QRectF(), parent)
+        QObject.__init__(self, parent)
 
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
-        self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setPen(QPen(QColor(Qt.white), 2))
 
         self._startPos = None
@@ -27,6 +29,14 @@ class CanvasGenerationArea(QGraphicsRectItem):
     def deserialize(self, data):
         if "rect" in data:
             self.setRect(QRectF(*data["rect"]))
+        else:
+            self.setRect(QRectF(0, 0, 512, 512))
+
+    def setRect(self, rect):
+        old_rect = self.rect()
+        super().setRect(rect)
+        if old_rect != rect:
+            self.image_size_changed.emit(rect.size().toSize())
 
     def shape(self):
         rect = self.boundingRect().adjusted(4, 4, -4, -4)
@@ -49,7 +59,7 @@ class CanvasGenerationArea(QGraphicsRectItem):
         if self._startPos is None:
             return
 
-        newRect = QRectF(self._startRect)
+        new_rect = QRectF(self._startRect)
 
         dx = event.scenePos().x() - self._startPos.x()
         dy = event.scenePos().y() - self._startPos.y()
@@ -58,19 +68,20 @@ class CanvasGenerationArea(QGraphicsRectItem):
         dy = round(dy / 8) * 8
 
         if self._resize_x == "left":
-            newRect.setLeft(self._startRect.left() + dx)
+            new_rect.setLeft(self._startRect.left() + dx)
         elif self._resize_x == "right":
-            newRect.setRight(self._startRect.right() + dx)
+            new_rect.setRight(self._startRect.right() + dx)
 
         if self._resize_y == "top":
-            newRect.setTop(self._startRect.top() + dy)
+            new_rect.setTop(self._startRect.top() + dy)
         elif self._resize_y == "bottom":
-            newRect.setBottom(self._startRect.bottom() + dy)
+            new_rect.setBottom(self._startRect.bottom() + dy)
 
-        if newRect.width() < 8 or newRect.height() < 8:
+        if new_rect.width() < 8 or new_rect.height() < 8:
             return
 
-        self.setRect(newRect)
+        self.setRect(new_rect)
+        self.image_size_changed.emit(new_rect.size().toSize())
 
     def mouseReleaseEvent(self, event):
         self._startPos = None

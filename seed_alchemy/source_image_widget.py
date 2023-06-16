@@ -24,9 +24,9 @@ from .thumbnail_model import ThumbnailModel
 class SourceImageWidget(QWidget):
     def __init__(self, thumbnail_loader: ThumbnailLoader, thumbnail_model: ThumbnailModel, parent=None):
         super().__init__(parent)
-
         self.thumbnail_loader = thumbnail_loader
         self.thumbnail_model = thumbnail_model
+
         self.label: QLabel = None
         self.line_edit: QLineEdit = None
         self.context_menu: QMenu = None
@@ -73,6 +73,9 @@ class SourceImageWidget(QWidget):
             self.thumbnail_model.remove_reference(self.previous_image_path)
         self.thumbnail_model.add_reference(image_path)
         self.previous_image_path = image_path
+
+    def get_image_path(self):
+        return self.line_edit.text()
 
     def get_metadata(self):
         image_path = self.line_edit.text()

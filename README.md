@@ -12,6 +12,7 @@
 
 - Text to Image
 - Image to Image
+- Inpainting
 - Prompt Weighting using [Compel](https://github.com/damian0815/compel/blob/main/Reference.md)
 - ControlNet (1.0, 1.1, Txt2Img, Img2Img, Multi-model)
 - LoRA
@@ -47,12 +48,16 @@
 ## Roadmap
 
 Near-term:
+- Inpainting
+  - Blending across edges
+  - Fill options
 - Canvas Mode
   - Painting
-    - Sketch
+    - Color/alpha channels
     - Brush size
     - Color picker
     - Eye dropper
+    - Undo
     - Selection
       - Marquee
       - Lasso
@@ -60,13 +65,6 @@ Near-term:
       - Blur
       - All/None/Invert
     - Fill/Clear
-    - Undo
-  - Generation
-    - Image
-    - Outpainting
-    - Inpainting
-    - Sketch
-    - Blending
   - Elements
     - Stack UI
     - Reordering
@@ -80,10 +78,14 @@ Near-term:
 - ControlNet
   - Segmentation models
   - Reference-Only control
+  - Tile
+  - Inpainting
   - Control Mode (previously Guess Mode)
+  - LaMa inpainting
 - Long Prompt support
 - A1111 style weighting 
 
 Evaluate:
-- ControlNet T2I-Adapter
-- ControlNet High-resolution control image sampling
+- ControlNet
+  - T2I-Adapter
+  - High-resolution control image sampling

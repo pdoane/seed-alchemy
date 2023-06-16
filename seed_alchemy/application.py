@@ -14,6 +14,7 @@ from .image_metadata import (
     ControlNetMetadata,
     FaceRestorationMetadata,
     HighResMetadata,
+    InpaintMetadata,
     ImageMetadata,
     Img2ImgMetadata,
     UpscaleMetadata,
@@ -55,6 +56,7 @@ class Application(QApplication):
         upscale_meta = UpscaleMetadata()
         face_meta = FaceRestorationMetadata()
         high_res_meta = HighResMetadata()
+        inpaint_meta = InpaintMetadata()
 
         self.settings = QSettings("settings.ini", QSettings.IniFormat)
         self.set_default_setting("local_models_path", "")
@@ -92,6 +94,10 @@ class Application(QApplication):
         self.set_default_setting("high_res_guidance_scale", high_res_meta.guidance_scale)
         self.set_default_setting("high_res_noise", high_res_meta.noise)
         self.set_default_setting("high_res_steps", high_res_meta.steps)
+        self.set_default_setting("inpaint_enabled", False)
+        self.set_default_setting("inpaint_source", inpaint_meta.source)
+        self.set_default_setting("inpaint_use_alpha_channel", inpaint_meta.use_alpha_channel)
+        self.set_default_setting("inpaint_invert_mask", inpaint_meta.invert_mask)
 
         self.set_default_setting("install_control_net_v10", "False")
         self.set_default_setting("install_control_net_v11", "True")

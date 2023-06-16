@@ -46,15 +46,20 @@ class CanvasImageElement(QGraphicsPixmapItem):
 
     def set_image(self, image_path):
         full_path = os.path.join(configuration.IMAGES_PATH, image_path)
-        with Image.open(full_path) as image:
+        try:
+            with Image.open(full_path) as image:
+                self.metadata = ImageMetadata()
+                self.metadata.path = image_path
+                self.metadata.load_from_image(image)
+
+                # TODO - upscaled data
+                image = image.resize((self.metadata.width, self.metadata.height), Image.Resampling.LANCZOS)
+
+                pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
+        except (IOError, OSError):
             self.metadata = ImageMetadata()
-            self.metadata.path = image_path
-            self.metadata.load_from_image(image)
-
-            # TODO - upscaled data
-            image = image.resize((self.metadata.width, self.metadata.height), Image.Resampling.LANCZOS)
-
-            pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
+            self.metadata.path = ""
+            pixmap = QPixmap(512, 512)
 
         self.base_pixmap = pixmap
         self.mask = QPixmap(pixmap.size())

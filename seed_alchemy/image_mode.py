@@ -1,6 +1,4 @@
-import json
 import os
-import random
 import shutil
 
 from PIL import Image, PngImagePlugin
@@ -10,76 +8,44 @@ from PySide6.QtWidgets import (
     QApplication,
     QDialog,
     QFrame,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
-    QLabel,
-    QLineEdit,
     QMenu,
-    QMessageBox,
-    QPushButton,
-    QSizePolicy,
     QSplitter,
     QVBoxLayout,
     QWidget,
 )
 
-from . import actions, configuration, control_net_config
+from . import actions, configuration
 from . import font_awesome as fa
 from . import utils
+from .control_net_widget import ControlNetWidget
 from .delete_image_dialog import DeleteImageDialog
 from .generate_thread import GenerateImageTask
 from .icon_engine import FontAwesomeIconEngine
+from .image_generation_panel import ImageGenerationPanel
 from .image_history import ImageHistory
-from .image_metadata import ControlNetConditionMetadata, ImageMetadata
+from .image_metadata import ImageMetadata
 from .image_viewer import ImageViewer
 from .preprocess_task import PreprocessTask
 from .processors import ProcessorBase
-from .prompt_text_edit import PromptTextEdit
-from .source_image_widget import SourceImageWidget
-from .thumbnail_loader import ThumbnailLoader
 from .thumbnail_model import ThumbnailModel
 from .thumbnail_viewer import ThumbnailViewer
-from .widgets import (
-    ComboBox,
-    DoubleSpinBox,
-    FloatSliderSpinBox,
-    FrameWithCloseButton,
-    IntSliderSpinBox,
-    ScrollArea,
-    SpinBox,
-)
-
-
-class ControlNetConditionUI:
-    frame: FrameWithCloseButton
-    model_combo_box: ComboBox
-    preprocessor_combo_box: ComboBox
-    source_image_widget: SourceImageWidget
-    params_layout_index: int
-    params: list[QWidget]
-    scale: FloatSliderSpinBox
 
 
 class ImageModeWidget(QWidget):
-    preview_preprocessor: ProcessorBase = None
-    img2img_source_widget: SourceImageWidget = None
-    condition_uis: list[ControlNetConditionUI] = []
-    override_metadata = None
-
     def __init__(self, main_window, parent=None):
         super().__init__(parent)
-
         self.main_window = main_window
         self.backend = main_window.backend
         self.settings: QSettings = main_window.settings
         self.collections = main_window.collections
+        self.thumbnail_model: ThumbnailModel = main_window.thumbnail_model
+
         self.image_history = ImageHistory()
         self.image_history.current_image_changed.connect(self.on_current_image_changed)
-        self.thumbnail_loader = ThumbnailLoader()
-        QApplication.instance().aboutToQuit.connect(self.thumbnail_loader.shutdown)
-        self.thumbnail_model = ThumbnailModel(self.thumbnail_loader, 100)
 
+        self.preview_preprocessor: ProcessorBase = None
+        self.preprocess_task = None
         self.generate_task = None
 
         # Set as Source Menu
@@ -96,222 +62,11 @@ class ImageModeWidget(QWidget):
             item_action.triggered.connect(lambda checked=False, collection=collection: self.on_move_image(collection))
             self.move_image_menu.addAction(item_action)
 
-        # Generate
-        self.generate_button = QPushButton("Generate")
-        self.generate_button.clicked.connect(self.on_generate_image)
-
-        cancel_button = actions.cancel_generation.push_button()
-        cancel_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        cancel_button.clicked.connect(self.on_cancel_generation)
-
-        generate_hlayout = QHBoxLayout()
-        generate_hlayout.setContentsMargins(0, 0, 0, 0)
-        generate_hlayout.setSpacing(2)
-        generate_hlayout.addWidget(self.generate_button)
-        generate_hlayout.addWidget(cancel_button)
-
-        # Configuration controls
-        self.config_frame = QFrame()
-        self.config_frame.setContentsMargins(0, 0, 2, 0)
-
-        self.config_scroll_area = ScrollArea()
-        self.config_scroll_area.setFrameStyle(QFrame.NoFrame)
-        self.config_scroll_area.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
-        self.config_scroll_area.setWidgetResizable(True)
-        self.config_scroll_area.setWidget(self.config_frame)
-        self.config_scroll_area.setFocusPolicy(Qt.NoFocus)
-
-        # Model
-        model_label = QLabel("Stable Diffusion Model")
-        model_label.setAlignment(Qt.AlignCenter)
-        self.model_combo_box = ComboBox()
-        self.model_combo_box.addItems(configuration.stable_diffusion_models.keys())
-
-        # Prompts
-        self.prompt_edit = PromptTextEdit(8, "Prompt")
-        self.prompt_edit.return_pressed.connect(self.on_generate_image)
-        self.negative_prompt_edit = PromptTextEdit(5, "Negative Prompt")
-        self.negative_prompt_edit.return_pressed.connect(self.on_generate_image)
-
-        self.prompt_group_box = QGroupBox("Prompts")
-        prompt_group_box_layout = QVBoxLayout(self.prompt_group_box)
-        prompt_group_box_layout.addWidget(self.prompt_edit)
-        prompt_group_box_layout.addWidget(self.negative_prompt_edit)
-
-        # General
-        num_images_label = QLabel("Images")
-        num_images_label.setAlignment(Qt.AlignCenter)
-        self.num_images_spin_box = SpinBox()
-        self.num_images_spin_box.setAlignment(Qt.AlignCenter)
-        self.num_images_spin_box.setFixedWidth(80)
-        self.num_images_spin_box.setMinimum(1)
-        num_steps_label = QLabel("Steps")
-        num_steps_label.setAlignment(Qt.AlignCenter)
-        self.num_steps_spin_box = SpinBox()
-        self.num_steps_spin_box.setAlignment(Qt.AlignCenter)
-        self.num_steps_spin_box.setFixedWidth(80)
-        self.num_steps_spin_box.setMinimum(1)
-        guidance_scale_label = QLabel("CFG Scale")
-        guidance_scale_label.setAlignment(Qt.AlignCenter)
-        self.guidance_scale_spin_box = DoubleSpinBox()
-        self.guidance_scale_spin_box.setFocusPolicy(Qt.StrongFocus)
-        self.guidance_scale_spin_box.setAlignment(Qt.AlignCenter)
-        self.guidance_scale_spin_box.setFixedWidth(80)
-        self.guidance_scale_spin_box.setSingleStep(0.5)
-        self.guidance_scale_spin_box.setMinimum(1.0)
-        width_label = QLabel("Width")
-        width_label.setAlignment(Qt.AlignCenter)
-        self.width_spin_box = SpinBox()
-        self.width_spin_box.setAlignment(Qt.AlignCenter)
-        self.width_spin_box.setFixedWidth(80)
-        self.width_spin_box.setSingleStep(64)
-        self.width_spin_box.setMinimum(64)
-        self.width_spin_box.setMaximum(2048)
-        height_label = QLabel("Height")
-        height_label.setAlignment(Qt.AlignCenter)
-        self.height_spin_box = SpinBox()
-        self.height_spin_box.setAlignment(Qt.AlignCenter)
-        self.height_spin_box.setFixedWidth(80)
-        self.height_spin_box.setSingleStep(64)
-        self.height_spin_box.setMinimum(64)
-        self.height_spin_box.setMaximum(2048)
-        scheduler_label = QLabel("Scheduler")
-        scheduler_label.setAlignment(Qt.AlignCenter)
-        self.scheduler_combo_box = ComboBox()
-        self.scheduler_combo_box.addItems(configuration.schedulers.keys())
-        self.scheduler_combo_box.setFixedWidth(120)
-
-        self.general_group_box = QGroupBox("General")
-
-        model_vlayout = QVBoxLayout()
-        model_vlayout.setContentsMargins(0, 0, 0, 0)
-        model_vlayout.setSpacing(2)
-        model_vlayout.addWidget(model_label)
-        model_vlayout.addWidget(self.model_combo_box)
-
-        controls_grid = QGridLayout()
-        controls_grid.setVerticalSpacing(2)
-        controls_grid.setRowMinimumHeight(2, 10)
-        controls_grid.addWidget(num_images_label, 0, 0)
-        controls_grid.addWidget(self.num_images_spin_box, 1, 0)
-        controls_grid.addWidget(num_steps_label, 0, 1)
-        controls_grid.addWidget(self.num_steps_spin_box, 1, 1)
-        controls_grid.addWidget(guidance_scale_label, 0, 2)
-        controls_grid.addWidget(self.guidance_scale_spin_box, 1, 2)
-        controls_grid.setAlignment(self.guidance_scale_spin_box, Qt.AlignCenter)
-        controls_grid.addWidget(width_label, 3, 0)
-        controls_grid.addWidget(self.width_spin_box, 4, 0)
-        controls_grid.addWidget(height_label, 3, 1)
-        controls_grid.addWidget(self.height_spin_box, 4, 1)
-        controls_grid.addWidget(scheduler_label, 3, 2)
-        controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
-
-        controls_vlayout = QVBoxLayout(self.general_group_box)
-        controls_vlayout.addLayout(model_vlayout)
-        controls_vlayout.addLayout(controls_grid)
-
-        # Seed
-        self.seed_line_edit = QLineEdit()
-        self.seed_line_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        seed_random_button = QPushButton("New")
-        seed_random_button.clicked.connect(self.on_seed_random_clicked)
-
-        self.seed_frame = QFrame()
-        self.seed_frame.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        seed_hlayout = QHBoxLayout(self.seed_frame)
-        seed_hlayout.setContentsMargins(0, 0, 0, 0)
-        seed_hlayout.addWidget(self.seed_line_edit)
-        seed_hlayout.addWidget(seed_random_button)
-
-        self.manual_seed_group_box = QGroupBox("Manual Seed")
-        self.manual_seed_group_box.setCheckable(True)
-        manual_seed_group_box_layout = QVBoxLayout(self.manual_seed_group_box)
-        manual_seed_group_box_layout.addWidget(self.seed_frame)
-
-        # Image to Image
-        self.img2img_source_widget = self.create_source_image_widget()
-
-        self.img2img_noise = FloatSliderSpinBox("Noise")
-
-        self.img2img_group_box = QGroupBox("Image to Image")
-        self.img2img_group_box.setCheckable(True)
-
-        img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
-        img2img_group_box_layout.addWidget(self.img2img_source_widget)
-        img2img_group_box_layout.addWidget(self.img2img_noise)
-
-        # ControlNet
-        self.control_net_guidance_start = FloatSliderSpinBox("Guidance Start")
-        self.control_net_guidance_end = FloatSliderSpinBox("Guidance End")
-
-        self.control_net_add_button = QPushButton("Add Condition")
-        self.control_net_add_button.clicked.connect(self.on_add_control_net)
-
-        self.control_net_group_box = QGroupBox("Control Net")
-        self.control_net_group_box.setCheckable(True)
-        self.control_net_group_box_layout = QVBoxLayout(self.control_net_group_box)
-        self.control_net_group_box_layout.addWidget(self.control_net_guidance_start)
-        self.control_net_group_box_layout.addWidget(self.control_net_guidance_end)
-        self.control_net_dynamic_index = self.control_net_group_box_layout.count()
-        self.control_net_group_box_layout.addWidget(self.control_net_add_button)
-
-        # Upscale
-        upscale_factor_label = QLabel("Factor: ")
-        self.upscale_factor_combo_box = ComboBox()
-        self.upscale_factor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.upscale_factor_combo_box.addItem("2x", 2)
-        self.upscale_factor_combo_box.addItem("4x", 4)
-        self.upscale_denoising = FloatSliderSpinBox("Denoising")
-        self.upscale_blend = FloatSliderSpinBox("Strength")
-
-        self.upscale_group_box = QGroupBox("Upscaling")
-        self.upscale_group_box.setCheckable(True)
-        upscale_factor_layout = QHBoxLayout()
-        upscale_factor_layout.setContentsMargins(0, 0, 0, 0)
-        upscale_factor_layout.setSpacing(0)
-        upscale_factor_layout.addWidget(upscale_factor_label)
-        upscale_factor_layout.addWidget(self.upscale_factor_combo_box)
-        upscale_group_box_layout = QVBoxLayout(self.upscale_group_box)
-        upscale_group_box_layout.addLayout(upscale_factor_layout)
-        upscale_group_box_layout.addWidget(self.upscale_denoising)
-        upscale_group_box_layout.addWidget(self.upscale_blend)
-
-        # Face Restoration
-        self.face_blend = FloatSliderSpinBox("Strength")
-
-        self.face_restoration_group_box = QGroupBox("Face Restoration")
-        self.face_restoration_group_box.setCheckable(True)
-
-        face_restoration_group_box_layout = QVBoxLayout(self.face_restoration_group_box)
-        face_restoration_group_box_layout.addWidget(self.face_blend)
-
-        # High Resolution
-        self.high_res_factor = FloatSliderSpinBox("Factor", minimum=1, maximum=2)
-        self.high_res_steps = IntSliderSpinBox("Steps", minimum=1, maximum=200)
-        self.high_res_guidance_scale = FloatSliderSpinBox("Guidance", minimum=1, maximum=50, step=0.5)
-        self.high_res_noise = FloatSliderSpinBox("Noise")
-
-        self.high_res_group_box = QGroupBox("High Resolution")
-        self.high_res_group_box.setCheckable(True)
-
-        high_res_group_box_layout = QVBoxLayout(self.high_res_group_box)
-        high_res_group_box_layout.addWidget(self.high_res_factor)
-        high_res_group_box_layout.addWidget(self.high_res_steps)
-        high_res_group_box_layout.addWidget(self.high_res_guidance_scale)
-        high_res_group_box_layout.addWidget(self.high_res_noise)
-
-        # Configuration
-        config_layout = QVBoxLayout(self.config_frame)
-        config_layout.setContentsMargins(0, 0, 0, 0)
-        config_layout.addWidget(self.prompt_group_box)
-        config_layout.addWidget(self.general_group_box)
-        config_layout.addWidget(self.manual_seed_group_box)
-        config_layout.addWidget(self.img2img_group_box)
-        config_layout.addWidget(self.control_net_group_box)
-        config_layout.addWidget(self.upscale_group_box)
-        config_layout.addWidget(self.face_restoration_group_box)
-        config_layout.addWidget(self.high_res_group_box)
-        config_layout.addStretch()
+        # Generation Panel
+        self.generation_panel = ImageGenerationPanel(main_window)
+        self.generation_panel.generate_requested.connect(self.generate_requested)
+        self.generation_panel.cancel_requested.connect(self.cancel_requested)
+        self.generation_panel.preprocess_requested.connect(self.preprocess_requested)
 
         # Image viewer
         self.image_viewer = ImageViewer(self.image_history)
@@ -367,54 +122,13 @@ class ImageModeWidget(QWidget):
         image_mode_splitter.setStretchFactor(0, 1)  # left widget
         image_mode_splitter.setStretchFactor(1, 0)  # right widget
 
-        image_mode_config_vlayout = QVBoxLayout()
-        image_mode_config_vlayout.addLayout(generate_hlayout)
-        image_mode_config_vlayout.addWidget(self.config_scroll_area)
-
         image_mode_layout = QHBoxLayout(self)
         image_mode_layout.setContentsMargins(8, 2, 8, 8)
         image_mode_layout.setSpacing(8)
-        image_mode_layout.addLayout(image_mode_config_vlayout)
+        image_mode_layout.addWidget(self.generation_panel)
         image_mode_layout.addWidget(image_mode_splitter)
 
-        # Set current values
-        self.model_combo_box.setCurrentText(self.settings.value("model"))
-        self.prompt_edit.setPlainText(self.settings.value("prompt"))
-        self.negative_prompt_edit.setPlainText(self.settings.value("negative_prompt"))
-        self.num_images_spin_box.setValue(int(self.settings.value("num_images_per_prompt")))
-        self.num_steps_spin_box.setValue(int(self.settings.value("num_inference_steps")))
-        self.guidance_scale_spin_box.setValue(float(self.settings.value("guidance_scale")))
-        self.width_spin_box.setValue(int(self.settings.value("width")))
-        self.height_spin_box.setValue(int(self.settings.value("height")))
-        self.scheduler_combo_box.setCurrentText(self.settings.value("scheduler"))
-        self.seed_line_edit.setText(str(self.settings.value("seed")))
-        self.manual_seed_group_box.setChecked(self.settings.value("manual_seed", type=bool))
-        self.img2img_source_widget.line_edit.setText(self.settings.value("img2img_source", type=str))
-        self.img2img_noise.setValue(float(self.settings.value("img2img_noise")))
-        self.img2img_group_box.setChecked(self.settings.value("img2img_enabled", type=bool))
-        self.control_net_guidance_start.setValue(self.settings.value("control_net_guidance_start", type=float))
-        self.control_net_guidance_end.setValue(self.settings.value("control_net_guidance_end", type=float))
-        self.control_net_group_box.setChecked(self.settings.value("control_net_enabled", type=bool))
-        condition_metas = [
-            ControlNetConditionMetadata.from_dict(item)
-            for item in json.loads(self.settings.value("control_net_conditions"))
-        ]
-        for i, condition_meta in enumerate(condition_metas):
-            condition_ui = self.create_control_net_ui(condition_meta)
-            self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
-            self.condition_uis.append(condition_ui)
-        utils.set_current_data(self.upscale_factor_combo_box, self.settings.value("upscale_factor", type=int))
-        self.upscale_denoising.setValue(float(self.settings.value("upscale_denoising")))
-        self.upscale_blend.setValue(float(self.settings.value("upscale_blend")))
-        self.upscale_group_box.setChecked(self.settings.value("upscale_enabled", type=bool))
-        self.face_blend.setValue(float(self.settings.value("face_blend")))
-        self.face_restoration_group_box.setChecked(self.settings.value("face_enabled", type=bool))
-        self.high_res_factor.setValue(self.settings.value("high_res_factor", type=float))
-        self.high_res_steps.setValue(self.settings.value("high_res_steps", type=int))
-        self.high_res_guidance_scale.setValue(self.settings.value("high_res_guidance_scale", type=float))
-        self.high_res_noise.setValue(self.settings.value("high_res_noise", type=float))
-        self.high_res_group_box.setChecked(self.settings.value("high_res_enabled", type=bool))
-
+        # Sync panels
         selected_image = self.thumbnail_viewer.list_widget.selected_image()
         if selected_image is not None:
             self.image_history.visit(selected_image)
@@ -479,347 +193,19 @@ class ImageModeWidget(QWidget):
 
         return [history_menu, prompt_menu, image_menu]
 
-    def update_config_frame_size(self):
-        self.config_frame.adjustSize()
-
-        # Workaround QT issue where the size of QScrollArea.widget() is cached and not updated
-        scroll_pos = self.config_scroll_area.verticalScrollBar().value()
-        self.config_scroll_area.takeWidget()
-        self.config_scroll_area.setWidget(self.config_frame)
-        self.config_scroll_area.updateGeometry()
-        self.config_scroll_area.verticalScrollBar().setValue(scroll_pos)
-
-    def create_source_image_widget(self) -> SourceImageWidget:
-        source_image_widget = SourceImageWidget(self.thumbnail_loader, self.thumbnail_model)
-        source_image_widget.label.customContextMenuRequested.connect(
-            lambda point: self.show_source_image_context_menu(source_image_widget, point)
-        )
-        return source_image_widget
-
-    def show_source_image_context_menu(self, source_image_widget: SourceImageWidget, point):
-        image_metadata = source_image_widget.get_metadata()
-
-        locate_source_action = actions.locate_source.create(self)
-        locate_source_action.triggered.connect(
-            lambda: self.thumbnail_viewer.select_image(source_image_widget.line_edit.text())
-        )
-
-        set_as_source_menu = QMenu("Set as Source", self)
-        set_as_source_menu.setIcon(QIcon(FontAwesomeIconEngine(fa.icon_share)))
-        self.build_set_as_source_menu(set_as_source_menu, image_metadata)
-
-        context_menu = QMenu(self)
-        context_menu.addAction(locate_source_action)
-        context_menu.addSeparator()
-        context_menu.addMenu(set_as_source_menu)
-
-        context_menu.exec(source_image_widget.label.mapToGlobal(point))
-
-    def create_control_net_ui(self, condition_meta: ControlNetConditionMetadata) -> ControlNetConditionUI:
-        condition_ui = ControlNetConditionUI()
-        condition_ui.frame = FrameWithCloseButton()
-        condition_ui.frame.closed.connect(lambda: self.on_remove_control_net(condition_ui))
-
-        model_label = QLabel("Model")
-        model_label.setAlignment(Qt.AlignCenter)
-        condition_ui.model_combo_box = ComboBox()
-        condition_ui.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        control_net_models = []
-        if self.settings.value("install_control_net_v10", type=bool):
-            control_net_models += control_net_config.v10_models
-        if self.settings.value("install_control_net_v11", type=bool):
-            control_net_models += control_net_config.v11_models
-        if self.settings.value("install_control_net_mediapipe_v2", type=bool):
-            control_net_models += control_net_config.mediapipe_v2_models
-        condition_ui.model_combo_box.addItems(sorted(control_net_models))
-        condition_ui.model_combo_box.setCurrentText(condition_meta.model)
-
-        preprocessor_label = QLabel("Preprocessor")
-        preprocessor_label.setAlignment(Qt.AlignCenter)
-        condition_ui.preprocessor_combo_box = ComboBox()
-        condition_ui.preprocessor_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        condition_ui.preprocessor_combo_box.addItems(control_net_config.preprocessors.keys())
-        condition_ui.preprocessor_combo_box.currentTextChanged.connect(
-            lambda text: self.on_control_net_preprocessor_combo_box_changed(condition_ui, text)
-        )
-
-        condition_ui.source_image_widget = self.create_source_image_widget()
-        condition_ui.source_image_widget.line_edit.setText(condition_meta.source)
-
-        sync_button = QPushButton(fa.icon_arrows_down_to_line)
-        sync_button.setFont(fa.font)
-        sync_button.setToolTip("Synchronize Model")
-        sync_button.clicked.connect(lambda: self.on_control_net_sync_button_clicked(condition_ui))
-
-        preview_preprocessor_button = QPushButton(fa.icon_eye)
-        preview_preprocessor_button.setFont(fa.font)
-        preview_preprocessor_button.setToolTip("Preview")
-        preview_preprocessor_button.clicked.connect(
-            lambda: self.on_control_net_preview_preprocessor_button_clicked(condition_ui)
-        )
-
-        condition_ui.scale = FloatSliderSpinBox("Scale", maximum=2.0)
-        condition_ui.scale.setValue(condition_meta.scale)
-
-        model_vlayout = QVBoxLayout()
-        model_vlayout.setContentsMargins(0, 0, 0, 0)
-        model_vlayout.setSpacing(2)
-        model_vlayout.addWidget(model_label)
-        model_vlayout.addWidget(condition_ui.model_combo_box)
-
-        preprocessor_hlayout = QHBoxLayout()
-        preprocessor_hlayout.setContentsMargins(0, 0, 0, 0)
-        preprocessor_hlayout.addWidget(condition_ui.preprocessor_combo_box)
-        preprocessor_hlayout.addWidget(sync_button)
-        preprocessor_hlayout.addWidget(preview_preprocessor_button)
-
-        preprocessor_vlayout = QVBoxLayout()
-        preprocessor_vlayout.setContentsMargins(0, 0, 0, 0)
-        preprocessor_vlayout.setSpacing(2)
-        preprocessor_vlayout.addWidget(preprocessor_label)
-        preprocessor_vlayout.addLayout(preprocessor_hlayout)
-
-        control_net_layout = QVBoxLayout(condition_ui.frame)
-        control_net_layout.addLayout(preprocessor_vlayout)
-        control_net_layout.addLayout(model_vlayout)
-        control_net_layout.addWidget(condition_ui.source_image_widget)
-        condition_ui.params_layout_index = control_net_layout.count()
-        control_net_layout.addWidget(condition_ui.scale)
-
-        condition_ui.params = []
-        condition_ui.preprocessor_combo_box.setCurrentText(condition_meta.preprocessor)
-        self.set_control_net_param_values(condition_ui, condition_meta)
-
-        return condition_ui
-
     def populate_current_image_set_as_source_menu(self):
         self.current_image_set_as_source_menu.clear()
-        self.build_set_as_source_menu(self.current_image_set_as_source_menu, self.image_viewer.metadata)
-
-    def build_set_as_source_menu(self, menu: QMenu, image_metadata: ImageMetadata):
-        action = QAction("Image to Image", self)
-        action.triggered.connect(lambda: self.on_set_as_source(self.img2img_source_widget, image_metadata))
-        menu.addAction(action)
-
-        for i, condition_ui in enumerate(self.condition_uis):
-            source_image_widget = condition_ui.source_image_widget
-            action = QAction("Control Net {:d}".format(i + 1), self)
-            action.triggered.connect(
-                lambda checked=False, source_image_widget=source_image_widget: self.on_set_as_source(
-                    source_image_widget, image_metadata
-                )
-            )
-            menu.addAction(action)
-
-        action = QAction("Control Net (New Condition)", self)
-        action.triggered.connect(
-            lambda: self.on_set_as_source(self.on_add_control_net().source_image_widget, image_metadata)
+        self.generation_panel.build_set_as_source_menu(
+            self.current_image_set_as_source_menu, self.image_viewer.metadata
         )
-        menu.addAction(action)
 
-        menu.addSeparator()
-
-        action = QAction("Canvas", self)
-        action.triggered.connect(lambda: self.on_canvas_mode(image_metadata.path))
-        menu.addAction(action)
-
-        action = QAction("Interrogate", self)
-        action.triggered.connect(lambda: self.on_interrogate_mode(image_metadata.path))
-        menu.addAction(action)
-
-    def on_set_as_source(self, source_image_widget: SourceImageWidget, image_metadata: ImageMetadata):
-        if image_metadata is not None:
-            source_image_widget.line_edit.setText(image_metadata.path)
-            if source_image_widget == self.img2img_source_widget:
-                self.img2img_group_box.setChecked(True)
-                self.width_spin_box.setValue(image_metadata.width)
-                self.height_spin_box.setValue(image_metadata.height)
-            else:
-                self.control_net_group_box.setChecked(True)
-
-    def on_canvas_mode(self, image_path):
-        canvas_mode_widget = self.main_window.set_mode("canvas")
-        canvas_mode_widget.add_image(image_path)
-
-    def on_interrogate_mode(self, image_path):
-        interrogate_mode_widget = self.main_window.set_mode("interrogate")
-        interrogate_mode_widget.source_image_widget.line_edit.setText(image_path)
-
-    def on_cancel_generation(self):
-        if self.generate_task:
-            self.generate_task.cancel = True
-
-    def on_add_control_net(self) -> ControlNetConditionUI:
-        condition_ui = self.add_control_net()
-        self.update_config_frame_size()
-        return condition_ui
-
-    def on_remove_control_net(self, condition_ui: ControlNetConditionUI) -> None:
-        self.remove_control_net(condition_ui)
-        self.update_config_frame_size()
-
-    def add_control_net(self) -> ControlNetConditionUI:
-        condition_meta = ControlNetConditionMetadata()
-        i = len(self.condition_uis)
-        condition_ui = self.create_control_net_ui(condition_meta)
-        self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
-        self.condition_uis.append(condition_ui)
-        return condition_ui
-
-    def remove_control_net(self, condition_ui: ControlNetConditionUI) -> None:
-        condition_ui.source_image_widget.destroy()
-        index = self.control_net_group_box_layout.indexOf(condition_ui.frame) - self.control_net_dynamic_index
-        del self.condition_uis[index]
-        self.control_net_group_box_layout.removeWidget(condition_ui.frame)
-        condition_ui.frame.setParent(None)
-
-    def get_control_net_param_values(self, condition_ui: ControlNetConditionUI) -> list[float]:
-        result = []
-
-        preprocessor = condition_ui.preprocessor_combo_box.currentText()
-        preprocessor_type = control_net_config.preprocessors.get(preprocessor)
-        if preprocessor_type:
-            for param_ui in condition_ui.params:
-                result.append(param_ui.value())
-
-        return result
-
-    def set_control_net_param_values(
-        self, condition_ui: ControlNetConditionUI, condition_meta: ControlNetConditionMetadata
-    ) -> None:
-        preprocessor = condition_ui.preprocessor_combo_box.currentText()
-        preprocessor_type = control_net_config.preprocessors.get(preprocessor)
-        if preprocessor_type:
-            for i, param_ui in enumerate(condition_ui.params):
-                value = utils.list_get(condition_meta.params, i)
-                if value:
-                    param_ui.setValue(value)
-
-    def on_control_net_preprocessor_combo_box_changed(self, condition_ui: ControlNetConditionUI, text: str):
-        layout = condition_ui.frame.layout()
-        for param in condition_ui.params:
-            layout.removeWidget(param)
-            param.setParent(None)
-
-        condition_ui.params = []
-
-        preprocessor_type = control_net_config.preprocessors.get(text)
-        if preprocessor_type:
-            for i, param in enumerate(preprocessor_type.params):
-                if param.type == int:
-                    param_ui = IntSliderSpinBox(param.name, param.min, param.max, param.step)
-                elif param.type == float:
-                    param_ui = FloatSliderSpinBox(param.name, param.min, param.max, param.step)
-                else:
-                    raise RuntimeError("Fatal error: Invalid type")
-                param_ui.setValue(param.value)
-
-                layout.insertWidget(condition_ui.params_layout_index + i, param_ui)
-                condition_ui.params.append(param_ui)
-
-        self.update_config_frame_size()
-
-    def on_control_net_sync_button_clicked(self, condition_ui: ControlNetConditionUI):
-        preprocessor = condition_ui.preprocessor_combo_box.currentText()
-        models = control_net_config.preprocessors_to_models.get(preprocessor, [])
-        found = False
-        for model in models:
-            index = condition_ui.model_combo_box.findText(model)
-            if index != -1:
-                condition_ui.model_combo_box.setCurrentIndex(index)
-                found = True
-                break
-
-        if not found:
-            message_box = QMessageBox()
-            message_box.setText("No Model Found")
-            message_box.setInformativeText(
-                "The '{:s}' preprocessor is not supported by any enabled ControlNet model.".format(preprocessor)
-            )
-            message_box.setIcon(QMessageBox.Warning)
-            message_box.addButton(QMessageBox.Ok)
-            message_box.exec()
-
-    def on_control_net_preview_preprocessor_button_clicked(self, condition_ui: ControlNetConditionUI):
-        source_path = condition_ui.source_image_widget.line_edit.text()
-        width = self.width_spin_box.value()
-        height = self.height_spin_box.value()
-
-        full_path = os.path.join(configuration.IMAGES_PATH, source_path)
-        with Image.open(full_path) as image:
-            image = image.convert("RGB")
-            image = image.resize((width, height), Image.Resampling.LANCZOS)
-            source_image = image.copy()
-
-        preprocessor_name = condition_ui.preprocessor_combo_box.currentText()
-        params = self.get_control_net_param_values(condition_ui)
-
-        self.preprocess_task = PreprocessTask(
-            source_image=source_image,
-            preprocessor_name=preprocessor_name,
-            params=params,
-        )
-        self.preprocess_task.image_completed.connect(self.on_preprocess_complete)
-        self.backend.start(self.preprocess_task)
-
-    def on_preprocess_complete(self, image):
-        output_path = "preprocessed.png"
-        full_path = os.path.join(configuration.IMAGES_PATH, output_path)
-        image.save(full_path)
-        self.image_viewer.set_current_image(output_path)
-
-    def on_generate_image(self):
+    def generate_requested(self):
         if self.generate_task:
             return
 
-        if not self.manual_seed_group_box.isChecked():
-            self.randomize_seed()
-
-        condition_metas = []
-        for condition_ui in self.condition_uis:
-            condition_meta = ControlNetConditionMetadata()
-            condition_meta.model = condition_ui.model_combo_box.currentText()
-            condition_meta.preprocessor = condition_ui.preprocessor_combo_box.currentText()
-            condition_meta.source = condition_ui.source_image_widget.line_edit.text()
-            condition_meta.params = self.get_control_net_param_values(condition_ui)
-            condition_meta.scale = condition_ui.scale.value()
-            condition_metas.append(condition_meta)
-
         self.settings.setValue("collection", self.thumbnail_viewer.collection())
-        self.settings.setValue("model", self.model_combo_box.currentText())
-        self.settings.setValue("scheduler", self.scheduler_combo_box.currentText())
-        self.settings.setValue("prompt", self.prompt_edit.toPlainText())
-        self.settings.setValue("negative_prompt", self.negative_prompt_edit.toPlainText())
-        self.settings.setValue("manual_seed", self.manual_seed_group_box.isChecked())
-        self.settings.setValue("seed", self.seed_line_edit.text())
-        self.settings.setValue("num_images_per_prompt", self.num_images_spin_box.value())
-        self.settings.setValue("num_inference_steps", self.num_steps_spin_box.value())
-        self.settings.setValue("guidance_scale", self.guidance_scale_spin_box.value())
-        self.settings.setValue("width", self.width_spin_box.value())
-        self.settings.setValue("height", self.height_spin_box.value())
-        self.settings.setValue("img2img_enabled", self.img2img_group_box.isChecked())
-        self.settings.setValue("img2img_source", self.img2img_source_widget.line_edit.text())
-        self.settings.setValue("img2img_noise", self.img2img_noise.value())
-        self.settings.setValue("control_net_enabled", self.control_net_group_box.isChecked())
-        self.settings.setValue("control_net_guidance_start", self.control_net_guidance_start.value())
-        self.settings.setValue("control_net_guidance_end", self.control_net_guidance_end.value())
-        self.settings.setValue(
-            "control_net_conditions", json.dumps([condition_meta.to_dict() for condition_meta in condition_metas])
-        )
-        self.settings.setValue("upscale_enabled", self.upscale_group_box.isChecked())
-        self.settings.setValue("upscale_factor", self.upscale_factor_combo_box.currentData())
-        self.settings.setValue("upscale_denoising", self.upscale_denoising.value())
-        self.settings.setValue("upscale_blend", self.upscale_blend.value())
-        self.settings.setValue("face_enabled", self.face_restoration_group_box.isChecked())
-        self.settings.setValue("face_blend", self.face_blend.value())
-        self.settings.setValue("high_res_enabled", self.high_res_group_box.isChecked())
-        self.settings.setValue("high_res_factor", self.high_res_factor.value())
-        self.settings.setValue("high_res_steps", self.high_res_steps.value())
-        self.settings.setValue("high_res_guidance_scale", self.high_res_guidance_scale.value())
-        self.settings.setValue("high_res_noise", self.high_res_noise.value())
 
-        self.generate_button.setEnabled(False)
+        self.generation_panel.begin_generate()
         self.generate_task = GenerateImageTask(self.settings)
         self.generate_task.task_progress.connect(self.update_progress)
         self.generate_task.image_preview.connect(self.image_preview)
@@ -827,8 +213,12 @@ class ImageModeWidget(QWidget):
         self.generate_task.completed.connect(self.generate_complete)
         self.backend.start(self.generate_task)
 
-    def update_progress(self, progress_amount, maximum_amount=100):
-        self.backend.update_progress(progress_amount, maximum_amount)
+    def cancel_requested(self):
+        if self.generate_task:
+            self.generate_task.cancel = True
+
+    def update_progress(self, progress_amount):
+        self.backend.update_progress(progress_amount)
 
     def image_preview(self, preview_image):
         self.image_viewer.set_preview_image(preview_image)
@@ -837,16 +227,36 @@ class ImageModeWidget(QWidget):
         self.on_add_file(output_path)
 
     def generate_complete(self):
-        self.generate_button.setEnabled(True)
+        self.generation_panel.end_generate()
         self.image_viewer.set_preview_image(None)
         self.generate_task = None
 
-    def randomize_seed(self):
-        seed = random.randint(0, 0x7FFF_FFFF)
-        self.seed_line_edit.setText(str(seed))
+    def preprocess_requested(self, control_net_widget: ControlNetWidget):
+        source_path = control_net_widget.get_source_path()
+        image_size = self.generation_panel.get_image_size().toTuple()
 
-    def on_seed_random_clicked(self):
-        self.randomize_seed()
+        full_path = os.path.join(configuration.IMAGES_PATH, source_path)
+        with Image.open(full_path) as image:
+            image = image.convert("RGB")
+            image = image.resize(image_size, Image.Resampling.LANCZOS)
+            source_image = image.copy()
+
+        preprocessor_name = control_net_widget.get_preprocessor_name()
+        params = control_net_widget.get_param_values()
+
+        self.preprocess_task = PreprocessTask(
+            source_image=source_image,
+            preprocessor_name=preprocessor_name,
+            params=params,
+        )
+        self.preprocess_task.image_completed.connect(self.preprocess_complete)
+        self.backend.start(self.preprocess_task)
+
+    def preprocess_complete(self, image):
+        output_path = "preprocessed.png"
+        full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+        image.save(full_path)
+        self.image_viewer.set_current_image(output_path)
 
     def on_current_image_changed(self, path):
         self.image_viewer.set_current_image(path)
@@ -885,139 +295,73 @@ class ImageModeWidget(QWidget):
     def on_insert_lora(self):
         self.prompt_edit.on_insert_lora()
 
+    def on_generate_image(self):
+        self.generation_panel.on_generate_clicked()
+
+    def on_cancel_generation(self):
+        self.generation_panel.on_cancel_clicked()
+
     def on_use_prompt(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_prompt(image_metadata)
+            self.generation_panel.begin_update()
+            self.generation_panel.use_prompt(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_seed(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_seed(image_metadata)
+            self.generation_panel.begin_update()
+            self.generation_panel.use_seed(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_general(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_general(image_metadata)
+            self.generation_panel.begin_update()
+            self.generation_panel.use_general(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_source_images(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_source_images(image_metadata)
-            self.update_config_frame_size()
+            self.generation_panel.begin_update()
+            self.generation_panel.use_source_images(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_img2img(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_img2img(image_metadata)
+            self.generation_panel.begin_update()
+            self.generation_panel.use_img2img(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_control_net(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_control_net(image_metadata)
-            self.update_config_frame_size()
+            self.generation_panel.begin_update()
+            self.generation_panel.use_control_net(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_post_processing(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_post_processing(image_metadata)
+            self.generation_panel.begin_update()
+            self.generation_panel.use_post_processing(image_metadata)
+            self.generation_panel.end_update()
 
     def on_use_all(self):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
-            self.use_prompt(image_metadata)
-            self.use_seed(image_metadata)
-            self.use_general(image_metadata)
-            self.use_img2img(image_metadata)
-            self.use_control_net(image_metadata)
-            self.use_post_processing(image_metadata)
-            self.use_source_images(image_metadata)
-            self.update_config_frame_size()
-
-    def use_prompt(self, image_metadata: ImageMetadata):
-        self.prompt_edit.setPlainText(image_metadata.prompt)
-        self.negative_prompt_edit.setPlainText(image_metadata.negative_prompt)
-
-    def use_seed(self, image_metadata: ImageMetadata):
-        self.manual_seed_group_box.setChecked(True)
-        self.seed_line_edit.setText(str(image_metadata.seed))
-
-    def use_general(self, image_metadata: ImageMetadata):
-        self.num_steps_spin_box.setValue(image_metadata.num_inference_steps)
-        self.guidance_scale_spin_box.setValue(image_metadata.guidance_scale)
-        self.width_spin_box.setValue(image_metadata.width)
-        self.height_spin_box.setValue(image_metadata.height)
-        self.scheduler_combo_box.setCurrentText(image_metadata.scheduler)
-
-    def use_source_images(self, image_metadata: ImageMetadata):
-        img2img_meta = image_metadata.img2img
-        if img2img_meta:
-            self.img2img_source_widget.line_edit.setText(img2img_meta.source)
-
-        control_net_meta = image_metadata.control_net
-        if control_net_meta:
-            while len(self.condition_uis) < len(control_net_meta.conditions):
-                self.add_control_net()
-
-            for i, condition_meta in enumerate(control_net_meta.conditions):
-                condition_ui = self.condition_uis[i]
-                condition_ui.source_image_widget.line_edit.setText(condition_meta.source)
-
-    def use_img2img(self, image_metadata: ImageMetadata):
-        img2img_meta = image_metadata.img2img
-        if img2img_meta:
-            self.img2img_group_box.setChecked(True)
-            self.img2img_source_widget.line_edit.setText(img2img_meta.source)
-            self.img2img_noise.setValue(img2img_meta.noise)
-        else:
-            self.img2img_group_box.setChecked(False)
-            self.img2img_source_widget.line_edit.setText("")
-
-    def use_control_net(self, image_metadata: ImageMetadata):
-        for condition_ui in self.condition_uis.copy():
-            self.remove_control_net(condition_ui)
-
-        self.condition_uis = []
-
-        control_net_meta = image_metadata.control_net
-        if control_net_meta:
-            self.control_net_group_box.setChecked(True)
-            self.control_net_guidance_start.setValue(control_net_meta.guidance_start)
-            self.control_net_guidance_end.setValue(control_net_meta.guidance_end)
-
-            for i, condition_meta in enumerate(control_net_meta.conditions):
-                condition_ui = self.create_control_net_ui(condition_meta)
-                self.control_net_group_box_layout.insertWidget(self.control_net_dynamic_index + i, condition_ui.frame)
-                self.condition_uis.append(condition_ui)
-        else:
-            self.control_net_group_box.setChecked(False)
-
-    def use_post_processing(self, image_metadata: ImageMetadata):
-        upscale_meta = image_metadata.upscale
-        if upscale_meta:
-            self.upscale_group_box.setChecked(True)
-            utils.set_current_data(self.upscale_factor_combo_box, upscale_meta.factor)
-            self.upscale_denoising.setValue(upscale_meta.denoising)
-            self.upscale_blend.setValue(upscale_meta.blend)
-        else:
-            self.upscale_group_box.setChecked(False)
-
-        face_meta = image_metadata.face
-        if face_meta:
-            self.face_restoration_group_box.setChecked(True)
-            self.face_blend.setValue(face_meta.blend)
-        else:
-            self.face_restoration_group_box.setChecked(False)
-
-        high_res_meta = image_metadata.high_res
-        if high_res_meta:
-            self.high_res_group_box.setChecked(True)
-            self.high_res_factor.setValue(high_res_meta.factor)
-            self.high_res_steps.setValue(high_res_meta.steps)
-            self.high_res_guidance_scale.setValue(high_res_meta.guidance_scale)
-            self.high_res_noise.setValue(high_res_meta.noise)
-        else:
-            self.high_res_group_box.setChecked(False)
+            self.generation_panel.begin_update()
+            self.generation_panel.use_prompt(image_metadata)
+            self.generation_panel.use_seed(image_metadata)
+            self.generation_panel.use_general(image_metadata)
+            self.generation_panel.use_img2img(image_metadata)
+            self.generation_panel.use_control_net(image_metadata)
+            self.generation_panel.use_post_processing(image_metadata)
+            self.generation_panel.use_source_images(image_metadata)
+            self.generation_panel.end_update()
 
     def on_move_image(self, collection: str):
         current_collection = self.thumbnail_viewer.collection()

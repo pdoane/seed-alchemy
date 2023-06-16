@@ -5,19 +5,26 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 import torch
-from diffusers import ControlNetModel, DiffusionPipeline
+from diffusers import ControlNetModel
 from diffusers.loaders import TextualInversionLoaderMixin
+from diffusers.pipelines import (
+    StableDiffusionControlNetImg2ImgPipeline,
+    StableDiffusionControlNetPipeline,
+    StableDiffusionImg2ImgPipeline,
+    StableDiffusionInpaintPipeline,
+    StableDiffusionPipeline,
+)
 from PIL import Image
 
 from . import configuration, control_net_config, lora
 from .image_metadata import ImageMetadata
-from .stable_diffusion_pipeline import StableDiffusionPipeline
 
 
 @dataclass
 class GenerateRequest:
     source_image: Image.Image = None
-    controlnet_conditioning_images: list[Image.Image] = field(default_factory=list)
+    mask_image: Image.Image = None
+    control_images: list[Image.Image] = field(default_factory=list)
     image_metadata: ImageMetadata = None
     num_images_per_prompt: int = 1
     generator: torch.Generator = None
@@ -38,14 +45,12 @@ class PipelineBase(ABC):
 
 
 class ImagePipeline(PipelineBase):
-    type: str = None
-    pipe: DiffusionPipeline = None
-    model: str = None
-    control_nets: list[ControlNetModel] = []
-    control_net_model_names: list[str] = []
-
     def __init__(self, pipeline_cache: PipelineCache, image_metadata: ImageMetadata) -> None:
         super().__init__()
+        self.pipe: StableDiffusionPipeline = None
+        self.model: str = None
+        self.control_nets: list[ControlNetModel] = []
+        self.control_net_model_names: list[str] = []
 
         prev_pipeline = pipeline_cache.pipeline
 
@@ -139,21 +144,15 @@ class ImagePipeline(PipelineBase):
         lora.apply(self.pipe, lora_models, lora_multipliers)
 
     def __call__(self, req: GenerateRequest) -> list[Image.Image]:
-        # Image parameters
-        image = None
-        img2img_noise = 1.0
         img2img_meta = req.image_metadata.img2img
-        if img2img_meta:
-            image = req.source_image
-            img2img_noise = img2img_meta.noise
+        control_net_meta = req.image_metadata.control_net
+        inpaint_meta = req.image_metadata.inpaint
 
-        # Controlnet parameters
         controlnet = None
         controlnet_conditioning_image = None
         controlnet_conditioning_scale = 1.0
         controlnet_guidance_start = 0.0
         controlnet_guidance_end = 1.0
-        control_net_meta = req.image_metadata.control_net
         if control_net_meta:
             controlnet_conditioning_scale = []
             for condition_meta in control_net_meta.conditions:
@@ -163,27 +162,82 @@ class ImagePipeline(PipelineBase):
 
             if len(control_net_meta.conditions) == 1:
                 controlnet = self.control_nets[0]
-                controlnet_conditioning_image = req.controlnet_conditioning_images[0]
+                controlnet_conditioning_image = req.control_images[0]
                 controlnet_conditioning_scale = controlnet_conditioning_scale[0]
             else:
                 controlnet = self.control_nets
-                controlnet_conditioning_image = req.controlnet_conditioning_images
+                controlnet_conditioning_image = req.control_images
 
-        return self.pipe(
-            width=req.image_metadata.width,
-            height=req.image_metadata.height,
-            image=image,
-            strength=img2img_noise,
-            controlnet=controlnet,
-            controlnet_conditioning_image=controlnet_conditioning_image,
-            controlnet_conditioning_scale=controlnet_conditioning_scale,
-            controlnet_guidance_start=controlnet_guidance_start,
-            controlnet_guidance_end=controlnet_guidance_end,
-            num_inference_steps=req.image_metadata.num_inference_steps,
-            guidance_scale=req.image_metadata.guidance_scale,
-            num_images_per_prompt=req.num_images_per_prompt,
-            generator=req.generator,
-            prompt_embeds=req.prompt_embeds,
-            negative_prompt_embeds=req.negative_prompt_embeds,
-            callback=req.callback,
-        ).images
+        if inpaint_meta:
+            return StableDiffusionInpaintPipeline(**self.pipe.components, requires_safety_checker=False)(
+                callback=req.callback,
+                generator=req.generator,
+                guidance_scale=req.image_metadata.guidance_scale,
+                height=req.image_metadata.height,
+                image=req.source_image,
+                mask_image=req.mask_image,
+                negative_prompt_embeds=req.negative_prompt_embeds,
+                num_images_per_prompt=req.num_images_per_prompt,
+                num_inference_steps=req.image_metadata.num_inference_steps,
+                prompt_embeds=req.prompt_embeds,
+                strength=1.0,  # TODO
+                width=req.image_metadata.width,
+            ).images
+        elif img2img_meta:
+            if control_net_meta:
+                return StableDiffusionControlNetImg2ImgPipeline(
+                    **self.pipe.components, controlnet=controlnet, requires_safety_checker=False
+                )(
+                    callback=req.callback,
+                    control_image=controlnet_conditioning_image,
+                    controlnet_conditioning_scale=controlnet_conditioning_scale,
+                    generator=req.generator,
+                    guidance_scale=req.image_metadata.guidance_scale,
+                    image=req.source_image,
+                    negative_prompt_embeds=req.negative_prompt_embeds,
+                    num_images_per_prompt=req.num_images_per_prompt,
+                    num_inference_steps=req.image_metadata.num_inference_steps,
+                    prompt_embeds=req.prompt_embeds,
+                    strength=img2img_meta.noise,
+                ).images
+            else:
+                return StableDiffusionImg2ImgPipeline(**self.pipe.components, requires_safety_checker=False)(
+                    callback=req.callback,
+                    generator=req.generator,
+                    guidance_scale=req.image_metadata.guidance_scale,
+                    image=req.source_image,
+                    negative_prompt_embeds=req.negative_prompt_embeds,
+                    num_images_per_prompt=req.num_images_per_prompt,
+                    num_inference_steps=req.image_metadata.num_inference_steps,
+                    prompt_embeds=req.prompt_embeds,
+                    strength=img2img_meta.noise,
+                ).images
+        else:
+            if control_net_meta:
+                return StableDiffusionControlNetPipeline(
+                    **self.pipe.components, controlnet=controlnet, requires_safety_checker=False
+                )(
+                    callback=req.callback,
+                    controlnet_conditioning_scale=controlnet_conditioning_scale,
+                    generator=req.generator,
+                    guidance_scale=req.image_metadata.guidance_scale,
+                    height=req.image_metadata.height,
+                    image=controlnet_conditioning_image,
+                    negative_prompt_embeds=req.negative_prompt_embeds,
+                    num_images_per_prompt=req.num_images_per_prompt,
+                    num_inference_steps=req.image_metadata.num_inference_steps,
+                    prompt_embeds=req.prompt_embeds,
+                    width=req.image_metadata.width,
+                ).images
+            else:
+                return StableDiffusionPipeline(**self.pipe.components, requires_safety_checker=False)(
+                    callback=req.callback,
+                    generator=req.generator,
+                    guidance_scale=req.image_metadata.guidance_scale,
+                    height=req.image_metadata.height,
+                    negative_prompt_embeds=req.negative_prompt_embeds,
+                    num_images_per_prompt=req.num_images_per_prompt,
+                    num_inference_steps=req.image_metadata.num_inference_steps,
+                    prompt_embeds=req.prompt_embeds,
+                    width=req.image_metadata.width,
+                ).images

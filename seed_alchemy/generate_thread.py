@@ -3,7 +3,7 @@ import os
 import torch
 from compel import Compel, PromptParser
 from compel.diffusers_textual_inversion_manager import DiffusersTextualInversionManager
-from PIL import Image, PngImagePlugin
+from PIL import Image, PngImagePlugin, ImageOps
 from PySide6.QtCore import QSettings, Signal
 
 from . import configuration, control_net_config, utils
@@ -77,12 +77,29 @@ class GenerateImageTask(BackendTask):
         # Source image
         img2img_meta = self.req.image_metadata.img2img
         if img2img_meta:
-            source_path = img2img_meta.source
-            full_path = os.path.join(configuration.IMAGES_PATH, source_path)
+            full_path = os.path.join(configuration.IMAGES_PATH, img2img_meta.source)
             with Image.open(full_path) as image:
                 image = image.convert("RGB")
                 # Delay resize until generation for enhance operations
                 self.req.source_image = image.copy()
+
+        # Mask image
+        inpaint_meta = self.req.image_metadata.inpaint
+
+        if inpaint_meta:
+            full_path = os.path.join(configuration.IMAGES_PATH, inpaint_meta.source)
+            with Image.open(full_path) as image:
+                if inpaint_meta.use_alpha_channel:
+                    image = image.split()[3].convert("L")
+                else:
+                    image = image.convert("L")
+                if inpaint_meta.invert_mask:
+                    image = ImageOps.invert(image)
+
+                image = image.resize(
+                    (self.req.image_metadata.width, self.req.image_metadata.height), Image.Resampling.LANCZOS
+                )
+                self.req.mask_image = image.copy()
 
         # Conditioning images
         control_net_meta = self.req.image_metadata.control_net
@@ -108,7 +125,7 @@ class GenerateImageTask(BackendTask):
                         if self.reduce_memory:
                             generate_preprocessor = None
 
-                self.req.controlnet_conditioning_images.append(controlnet_conditioning_image)
+                self.req.control_images.append(controlnet_conditioning_image)
 
         # scheduler
         pipe.scheduler = configuration.schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
@@ -138,7 +155,7 @@ class GenerateImageTask(BackendTask):
 
         # generate
         if img2img_meta and img2img_meta.noise == 0.0:
-            images = [self.req.source_image]
+            images = [self.req.source_image] * self.req.num_images_per_prompt
         else:
             if self.req.source_image is not None:
                 self.req.source_image = self.req.source_image.resize(
@@ -197,12 +214,12 @@ class GenerateImageTask(BackendTask):
 
                     control_net_meta = self.req.image_metadata.control_net
                     if control_net_meta:
-                        high_res_req.controlnet_conditioning_images = []
-                        for controlnet_conditioning_image in self.req.controlnet_conditioning_images:
+                        high_res_req.control_images = []
+                        for controlnet_conditioning_image in self.req.control_images:
                             controlnet_conditioning_image = controlnet_conditioning_image.resize(
                                 (high_res_width, high_res_height), Image.Resampling.LANCZOS
                             )
-                            high_res_req.controlnet_conditioning_images.append(controlnet_conditioning_image)
+                            high_res_req.control_images.append(controlnet_conditioning_image)
 
                         high_res_req.image_metadata.control_net = ControlNetMetadata(
                             guidance_start=control_net_meta.guidance_start,

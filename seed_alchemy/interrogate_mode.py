@@ -98,9 +98,9 @@ class InterrogateModeWidget(QWidget):
         self.main_window = main_window
         self.backend: Backend = main_window.backend
         self.settings: QSettings = main_window.settings
-        self.thumbnail_loader = ThumbnailLoader()
-        QApplication.instance().aboutToQuit.connect(self.thumbnail_loader.shutdown)
-        self.thumbnail_model = ThumbnailModel(self.thumbnail_loader, 100)
+        self.thumbnail_loader: ThumbnailLoader = main_window.thumbnail_loader
+        self.thumbnail_model: ThumbnailModel = main_window.thumbnail_model
+
         self.interrogate_task: InterrogateTask = None
 
         # Interrogate

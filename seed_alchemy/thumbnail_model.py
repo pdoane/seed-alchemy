@@ -56,7 +56,7 @@ class ThumbnailModel(QAbstractListModel):
             self.referenced_images[image_path] -= 1
             if self.referenced_images[image_path] <= 0:
                 del self.referenced_images[image_path]
-        else:
+        elif image_path != "":
             raise ValueError("Image not found in referenced_images")
 
         if image_path in self.image_paths:
