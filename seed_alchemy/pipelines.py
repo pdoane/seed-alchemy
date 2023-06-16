@@ -180,7 +180,7 @@ class ImagePipeline(PipelineBase):
                 num_images_per_prompt=req.num_images_per_prompt,
                 num_inference_steps=req.image_metadata.num_inference_steps,
                 prompt_embeds=req.prompt_embeds,
-                strength=1.0,  # TODO
+                strength=img2img_meta.noise,
                 width=req.image_metadata.width,
             ).images
         elif img2img_meta:

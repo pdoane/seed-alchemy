@@ -122,6 +122,7 @@ class CanvasModeWidget(QWidget):
 
     def add_image(self, image_path):
         pixmap_item = CanvasImageElement(self.canvas_state)
+        pixmap_item.setPos(self.generation_area.rect().topLeft())
         pixmap_item.set_image(image_path)
         self.canvas_scene.addItem(pixmap_item)
         self.canvas_view.ensureVisible(pixmap_item)
@@ -211,18 +212,18 @@ class CanvasModeWidget(QWidget):
 
         for item in self.canvas_scene.items(rect, Qt.IntersectsItemShape, Qt.AscendingOrder):
             if type(item) == CanvasImageElement:
-                qimage = item.base_pixmap.toImage()
+                qcolor = item.base_pixmap.toImage()
+                qmask = item.mask.toImage()
+
+                W = qcolor.width()
+                H = qcolor.height()
+
+                rgb = np.frombuffer(qcolor.constBits(), np.uint8).reshape((H, W, 4))[..., :3][..., ::-1]
+                alpha = np.frombuffer(qmask.constBits(), np.uint8).reshape((H, W, 4))[..., 3:]
+                rgba = np.concatenate((rgb, alpha), axis=2)
+                pimage = Image.fromarray(rgba)
+
                 pos = item.pos().toPoint()
-
-                W = qimage.width()
-                H = qimage.height()
-
-                ptr = qimage.constBits()
-                arr = np.frombuffer(ptr, np.uint8).reshape((H, W, 4))
-                arr = arr[..., :3][..., ::-1]
-
-                pimage = Image.fromarray(arr)
-
                 composite_image.paste(pimage, (pos - origin).toTuple())
 
         output_path = "composite.png"
