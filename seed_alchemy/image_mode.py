@@ -290,10 +290,10 @@ class ImageModeWidget(QWidget):
         self.image_history.visit(image_path)
 
     def on_insert_textual_inversion(self):
-        self.prompt_edit.on_insert_textual_inversion()
+        self.generation_panel.prompt_edit.on_insert_textual_inversion()
 
     def on_insert_lora(self):
-        self.prompt_edit.on_insert_lora()
+        self.generation_panel.prompt_edit.on_insert_lora()
 
     def on_generate_image(self):
         self.generation_panel.on_generate_clicked()

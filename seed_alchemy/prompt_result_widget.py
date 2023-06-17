@@ -40,4 +40,4 @@ class PromptResultWidget(QFrame):
     def on_set_as_image_prompt(self):
         self.label.setEnabled(False)
         image_mode_widget = self.main_window.set_mode("image")
-        image_mode_widget.prompt_edit.setPlainText(self.label.text())
+        image_mode_widget.generation_panel.prompt_edit.setPlainText(self.label.text())

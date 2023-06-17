@@ -50,8 +50,10 @@
 Near-term:
 - Inpainting
   - Blending across edges
-  - Fill options
 - Canvas Mode
+  - Panning without trackpad
+  - Separate setting groups for image/canvas
+  - Image generation panel specialization
   - Painting
     - Color/alpha channels
     - Brush size
@@ -73,7 +75,6 @@ Near-term:
 - Image Browser
 - Project files (replaces --root)
 - Replace collections with directory hierarchy
-- Image Gallery
 - PNG/JPEG metadata viewer
 - ControlNet
   - Segmentation models
