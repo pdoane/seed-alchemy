@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 import requests
 import send2trash
-from PIL import Image
+from PIL import Image, ImageQt
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QPainter, QPixmap
 
@@ -84,7 +84,7 @@ def retry_on_failure(operation: Callable, max_retries=10, initial_delay=0.1, bac
     return None
 
 
-def create_thumbnail(image, max_size):
+def create_thumbnail(image: Image.Image, max_size):
     width, height = image.size
     thumbnail_size = min(max_size, max(width, height))
 
@@ -113,9 +113,11 @@ def empty_qicon():
 
 
 def pil_to_qimage(pil_image: Image.Image):
-    data = pil_image.convert("RGBA").tobytes("raw", "RGBA")
-    qimage = QImage(data, pil_image.width, pil_image.height, QImage.Format_RGBA8888)
-    return qimage
+    return ImageQt.toqimage(pil_image)
+
+
+def qimage_to_pil(qimage: QImage):
+    return ImageQt.fromqimage(qimage)
 
 
 def set_current_data(widget, data):

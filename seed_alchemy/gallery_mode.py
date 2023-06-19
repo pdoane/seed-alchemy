@@ -8,7 +8,6 @@ from PySide6.QtWidgets import QLabel, QWidget
 
 from . import configuration
 from .backend import Backend
-from .canvas_state import *
 
 
 class FadingImage(QLabel):

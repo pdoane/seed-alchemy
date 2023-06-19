@@ -1,4 +1,5 @@
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -83,6 +84,7 @@ class ScrollArea(QScrollArea):
         super().__init__(parent)
 
     def sizeHint(self):
+        self.verticalScrollBar().adjustSize()
         size = super().sizeHint()
         size.setWidth(size.width() + self.verticalScrollBar().width() + self.widget().contentsMargins().right())
         return size
@@ -121,6 +123,18 @@ class ToolButton(QToolButton):
         if self.popupMode() == QToolButton.InstantPopup:
             self.about_to_show_menu.emit()
         super().mousePressEvent(event)
+
+
+class ElidedLabel(QLabel):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setFixedWidth(100)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        metrics = QFontMetrics(self.font())
+        elided = metrics.elidedText(self.text(), Qt.ElideRight, self.width())
+        painter.drawText(self.rect(), self.alignment(), elided)
 
 
 class FloatSliderSpinBox(QWidget):

@@ -1,178 +1,200 @@
 import os
 
+import numpy as np
 from PIL import Image
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QGraphicsItem, QGraphicsPixmapItem
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QCursor, QPainter, QPen, QPixmap
 
-from . import configuration, utils
-from .canvas_state import *
+from . import canvas_tool, configuration, utils
+from .canvas_element import CanvasElement, register_class
+from .canvas_event import CanvasMouseEvent
+from .canvas_scene import CanvasScene
 from .image_metadata import ImageMetadata
 
 
-class CanvasImageElement(QGraphicsPixmapItem):
-    def __init__(self, state, parent=None):
-        super().__init__(parent)
-        self.canvas_state: CanvasState = state
-        self.metadata: ImageMetadata = None
-        self.base_pixmap: QPixmap = None
-        self.mask: QPixmap = None
-        self.painting = False
-        self.cursor_pos = None
-        self.brush_size = 30
+class CanvasImageElement(CanvasElement):
+    pixmap_changed = Signal(QPixmap)
 
-        self.setAcceptHoverEvents(True)
-        self.setShapeMode(QGraphicsPixmapItem.BoundingRectShape)
-        self.setFlag(QGraphicsItem.ItemIsMovable, True)
-        self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
-        self.setFlag(QGraphicsItem.ItemIsSelectable, True)
+    def __init__(self, scene: CanvasScene, parent=None):
+        super().__init__(scene, parent)
+        self._pos = QPointF()
+        self._metadata: ImageMetadata = None
+        self._base_pixmap: QPixmap = None
+        self._pixmap: QPixmap = None
+        self._mask: QPixmap = None
+        self._cursor_pos = None
+        self._start_scene_pos = None
+        self._start_element_pos = None
+        self._last_local_pos = None
+        self._painting = False
 
-    def serialize(self):
+    def serialize(self) -> dict:
         return {
             "class": self.__class__.__name__,
             "pos": (self.pos().x(), self.pos().y()),
-            "image": self.metadata.path,
+            "image": self._metadata.path,
         }
 
-    def deserialize(self, data):
-        self.setPos(QPointF(*data["pos"]))
-        self.set_image(data["image"])
+    def deserialize(self, data: dict) -> None:
+        self.set_pos(QPointF(*data.get("pos", (0, 0))))
+        self.set_image(data.get("image", ""))
 
-    def describe(self):
-        if self.metadata is None:
-            return "unknown"
-        else:
-            return self.metadata.path
+    def bounding_rect(self) -> QRectF:
+        return self.rect().adjusted(-1, -1, 1, 1)
 
-    def set_image(self, image_path):
-        full_path = os.path.join(configuration.IMAGES_PATH, image_path)
-        try:
-            with Image.open(full_path) as image:
-                self.metadata = ImageMetadata()
-                self.metadata.path = image_path
-                self.metadata.load_from_image(image)
+    def contains_point(self, point: QPointF) -> bool:
+        return self.rect().contains(point)
 
-                # TODO - upscaled data
-                image = image.resize((self.metadata.width, self.metadata.height), Image.Resampling.LANCZOS)
+    def draw_content(self, painter: QPainter) -> None:
+        painter.drawPixmap(self._pos, self._pixmap)
 
-                pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
-        except (IOError, OSError):
-            self.metadata = ImageMetadata()
-            self.metadata.path = ""
-            pixmap = QPixmap(512, 512)
-
-        self.base_pixmap = pixmap
-        self.mask = QPixmap(pixmap.size())
-        self.mask.fill(Qt.white)
-
-        self.setPixmap(pixmap)
-
-    def paint(self, painter, option, widget):
-        painter.save()
-        painter.setPen(Qt.NoPen)
-        painter.drawRect(QRectF(QPointF(0, 0), self.base_pixmap.size()))
-        painter.restore()
-
-        super().paint(painter, option, widget)
-
-        if self.isSelected():
+        if self.selected() or self.hovered():
             painter.save()
-            painter.setPen(QPen(Qt.green, 2, Qt.SolidLine))
-            painter.drawRect(self.boundingRect())
+            if self.selected():
+                painter.setPen(QPen(Qt.green, 2, Qt.SolidLine))
+            else:
+                painter.setPen(QPen(Qt.blue, 2, Qt.SolidLine))
+            painter.drawRect(self.rect())
             painter.restore()
 
-        if self.cursor_pos is not None:
+        if self._cursor_pos is not None:
             painter.save()
             painter.setCompositionMode(QPainter.CompositionMode_Difference)
             painter.setPen(QPen(Qt.white, 2, Qt.DashLine))
+            brush_size = self._scene.brush_size
             painter.drawEllipse(
                 QRectF(
-                    self.cursor_pos.x() - self.brush_size / 2,
-                    self.cursor_pos.y() - self.brush_size / 2,
-                    self.brush_size,
-                    self.brush_size,
+                    self._cursor_pos.x() - brush_size / 2,
+                    self._cursor_pos.y() - brush_size / 2,
+                    brush_size,
+                    brush_size,
                 )
             )
             painter.restore()
 
-    def mousePressEvent(self, event):
-        if not is_paint_tool(self.canvas_state.tool):
-            super().mousePressEvent(event)
-            return
+    def mouse_press_event(self, event: CanvasMouseEvent) -> bool:
+        self._start_scene_pos = event.scene_pos
+        self._start_element_pos = self._pos
+        self._last_local_pos = event.scene_pos - self._pos
 
-        if event.button() == Qt.LeftButton and self.base_pixmap is not None:
-            self.last_pos = event.pos()
-            self.painting = True
+        if canvas_tool.is_paint_tool(self._scene.tool):
+            self._painting = True
 
-    def mouseMoveEvent(self, event):
-        if not is_paint_tool(self.canvas_state.tool):
-            super().mouseMoveEvent(event)
-            return
+        return True
 
-        cursor_pos = event.pos()
-
-        if (event.buttons() & Qt.LeftButton) and self.painting:
-            with QPainter(self.mask) as painter:
-                if self.canvas_state.tool == BRUSH_TOOL:
+    def mouse_move_event(self, event: CanvasMouseEvent) -> None:
+        if self._painting:
+            local_pos = event.scene_pos - self._pos
+            with QPainter(self._mask) as painter:
+                if self._scene.tool == canvas_tool.BRUSH:
                     color = Qt.white
                 else:
                     painter.setCompositionMode(QPainter.CompositionMode_SourceIn)
                     color = Qt.transparent
-                painter.setPen(QPen(color, self.brush_size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-                painter.drawLine(self.last_pos, cursor_pos)
+                painter.setPen(QPen(color, self._scene.brush_size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+                painter.drawLine(self._last_local_pos, local_pos)
 
-            self.update_pixmap()
-            self.last_pos = cursor_pos
+            self._update_pixmap()
+            self._last_local_pos = local_pos
+            self._cursor_pos = event.scene_pos
+        else:
+            new_pos = QPointF(self._start_element_pos)
 
-        self.cursor_pos = cursor_pos
+            dx = event.scene_pos.x() - self._start_scene_pos.x()
+            dy = event.scene_pos.y() - self._start_scene_pos.y()
 
-    def mouseReleaseEvent(self, event):
-        if not is_paint_tool(self.canvas_state.tool):
-            super().mouseReleaseEvent(event)
-            return
+            dx = round(dx / 8) * 8
+            dy = round(dy / 8) * 8
 
-        if event.button() == Qt.LeftButton and self.painting:
-            self.painting = False
+            new_pos += QPointF(dx, dy)
 
-    def hoverMoveEvent(self, event):
-        if not is_paint_tool(self.canvas_state.tool):
-            return
+            self.update()
+            self._pos = new_pos
+            self.update()
 
-        self.cursor_pos = event.pos()
-        self.update()
+    def mouse_release_event(self, event: CanvasMouseEvent) -> None:
+        self._start_scene_pos = None
+        self._last_local_pos = None
+        self._painting = False
 
-    def hoverEnterEvent(self, event):
-        if not is_paint_tool(self.canvas_state.tool):
-            return
+    def hover_move_event(self, event: CanvasMouseEvent) -> QCursor:
+        if canvas_tool.is_paint_tool(self._scene.tool):
+            self._cursor_pos = event.scene_pos
+            self._update_cursor()
+            return Qt.BlankCursor
+        else:
+            return Qt.ArrowCursor
 
-        self.setCursor(Qt.BlankCursor)
+    def hover_enter_event(self, event: CanvasMouseEvent) -> None:
+        pass
 
-    def hoverLeaveEvent(self, event):
-        if not is_paint_tool(self.canvas_state.tool):
-            return
+    def hover_leave_event(self, event: CanvasMouseEvent) -> None:
+        self._cursor_pos = None
+        self._update_cursor()
 
-        self.setCursor(Qt.ArrowCursor)
-        self.cursor_pos = None
-        self.update()
+    def pos(self):
+        return self._pos
 
-    def itemChange(self, change, value):
-        if change == QGraphicsItem.ItemPositionChange:
-            grid_size = 8
-            new_pos = value
+    def set_pos(self, pos: QPointF):
+        self._pos = pos
 
-            x = round(new_pos.x() / grid_size) * grid_size
-            y = round(new_pos.y() / grid_size) * grid_size
+    def rect(self):
+        return QRectF(self._pos, self._pixmap.size())
 
-            return super().itemChange(change, QPointF(x, y))
+    def metadata(self):
+        return self._metadata
 
-        return super().itemChange(change, value)
+    def pixmap(self):
+        return self._pixmap
 
-    def update_pixmap(self):
-        new_pixmap = QPixmap(self.base_pixmap.size())
-        new_pixmap.fill(Qt.transparent)
-        with QPainter(new_pixmap) as painter:
-            painter.drawPixmap(0, 0, self.base_pixmap)
+    def get_image(self) -> Image.Image:
+        qcolor = self._base_pixmap.toImage()
+        qmask = self._mask.toImage()
+
+        W = qcolor.width()
+        H = qcolor.height()
+
+        rgb = np.frombuffer(qcolor.constBits(), np.uint8).reshape((H, W, 4))[..., :3][..., ::-1]
+        alpha = np.frombuffer(qmask.constBits(), np.uint8).reshape((H, W, 4))[..., 3:]
+        rgba = np.concatenate((rgb, alpha), axis=2)
+        return Image.fromarray(rgba)
+
+    def set_image(self, image_path: str):
+        full_path = os.path.join(configuration.IMAGES_PATH, image_path)
+        try:
+            with Image.open(full_path) as image:
+                self._metadata = ImageMetadata()
+                self._metadata.path = image_path
+                self._metadata.load_from_image(image)
+
+                # TODO - upscaled data
+                image = image.resize((self._metadata.width, self._metadata.height), Image.Resampling.LANCZOS)
+
+                pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
+        except (IOError, OSError):
+            self._metadata = ImageMetadata()
+            self._metadata.path = ""
+            pixmap = QPixmap(512, 512)
+
+        self._base_pixmap = pixmap
+        self._mask = QPixmap(pixmap.size())
+        self._mask.fill(Qt.white)
+        self._pixmap = QPixmap(self._base_pixmap)
+        self.pixmap_changed.emit(self._pixmap)
+
+    def _update_pixmap(self):
+        self._pixmap.fill(Qt.transparent)
+        with QPainter(self._pixmap) as painter:
+            painter.drawPixmap(0, 0, self._base_pixmap)
             painter.setCompositionMode(QPainter.CompositionMode_DestinationIn)
-            painter.drawPixmap(0, 0, self.mask)
+            painter.drawPixmap(0, 0, self._mask)
+        self.pixmap_changed.emit(self._pixmap)
+        self.update()
 
-        self.setPixmap(new_pixmap)
+    def _update_cursor(self):
+        x = self._scene.brush_size / 2
+        rect = self.bounding_rect().adjusted(-x, -x, x, x)
+        self._scene.update_scene_rect(rect)
+
+
+register_class(CanvasImageElement)

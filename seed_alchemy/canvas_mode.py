@@ -3,25 +3,22 @@ import os
 
 import numpy as np
 from PIL import Image
-from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtCore import QSettings, QTimer
 from PySide6.QtWidgets import (
     QButtonGroup,
     QFrame,
-    QGraphicsScene,
     QHBoxLayout,
-    QListView,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from . import actions, configuration
+from . import actions, canvas_tool, configuration
 from .backend import Backend
-from .canvas_generation_area import CanvasGenerationArea
+from .canvas_generation_element import CanvasGenerationElement
 from .canvas_image_element import CanvasImageElement
-from .canvas_list_model import CanvasListModel
-from .canvas_state import *
-from .canvas_view import CanvasView
+from .canvas_layer_panel import CanvasLayerPanel
+from .canvas_scene import CanvasScene
 from .generate_thread import GenerateImageTask
 from .image_generation_panel import ImageGenerationPanel
 
@@ -33,33 +30,24 @@ class CanvasModeWidget(QWidget):
         self.main_window = main_window
         self.backend: Backend = main_window.backend
         self.settings: QSettings = main_window.settings
-        self.canvas_state = CanvasState()
         self.generate_task = None
+        self.generation_element = None
 
         self.generation_panel = ImageGenerationPanel(main_window)
         self.generation_panel.generate_requested.connect(self.generate_requested)
         self.generation_panel.cancel_requested.connect(self.cancel_requested)
         self.generation_panel.image_size_changed.connect(self.panel_image_size_changed)
 
-        self.canvas_scene = QGraphicsScene()
-        self.canvas_scene.setSceneRect(-16 * 1024, -16 * 1024, 32 * 1024, 32 * 1024)
-
-        self.generation_area = CanvasGenerationArea()
-        self.generation_area.image_size_changed.connect(self.area_image_size_changed)
-        self.generation_area.setZValue(1)
-        self.canvas_scene.addItem(self.generation_area)
-
-        self.canvas_view = CanvasView()
-        self.canvas_view.setScene(self.canvas_scene)
+        self.canvas_scene = CanvasScene()
 
         selection_button = actions.selection.tool_button()
         brush_button = actions.brush.tool_button()
         eraser_button = actions.eraser.tool_button()
 
         self.tool_button_group = QButtonGroup()
-        self.tool_button_group.addButton(selection_button, SELECTION_TOOL)
-        self.tool_button_group.addButton(brush_button, BRUSH_TOOL)
-        self.tool_button_group.addButton(eraser_button, ERASER_TOOL)
+        self.tool_button_group.addButton(selection_button, canvas_tool.SELECTION)
+        self.tool_button_group.addButton(brush_button, canvas_tool.BRUSH)
+        self.tool_button_group.addButton(eraser_button, canvas_tool.ERASER)
         self.tool_button_group.idToggled.connect(self.on_tool_changed)
 
         tool_frame = QFrame()
@@ -73,17 +61,14 @@ class CanvasModeWidget(QWidget):
         tool_layout.addWidget(eraser_button)
         tool_layout.addStretch()
 
-        list_view = QListView()
-        model = CanvasListModel(self.canvas_scene)
-        list_view.setModel(model)
-        list_view.setMinimumWidth(300)
+        self.layer_panel = CanvasLayerPanel(self.canvas_scene)
 
         composite_button = QPushButton("Composite")
         composite_button.clicked.connect(self.on_composite_clicked)
 
         vlayout = QVBoxLayout()
         vlayout.addWidget(composite_button)
-        vlayout.addWidget(self.canvas_view)
+        vlayout.addWidget(self.canvas_scene)
 
         mode_layout = QHBoxLayout(self)
         mode_layout.setContentsMargins(8, 2, 8, 8)
@@ -91,23 +76,34 @@ class CanvasModeWidget(QWidget):
         mode_layout.addWidget(self.generation_panel)
         mode_layout.addWidget(tool_frame)
         mode_layout.addLayout(vlayout)
-        mode_layout.addWidget(list_view)
+        mode_layout.addWidget(self.layer_panel)
 
-        self.settings.beginGroup("canvas")
-        tool = self.settings.value("tool", SELECTION_TOOL, type=int)
-        self.tool_button_group.button(tool).setChecked(True)
-        self.settings.endGroup()
+        # Deserialize
+        self.deserialize()
 
-        self.deserialized = False
+        for element in self.canvas_scene.elements():
+            # TODO - multiple generators
+            if type(element) == CanvasGenerationElement:
+                self.generation_element = element
+
+        if self.generation_element is None:
+            self.generation_element = CanvasGenerationElement(self.canvas_scene)
+            self.generation_element.set_size(self.generation_panel.get_image_size())
+            self.canvas_scene.add_element(self.generation_element)
+
+        self.generation_element.image_size_changed.connect(self.generation_image_size_changed)
+
+        self.tool_button_group.button(self.canvas_scene.tool).setChecked(True)
+
+        # Serialization
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.serialize)
 
     def showEvent(self, event):
-        if self.deserialized:
-            return
-        self.deserialized = True
-        self.deserialize()
-        timer = QTimer(self)
-        timer.timeout.connect(self.serialize)
-        timer.start(1000)
+        self.timer.start(1000)
+
+    def hideEvent(self, event):
+        self.timer.stop()
 
     def get_menus(self):
         return []
@@ -121,50 +117,30 @@ class CanvasModeWidget(QWidget):
         return False
 
     def add_image(self, image_path):
-        pixmap_item = CanvasImageElement(self.canvas_state)
-        pixmap_item.setPos(self.generation_area.rect().topLeft())
-        pixmap_item.set_image(image_path)
-        self.canvas_scene.addItem(pixmap_item)
-        self.canvas_view.ensureVisible(pixmap_item)
+        element = CanvasImageElement(self.canvas_scene)
+        element.set_pos(self.generation_element.rect().topLeft())
+        element.set_image(image_path)
+        self.canvas_scene.add_element(element)
 
     def serialize(self):
-        elements_json = json.dumps(
-            [item.serialize() for item in self.canvas_scene.items(Qt.AscendingOrder) if item.zValue() == 0]
-        )
-        view_json = json.dumps(self.canvas_view.serialize())
-        generation_area_json = json.dumps(self.generation_area.serialize())
+        scene_json = json.dumps(self.canvas_scene.serialize())
 
         self.settings.beginGroup("canvas")
-        self.settings.setValue("elements", elements_json)
-        self.settings.setValue("generation_area", generation_area_json)
-        self.settings.setValue("view", view_json)
+        self.settings.setValue("scene", scene_json)
         self.settings.endGroup()
 
     def deserialize(self):
         self.settings.beginGroup("canvas")
-        elements_json = self.settings.value("elements", "[]")
-        generation_area_json = self.settings.value("generation_area", "{}")
-        view_json = self.settings.value("view", "{}")
+        scene_json = self.settings.value("scene", "{}")
         self.settings.endGroup()
 
-        for item_data in json.loads(elements_json):
-            cls = globals()[item_data["class"]]
-            item = cls(self.canvas_state)
-            item.deserialize(item_data)
-            self.canvas_scene.addItem(item)
-
-        self.canvas_view.deserialize(json.loads(view_json))
-        self.generation_area.deserialize(json.loads(generation_area_json))
+        self.canvas_scene.deserialize(json.loads(scene_json))
 
     def on_tool_changed(self, button_id, checked):
         if not checked:
             return
 
-        self.settings.beginGroup("canvas")
-        self.settings.setValue("tool", button_id)
-        self.settings.endGroup()
-
-        self.canvas_state.tool = button_id
+        self.canvas_scene.tool = button_id
 
     def generate_requested(self):
         if self.generate_task:
@@ -189,41 +165,31 @@ class CanvasModeWidget(QWidget):
         pass
 
     def image_complete(self, output_path):
-        self.add_image(output_path)
+        self.generation_element.add_image(output_path)
 
     def generate_complete(self):
         self.generation_panel.end_generate()
         self.generate_task = None
 
     def panel_image_size_changed(self, image_size):
-        rect = self.generation_area.rect()
-        rect.setSize(image_size)
-        self.generation_area.setRect(rect)
+        self.generation_element.set_size(image_size)
 
-    def area_image_size_changed(self, image_size):
+    def generation_image_size_changed(self, image_size):
         self.generation_panel.set_image_size(image_size)
 
     def on_composite_clicked(self):
-        rect = self.generation_area.rect()
+        rect = self.generation_element.rect()
 
         origin = rect.topLeft().toPoint()
         composite_size = (int(rect.width()), int(rect.height()))
         composite_image = Image.new("RGBA", composite_size)
 
-        for item in self.canvas_scene.items(rect, Qt.IntersectsItemShape, Qt.AscendingOrder):
-            if type(item) == CanvasImageElement:
-                qcolor = item.base_pixmap.toImage()
-                qmask = item.mask.toImage()
+        for element in self.canvas_scene.elements():
+            if type(element) == CanvasImageElement:
+                image_element: CanvasImageElement = element
+                pimage = image_element.get_image()
 
-                W = qcolor.width()
-                H = qcolor.height()
-
-                rgb = np.frombuffer(qcolor.constBits(), np.uint8).reshape((H, W, 4))[..., :3][..., ::-1]
-                alpha = np.frombuffer(qmask.constBits(), np.uint8).reshape((H, W, 4))[..., 3:]
-                rgba = np.concatenate((rgb, alpha), axis=2)
-                pimage = Image.fromarray(rgba)
-
-                pos = item.pos().toPoint()
+                pos = element.pos().toPoint()
                 composite_image.paste(pimage, (pos - origin).toTuple())
 
         output_path = "composite.png"

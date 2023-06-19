@@ -51,9 +51,11 @@ Near-term:
 - Inpainting
   - Blending across edges
 - Canvas Mode
-  - Panning without trackpad
-  - Separate setting groups for image/canvas
-  - Image generation panel specialization
+  - Generators
+    - Image parameters
+    - Panel specialization
+    - Choose results
+    - Multiple generators
   - Painting
     - Color/alpha channels
     - Brush size
