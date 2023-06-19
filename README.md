@@ -52,7 +52,6 @@ Near-term:
   - Blending across edges
 - Canvas Mode
   - Generators
-    - Image parameters
     - Panel specialization
     - Choose results
     - Multiple generators

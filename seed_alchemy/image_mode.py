@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 
@@ -26,6 +27,7 @@ from .image_generation_panel import ImageGenerationPanel
 from .image_history import ImageHistory
 from .image_metadata import ImageMetadata
 from .image_viewer import ImageViewer
+from .pipelines import GenerateRequest
 from .preprocess_task import PreprocessTask
 from .processors import ProcessorBase
 from .thumbnail_model import ThumbnailModel
@@ -128,6 +130,9 @@ class ImageModeWidget(QWidget):
         image_mode_layout.addWidget(self.generation_panel)
         image_mode_layout.addWidget(image_mode_splitter)
 
+        # Deserialize
+        self.generation_panel.deserialize(json.loads(self.settings.value("generation", "{}")))
+
         # Sync panels
         selected_image = self.thumbnail_viewer.list_widget.selected_image()
         if selected_image is not None:
@@ -203,10 +208,20 @@ class ImageModeWidget(QWidget):
         if self.generate_task:
             return
 
+        params = self.generation_panel.serialize()
+
+        self.settings.setValue("generation", json.dumps(params))
         self.settings.setValue("collection", self.thumbnail_viewer.collection())
 
+        req = GenerateRequest()
+        req.collection = self.settings.value("collection")
+        req.reduce_memory = self.settings.value("reduce_memory", type=bool)
+        req.image_metadata = ImageMetadata()
+        req.image_metadata.load_from_params(params)
+        req.num_images_per_prompt = params["num_images_per_prompt"]
+
         self.generation_panel.begin_generate()
-        self.generate_task = GenerateImageTask(self.settings)
+        self.generate_task = GenerateImageTask(req)
         self.generate_task.task_progress.connect(self.update_progress)
         self.generate_task.image_preview.connect(self.image_preview)
         self.generate_task.image_complete.connect(self.image_complete)

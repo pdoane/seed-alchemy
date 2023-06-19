@@ -21,6 +21,8 @@ from .canvas_layer_panel import CanvasLayerPanel
 from .canvas_scene import CanvasScene
 from .generate_thread import GenerateImageTask
 from .image_generation_panel import ImageGenerationPanel
+from .pipelines import GenerateRequest
+from .image_metadata import ImageMetadata
 
 
 class CanvasModeWidget(QWidget):
@@ -78,8 +80,8 @@ class CanvasModeWidget(QWidget):
         mode_layout.addLayout(vlayout)
         mode_layout.addWidget(self.layer_panel)
 
-        # Deserialize
-        self.deserialize()
+        # Deserialize scene
+        self.canvas_scene.deserialize(json.loads(self.settings.value("canvas", "{}")))
 
         for element in self.canvas_scene.elements():
             # TODO - multiple generators
@@ -94,6 +96,9 @@ class CanvasModeWidget(QWidget):
         self.generation_element.image_size_changed.connect(self.generation_image_size_changed)
 
         self.tool_button_group.button(self.canvas_scene.tool).setChecked(True)
+
+        # Deserialize panel
+        self.generation_panel.deserialize(self.generation_element.params())
 
         # Serialization
         self.timer = QTimer(self)
@@ -123,18 +128,7 @@ class CanvasModeWidget(QWidget):
         self.canvas_scene.add_element(element)
 
     def serialize(self):
-        scene_json = json.dumps(self.canvas_scene.serialize())
-
-        self.settings.beginGroup("canvas")
-        self.settings.setValue("scene", scene_json)
-        self.settings.endGroup()
-
-    def deserialize(self):
-        self.settings.beginGroup("canvas")
-        scene_json = self.settings.value("scene", "{}")
-        self.settings.endGroup()
-
-        self.canvas_scene.deserialize(json.loads(scene_json))
+        self.settings.setValue("canvas", json.dumps(self.canvas_scene.serialize()))
 
     def on_tool_changed(self, button_id, checked):
         if not checked:
@@ -146,8 +140,18 @@ class CanvasModeWidget(QWidget):
         if self.generate_task:
             return
 
+        params = self.generation_panel.serialize()
+        self.generation_element.set_params(params)
+
+        req = GenerateRequest()
+        req.collection = self.settings.value("collection")
+        req.reduce_memory = self.settings.value("reduce_memory", type=bool)
+        req.image_metadata = ImageMetadata()
+        req.image_metadata.load_from_params(params)
+        req.num_images_per_prompt = params["num_images_per_prompt"]
+
         self.generation_panel.begin_generate()
-        self.generate_task = GenerateImageTask(self.settings)
+        self.generate_task = GenerateImageTask(req)
         self.generate_task.task_progress.connect(self.update_progress)
         self.generate_task.image_preview.connect(self.image_preview)
         self.generate_task.image_complete.connect(self.image_complete)

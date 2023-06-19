@@ -17,6 +17,7 @@ class CanvasGenerationElement(CanvasElement):
         super().__init__(scene, parent)
         self._images: list[CanvasImageElement] = []
         self._rect = QRectF()
+        self._params = {}
         self._background_brush = utils.checkerboard_qbrush()
         self._start_scene_pos = None
         self._start_rect = None
@@ -28,11 +29,13 @@ class CanvasGenerationElement(CanvasElement):
         return {
             "class": self.__class__.__name__,
             "rect": (self.rect().left(), self.rect().top(), self.rect().width(), self.rect().height()),
+            "params": self._params,
             "images": [image.serialize() for image in self._images],
         }
 
     def deserialize(self, data):
         self.set_rect(QRectF(*data.get("rect", (0, 0, 512, 512))))
+        self._params = data.get("params", {})
 
         for image_data in data.get("images", []):
             image = CanvasImageElement(self._scene)
@@ -148,6 +151,12 @@ class CanvasGenerationElement(CanvasElement):
         image.set_pos(self._rect.topLeft())
         self._images.append(image)
         self.update()
+
+    def params(self):
+        return self._params
+
+    def set_params(self, params):
+        self._params = params
 
     def _get_handles(self):
         offset = QPointF(-HANDLE_SIZE, -HANDLE_SIZE)

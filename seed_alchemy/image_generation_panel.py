@@ -1,11 +1,10 @@
-import json
 import random
 
 from PySide6.QtCore import QSettings, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QFrame,
     QCheckBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -23,7 +22,16 @@ from . import font_awesome as fa
 from . import utils
 from .control_net_widget import ControlNetWidget
 from .icon_engine import FontAwesomeIconEngine
-from .image_metadata import ControlNetConditionMetadata, ImageMetadata
+from .image_metadata import (
+    ControlNetConditionMetadata,
+    ControlNetMetadata,
+    FaceRestorationMetadata,
+    HighResMetadata,
+    ImageMetadata,
+    Img2ImgMetadata,
+    InpaintMetadata,
+    UpscaleMetadata,
+)
 from .prompt_text_edit import PromptTextEdit
 from .source_image_widget import SourceImageWidget
 from .thumbnail_loader import ThumbnailLoader
@@ -293,52 +301,98 @@ class ImageGenerationPanel(QWidget):
         panel_layout.addLayout(generate_hlayout)
         panel_layout.addWidget(self.config_scroll_area)
 
-        # Set current values
-        self.model_combo_box.setCurrentText(self.settings.value("model"))
-        self.prompt_edit.setPlainText(self.settings.value("prompt"))
-        self.negative_prompt_edit.setPlainText(self.settings.value("negative_prompt"))
-        self.num_images_spin_box.setValue(int(self.settings.value("num_images_per_prompt")))
-        self.num_steps_spin_box.setValue(int(self.settings.value("num_inference_steps")))
-        self.guidance_scale_spin_box.setValue(float(self.settings.value("guidance_scale")))
-        self.width_spin_box.setValue(int(self.settings.value("width")))
-        self.height_spin_box.setValue(int(self.settings.value("height")))
-        self.scheduler_combo_box.setCurrentText(self.settings.value("scheduler"))
-        self.seed_line_edit.setText(str(self.settings.value("seed")))
-        self.manual_seed_group_box.setChecked(self.settings.value("manual_seed", type=bool))
-        self.img2img_source_widget.line_edit.setText(self.settings.value("img2img_source", type=str))
-        self.img2img_noise.setValue(float(self.settings.value("img2img_noise")))
-        self.img2img_group_box.setChecked(self.settings.value("img2img_enabled", type=bool))
-        self.control_net_guidance_start.setValue(self.settings.value("control_net_guidance_start", type=float))
-        self.control_net_guidance_end.setValue(self.settings.value("control_net_guidance_end", type=float))
-        self.control_net_group_box.setChecked(self.settings.value("control_net_enabled", type=bool))
-        condition_metas = [
-            ControlNetConditionMetadata.from_dict(item)
-            for item in json.loads(self.settings.value("control_net_conditions"))
-        ]
+    def serialize(self) -> dict:
+        return {
+            "model": self.model_combo_box.currentText(),
+            "safety_checker": self.settings.value("safety_checker"),
+            "scheduler": self.scheduler_combo_box.currentText(),
+            "prompt": self.prompt_edit.toPlainText(),
+            "negative_prompt": self.negative_prompt_edit.toPlainText(),
+            "manual_seed": self.manual_seed_group_box.isChecked(),
+            "seed": int(self.seed_line_edit.text()),
+            "num_images_per_prompt": self.num_images_spin_box.value(),
+            "num_inference_steps": self.num_steps_spin_box.value(),
+            "guidance_scale": self.guidance_scale_spin_box.value(),
+            "width": self.width_spin_box.value(),
+            "height": self.height_spin_box.value(),
+            "img2img_enabled": self.img2img_group_box.isChecked(),
+            "img2img_source": self.img2img_source_widget.line_edit.text(),
+            "img2img_noise": self.img2img_noise.value(),
+            "control_net_enabled": self.control_net_group_box.isChecked(),
+            "control_net_guidance_start": self.control_net_guidance_start.value(),
+            "control_net_guidance_end": self.control_net_guidance_end.value(),
+            "control_net_conditions": [
+                control_net_widget.get_condition_meta.to_dict() for control_net_widget in self.control_net_widgets
+            ],
+            "upscale_enabled": self.upscale_group_box.isChecked(),
+            "upscale_factor": self.upscale_factor_combo_box.currentData(),
+            "upscale_denoising": self.upscale_denoising.value(),
+            "upscale_blend": self.upscale_blend.value(),
+            "face_enabled": self.face_restoration_group_box.isChecked(),
+            "face_blend": self.face_blend.value(),
+            "high_res_enabled": self.high_res_group_box.isChecked(),
+            "high_res_factor": self.high_res_factor.value(),
+            "high_res_steps": self.high_res_steps.value(),
+            "high_res_guidance_scale": self.high_res_guidance_scale.value(),
+            "high_res_noise": self.high_res_noise.value(),
+            "inpaint_enabled": self.inpaint_group_box.isChecked(),
+            "inpaint_source": self.inpaint_source_widget.get_image_path(),
+            "inpaint_use_alpha_channel": self.inpaint_use_alpha_channel_check_box.isChecked(),
+            "inpaint_invert_mask": self.inpaint_invert_mask_check_box.isChecked(),
+        }
+
+    def deserialize(self, data):
+        image_meta = ImageMetadata()
+        img2img_meta = Img2ImgMetadata()
+        control_net_meta = ControlNetMetadata()
+        upscale_meta = UpscaleMetadata()
+        face_meta = FaceRestorationMetadata()
+        high_res_meta = HighResMetadata()
+        inpaint_meta = InpaintMetadata()
+
+        self.model_combo_box.setCurrentText(data.get("model", image_meta.model))
+        self.prompt_edit.setPlainText(data.get("prompt", image_meta.prompt))
+        self.negative_prompt_edit.setPlainText(data.get("negative_prompt", image_meta.negative_prompt))
+        self.num_images_spin_box.setValue(data.get("num_images_per_prompt", 1))
+        self.num_steps_spin_box.setValue(data.get("num_inference_steps", image_meta.num_inference_steps))
+        self.guidance_scale_spin_box.setValue(data.get("guidance_scale", image_meta.guidance_scale))
+        self.width_spin_box.setValue(data.get("width", image_meta.width))
+        self.height_spin_box.setValue(data.get("height", image_meta.height))
+        self.scheduler_combo_box.setCurrentText(data.get("scheduler", image_meta.scheduler))
+        self.seed_line_edit.setText(str(data.get("seed", image_meta.seed)))
+        self.manual_seed_group_box.setChecked(data.get("manual_seed", False))
+        self.img2img_source_widget.line_edit.setText(data.get("img2img_source", img2img_meta.source))
+        self.img2img_noise.setValue(data.get("img2img_noise", img2img_meta.noise))
+        self.img2img_group_box.setChecked(data.get("img2img_enabled", False))
+        self.control_net_guidance_start.setValue(
+            data.get("control_net_guidance_start", control_net_meta.guidance_start)
+        )
+        self.control_net_guidance_end.setValue(data.get("control_net_guidance_end", control_net_meta.guidance_end))
+        self.control_net_group_box.setChecked(data.get("control_net_enabled", False))
         self.control_net_widgets = []
-        for i, condition_meta in enumerate(condition_metas):
+        for i, condition_meta in enumerate(data.get("control_net_conditions", [])):
             control_net_widget = self.create_control_net_widget(condition_meta)
             self.control_net_group_box_layout.insertWidget(
                 self.control_net_dynamic_index + i, control_net_widget.frame
             )
             self.control_net_widgets.append(control_net_widget)
-        utils.set_current_data(self.upscale_factor_combo_box, self.settings.value("upscale_factor", type=int))
-        self.upscale_denoising.setValue(float(self.settings.value("upscale_denoising")))
-        self.upscale_blend.setValue(float(self.settings.value("upscale_blend")))
-        self.upscale_group_box.setChecked(self.settings.value("upscale_enabled", type=bool))
-        self.face_blend.setValue(float(self.settings.value("face_blend")))
-        self.face_restoration_group_box.setChecked(self.settings.value("face_enabled", type=bool))
-        self.high_res_factor.setValue(self.settings.value("high_res_factor", type=float))
-        self.high_res_steps.setValue(self.settings.value("high_res_steps", type=int))
-        self.high_res_guidance_scale.setValue(self.settings.value("high_res_guidance_scale", type=float))
-        self.high_res_noise.setValue(self.settings.value("high_res_noise", type=float))
-        self.high_res_group_box.setChecked(self.settings.value("high_res_enabled", type=bool))
-        self.inpaint_source_widget.line_edit.setText(self.settings.value("inpaint_source", type=str))
+        utils.set_current_data(self.upscale_factor_combo_box, data.get("upscale_factor", upscale_meta.factor))
+        self.upscale_denoising.setValue(data.get("upscale_denoising", upscale_meta.denoising))
+        self.upscale_blend.setValue(data.get("upscale_blend", upscale_meta.blend))
+        self.upscale_group_box.setChecked(data.get("upscale_enabled", False))
+        self.face_blend.setValue(data.get("face_blend", face_meta.blend))
+        self.face_restoration_group_box.setChecked(data.get("face_enabled", False))
+        self.high_res_factor.setValue(data.get("high_res_factor", high_res_meta.factor))
+        self.high_res_steps.setValue(data.get("high_res_steps", high_res_meta.steps))
+        self.high_res_guidance_scale.setValue(data.get("high_res_guidance_scale", high_res_meta.guidance_scale))
+        self.high_res_noise.setValue(data.get("high_res_noise", high_res_meta.noise))
+        self.high_res_group_box.setChecked(data.get("high_res_enabled", False))
+        self.inpaint_source_widget.line_edit.setText(data.get("inpaint_source", inpaint_meta.source))
         self.inpaint_use_alpha_channel_check_box.setChecked(
-            self.settings.value("inpaint_use_alpha_channel", type=bool)
+            data.get("inpaint_use_alpha_channel", inpaint_meta.use_alpha_channel)
         )
-        self.inpaint_invert_mask_check_box.setChecked(self.settings.value("inpaint_invert_mask", type=bool))
-        self.inpaint_group_box.setChecked(self.settings.value("inpaint_enabled", type=bool))
+        self.inpaint_invert_mask_check_box.setChecked(data.get("inpaint_invert_mask", inpaint_meta.invert_mask))
+        self.inpaint_group_box.setChecked(data.get("inpaint_enabled", False))
 
     def get_image_size(self):
         width = self.width_spin_box.value()
@@ -386,9 +440,7 @@ class ImageGenerationPanel(QWidget):
         context_menu.exec(source_image_widget.label.mapToGlobal(point))
 
     def create_control_net_widget(self, condition_meta: ControlNetConditionMetadata) -> ControlNetWidget:
-        control_net_widget = ControlNetWidget(
-            self.settings, self.thumbnail_loader, self.thumbnail_model, condition_meta
-        )
+        control_net_widget = ControlNetWidget(self.thumbnail_loader, self.thumbnail_model, condition_meta)
         control_net_widget.closed.connect(lambda: self.on_remove_control_net(control_net_widget))
         control_net_widget.preview_clicked.connect(lambda: self.on_preview_clicked(control_net_widget))
         control_net_widget.source_image_context_menu_requested.connect(self.show_source_image_context_menu)
@@ -480,46 +532,6 @@ class ImageGenerationPanel(QWidget):
     def on_generate_clicked(self):
         if not self.manual_seed_group_box.isChecked():
             self.randomize_seed()
-
-        condition_metas = []
-        for control_net_widget in self.control_net_widgets:
-            condition_metas.append(control_net_widget.get_condition_meta())
-
-        self.settings.setValue("model", self.model_combo_box.currentText())
-        self.settings.setValue("scheduler", self.scheduler_combo_box.currentText())
-        self.settings.setValue("prompt", self.prompt_edit.toPlainText())
-        self.settings.setValue("negative_prompt", self.negative_prompt_edit.toPlainText())
-        self.settings.setValue("manual_seed", self.manual_seed_group_box.isChecked())
-        self.settings.setValue("seed", self.seed_line_edit.text())
-        self.settings.setValue("num_images_per_prompt", self.num_images_spin_box.value())
-        self.settings.setValue("num_inference_steps", self.num_steps_spin_box.value())
-        self.settings.setValue("guidance_scale", self.guidance_scale_spin_box.value())
-        self.settings.setValue("width", self.width_spin_box.value())
-        self.settings.setValue("height", self.height_spin_box.value())
-        self.settings.setValue("img2img_enabled", self.img2img_group_box.isChecked())
-        self.settings.setValue("img2img_source", self.img2img_source_widget.line_edit.text())
-        self.settings.setValue("img2img_noise", self.img2img_noise.value())
-        self.settings.setValue("control_net_enabled", self.control_net_group_box.isChecked())
-        self.settings.setValue("control_net_guidance_start", self.control_net_guidance_start.value())
-        self.settings.setValue("control_net_guidance_end", self.control_net_guidance_end.value())
-        self.settings.setValue(
-            "control_net_conditions", json.dumps([condition_meta.to_dict() for condition_meta in condition_metas])
-        )
-        self.settings.setValue("upscale_enabled", self.upscale_group_box.isChecked())
-        self.settings.setValue("upscale_factor", self.upscale_factor_combo_box.currentData())
-        self.settings.setValue("upscale_denoising", self.upscale_denoising.value())
-        self.settings.setValue("upscale_blend", self.upscale_blend.value())
-        self.settings.setValue("face_enabled", self.face_restoration_group_box.isChecked())
-        self.settings.setValue("face_blend", self.face_blend.value())
-        self.settings.setValue("high_res_enabled", self.high_res_group_box.isChecked())
-        self.settings.setValue("high_res_factor", self.high_res_factor.value())
-        self.settings.setValue("high_res_steps", self.high_res_steps.value())
-        self.settings.setValue("high_res_guidance_scale", self.high_res_guidance_scale.value())
-        self.settings.setValue("high_res_noise", self.high_res_noise.value())
-        self.settings.setValue("inpaint_enabled", self.inpaint_group_box.isChecked())
-        self.settings.setValue("inpaint_source", self.inpaint_source_widget.get_image_path())
-        self.settings.setValue("inpaint_use_alpha_channel", self.inpaint_use_alpha_channel_check_box.isChecked())
-        self.settings.setValue("inpaint_invert_mask", self.inpaint_invert_mask_check_box.isChecked())
 
         self.generate_requested.emit()
 

@@ -6,7 +6,6 @@ from clip_interrogator.clip_interrogator import CAPTION_MODELS
 from PIL import Image
 from PySide6.QtCore import QSettings, Qt, Signal
 from PySide6.QtWidgets import (
-    QApplication,
     QFrame,
     QGroupBox,
     QHBoxLayout,

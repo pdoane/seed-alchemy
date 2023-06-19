@@ -13,7 +13,7 @@ from diffusers import (
     SchedulerMixin,
     UniPCMultistepScheduler,
 )
-from PySide6.QtCore import QSettings, QSize
+from PySide6.QtCore import QSettings
 
 from . import utils
 

@@ -22,6 +22,8 @@ from .image_metadata import ImageMetadata
 
 @dataclass
 class GenerateRequest:
+    collection: str = ""
+    reduce_memory: bool = False
     source_image: Image.Image = None
     mask_image: Image.Image = None
     control_images: list[Image.Image] = field(default_factory=list)

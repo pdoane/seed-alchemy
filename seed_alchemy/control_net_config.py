@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from PySide6.QtCore import QSettings
+
 from .processors import (
     CannyProcessor,
     DepthLeresBoostProcessor,
@@ -154,3 +156,17 @@ v11_models: list[str] = [
 ]
 
 mediapipe_v2_models: list[str] = {"control_v2p_sd15_mediapipe_face"}
+
+installed_models: list[str] = []
+
+
+def load_from_settings(settings: QSettings):
+    global installed_models
+    installed_models = []
+    if settings.value("install_control_net_v10", type=bool):
+        installed_models += v10_models
+    if settings.value("install_control_net_v11", type=bool):
+        installed_models += v11_models
+    if settings.value("install_control_net_mediapipe_v2", type=bool):
+        installed_models += mediapipe_v2_models
+    installed_models = sorted(installed_models)

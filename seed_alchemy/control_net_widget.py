@@ -1,4 +1,4 @@
-from PySide6.QtCore import QPoint, QSettings, Qt, Signal
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -32,14 +32,12 @@ class ControlNetWidget(QWidget):
 
     def __init__(
         self,
-        settings: QSettings,
         thumbnail_loader: ThumbnailLoader,
         thumbnail_model: ThumbnailModel,
         condition_meta: ControlNetConditionMetadata,
         parent=None,
     ):
         super().__init__(parent)
-        self.settings = settings
         self.thumbnail_loader = thumbnail_loader
         self.thumbnail_model = thumbnail_model
 
@@ -60,15 +58,7 @@ class ControlNetWidget(QWidget):
         model_label.setAlignment(Qt.AlignCenter)
         self.model_combo_box = ComboBox()
         self.model_combo_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-        control_net_models = []
-        if self.settings.value("install_control_net_v10", type=bool):
-            control_net_models += control_net_config.v10_models
-        if self.settings.value("install_control_net_v11", type=bool):
-            control_net_models += control_net_config.v11_models
-        if self.settings.value("install_control_net_mediapipe_v2", type=bool):
-            control_net_models += control_net_config.mediapipe_v2_models
-        self.model_combo_box.addItems(sorted(control_net_models))
+        self.model_combo_box.addItems(control_net_config.installed_models)
         self.model_combo_box.setCurrentText(condition_meta.model)
 
         preprocessor_label = QLabel("Preprocessor")

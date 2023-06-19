@@ -3,14 +3,14 @@ import os
 import torch
 from compel import Compel, PromptParser
 from compel.diffusers_textual_inversion_manager import DiffusersTextualInversionManager
-from PIL import Image, PngImagePlugin, ImageOps
-from PySide6.QtCore import QSettings, Signal
+from PIL import Image, ImageOps, PngImagePlugin
+from PySide6.QtCore import Signal
 
 from . import configuration, control_net_config, utils
+from .backend import BackendTask, CancelTaskException
 from .image_metadata import ControlNetMetadata, ImageMetadata, Img2ImgMetadata
 from .pipelines import GenerateRequest, ImagePipeline, PipelineCache
 from .processors import ESRGANProcessor, GFPGANProcessor, ProcessorBase
-from .backend import BackendTask, CancelTaskException
 
 pipeline_cache: PipelineCache = PipelineCache()
 generate_preprocessor: ProcessorBase = None
@@ -53,17 +53,12 @@ class GenerateImageTask(BackendTask):
     image_preview = Signal(Image.Image)
     image_complete = Signal(str)
 
-    def __init__(self, settings: QSettings):
+    def __init__(self, req: GenerateRequest):
         super().__init__()
 
         self.cancel = False
         self.step = 0
-        self.collection = settings.value("collection")
-        self.reduce_memory = settings.value("reduce_memory", type=bool)
-        self.req = GenerateRequest()
-        self.req.image_metadata = ImageMetadata()
-        self.req.image_metadata.load_from_settings(settings)
-        self.req.num_images_per_prompt = int(settings.value("num_images_per_prompt", 1))
+        self.req = req
         self.req.callback = self.generate_callback
 
     def run_(self):
@@ -122,7 +117,7 @@ class GenerateImageTask(BackendTask):
                         controlnet_conditioning_image = generate_preprocessor(
                             controlnet_conditioning_image, condition_meta.params
                         )
-                        if self.reduce_memory:
+                        if self.req.reduce_memory:
                             generate_preprocessor = None
 
                 self.req.control_images.append(controlnet_conditioning_image)
@@ -230,7 +225,7 @@ class GenerateImageTask(BackendTask):
                     image = pipeline(high_res_req)[0]
 
             # Output
-            collection = self.collection
+            collection = self.req.collection
             png_info = PngImagePlugin.PngInfo()
             self.req.image_metadata.save_to_png_info(png_info)
 

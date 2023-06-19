@@ -4,7 +4,6 @@ from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 from PIL import Image
-from PySide6.QtCore import QSettings
 
 from . import utils
 
@@ -86,58 +85,55 @@ class ImageMetadata:
     high_res: Optional[HighResMetadata] = None
     inpaint: Optional[InpaintMetadata] = None
 
-    def load_from_settings(self, settings: QSettings):
-        self.model = settings.value("model", type=str)
-        self.safety_checker = settings.value("safety_checker", type=bool)
-        self.scheduler = settings.value("scheduler", type=str)
-        self.prompt = settings.value("prompt", type=str)
-        self.negative_prompt = settings.value("negative_prompt", type=str)
+    def load_from_params(self, data: dict):
+        self.model = data["model"]
+        self.safety_checker = data["safety_checker"]
+        self.scheduler = data["scheduler"]
+        self.prompt = data["prompt"]
+        self.negative_prompt = data["negative_prompt"]
 
-        self.seed = int(settings.value("seed"))  # type=int loses precision
-        self.num_inference_steps = settings.value("num_inference_steps", type=int)
-        self.guidance_scale = settings.value("guidance_scale", type=float)
-        self.width = settings.value("width", type=int)
-        self.height = settings.value("height", type=int)
+        self.seed = data["seed"]
+        self.num_inference_steps = data["num_inference_steps"]
+        self.guidance_scale = data["guidance_scale"]
+        self.width = data["width"]
+        self.height = data["height"]
 
-        if settings.value("img2img_enabled", type=bool):
+        if data["img2img_enabled"]:
             self.img2img = Img2ImgMetadata(
-                source=settings.value("img2img_source", type=str),
-                noise=settings.value("img2img_noise", type=float),
+                source=data["img2img_source"],
+                noise=data["img2img_noise"],
             )
 
-        if settings.value("control_net_enabled", type=bool):
+        if data["control_net_enabled"]:
             self.control_net = ControlNetMetadata(
-                guidance_start=settings.value("control_net_guidance_start", type=float),
-                guidance_end=settings.value("control_net_guidance_end", type=float),
-                conditions=[
-                    ControlNetConditionMetadata.from_dict(item)
-                    for item in json.loads(settings.value("control_net_conditions"))
-                ],
+                guidance_start=data["control_net_guidance_start"],
+                guidance_end=data["control_net_guidance_end"],
+                conditions=[ControlNetConditionMetadata.from_dict(item) for item in data["control_net_conditions"]],
             )
 
-        if settings.value("upscale_enabled", type=bool):
+        if data["upscale_enabled"]:
             self.upscale = UpscaleMetadata(
-                factor=settings.value("upscale_factor", type=int),
-                denoising=settings.value("upscale_denoising", type=float),
-                blend=settings.value("upscale_blend", type=float),
+                factor=data["upscale_factor"],
+                denoising=data["upscale_denoising"],
+                blend=data["upscale_blend"],
             )
 
-        if settings.value("face_enabled", type=bool):
-            self.face = FaceRestorationMetadata(blend=settings.value("face_blend", type=float))
+        if data["face_enabled"]:
+            self.face = FaceRestorationMetadata(blend=data["face_blend"])
 
-        if settings.value("high_res_enabled", type=bool):
+        if data["high_res_enabled"]:
             self.high_res = HighResMetadata(
-                factor=settings.value("high_res_factor", type=float),
-                steps=settings.value("high_res_steps", type=int),
-                guidance_scale=settings.value("high_res_guidance_scale", type=float),
-                noise=settings.value("high_res_noise", type=float),
+                factor=data["high_res_factor"],
+                steps=data["high_res_steps"],
+                guidance_scale=data["high_res_guidance_scale"],
+                noise=data["high_res_noise"],
             )
 
-        if settings.value("inpaint_enabled", type=bool):
+        if data["inpaint_enabled"]:
             self.inpaint = InpaintMetadata(
-                source=settings.value("inpaint_source", type=str),
-                use_alpha_channel=settings.value("inpaint_use_alpha_channel", type=bool),
-                invert_mask=settings.value("inpaint_invert_mask", type=bool),
+                source=data["inpaint_source"],
+                use_alpha_channel=data["inpaint_use_alpha_channel"],
+                invert_mask=data["inpaint_invert_mask"],
             )
 
     def load_from_image(self, image: Image.Image):

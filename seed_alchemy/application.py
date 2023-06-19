@@ -8,17 +8,8 @@ from PySide6.QtCore import QSettings
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
-from . import configuration
+from . import configuration, control_net_config
 from . import font_awesome as fa
-from .image_metadata import (
-    ControlNetMetadata,
-    FaceRestorationMetadata,
-    HighResMetadata,
-    InpaintMetadata,
-    ImageMetadata,
-    Img2ImgMetadata,
-    UpscaleMetadata,
-)
 from .main_window import MainWindow
 from .prompt_mode import PromptMetadata
 
@@ -50,14 +41,6 @@ class Application(QApplication):
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)
 
         # Settings
-        image_meta = ImageMetadata()
-        img2img_meta = Img2ImgMetadata()
-        control_net_meta = ControlNetMetadata()
-        upscale_meta = UpscaleMetadata()
-        face_meta = FaceRestorationMetadata()
-        high_res_meta = HighResMetadata()
-        inpaint_meta = InpaintMetadata()
-
         self.settings = QSettings("settings.ini", QSettings.IniFormat)
         self.set_default_setting("local_models_path", "")
         self.set_default_setting("reduce_memory", True)
@@ -65,40 +48,6 @@ class Application(QApplication):
         self.set_default_setting("float32", not torch.cuda.is_available())
         self.set_default_setting("collection", "outputs")
         self.set_default_setting("mode", "image")
-        self.set_default_setting("scheduler", image_meta.scheduler)
-        self.set_default_setting("model", image_meta.model)
-        self.set_default_setting("prompt", image_meta.prompt)
-        self.set_default_setting("negative_prompt", image_meta.negative_prompt)
-        self.set_default_setting("manual_seed", False)
-        self.set_default_setting("seed", image_meta.seed)
-        self.set_default_setting("num_images_per_prompt", 1)
-        self.set_default_setting("num_inference_steps", image_meta.num_inference_steps)
-        self.set_default_setting("guidance_scale", image_meta.guidance_scale)
-        self.set_default_setting("width", image_meta.width)
-        self.set_default_setting("height", image_meta.height)
-        self.set_default_setting("img2img_enabled", False)
-        self.set_default_setting("img2img_source", img2img_meta.source)
-        self.set_default_setting("img2img_noise", img2img_meta.noise)
-        self.set_default_setting("control_net_enabled", False)
-        self.set_default_setting("control_net_guidance_start", control_net_meta.guidance_start)
-        self.set_default_setting("control_net_guidance_end", control_net_meta.guidance_end)
-        self.set_default_setting("control_net_conditions", "[]")
-        self.set_default_setting("upscale_enabled", False)
-        self.set_default_setting("upscale_factor", upscale_meta.factor)
-        self.set_default_setting("upscale_denoising", upscale_meta.denoising)
-        self.set_default_setting("upscale_blend", upscale_meta.blend)
-        self.set_default_setting("face_enabled", False)
-        self.set_default_setting("face_blend", face_meta.blend)
-        self.set_default_setting("high_res_enabled", False)
-        self.set_default_setting("high_res_factor", high_res_meta.factor)
-        self.set_default_setting("high_res_guidance_scale", high_res_meta.guidance_scale)
-        self.set_default_setting("high_res_noise", high_res_meta.noise)
-        self.set_default_setting("high_res_steps", high_res_meta.steps)
-        self.set_default_setting("inpaint_enabled", False)
-        self.set_default_setting("inpaint_source", inpaint_meta.source)
-        self.set_default_setting("inpaint_use_alpha_channel", inpaint_meta.use_alpha_channel)
-        self.set_default_setting("inpaint_invert_mask", inpaint_meta.invert_mask)
-
         self.set_default_setting("install_control_net_v10", "False")
         self.set_default_setting("install_control_net_v11", "True")
         self.set_default_setting("install_control_net_mediapipe_v2", "True")
@@ -136,6 +85,7 @@ class Application(QApplication):
         self.settings.endGroup()
 
         configuration.load_from_settings(self.settings)
+        control_net_config.load_from_settings(self.settings)
 
         # Collections
         self.collections = sorted(
