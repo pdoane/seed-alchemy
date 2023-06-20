@@ -1,7 +1,7 @@
 import os
 from collections import deque
 
-from PIL import Image
+from PIL import Image, ImageQt
 from PySide6.QtCore import QMutex, QMutexLocker, QObject, QRunnable, Qt, QThreadPool, QWaitCondition, Signal
 from PySide6.QtGui import QPixmap
 
@@ -34,7 +34,7 @@ class ThumbnailRunnable(QObject, QRunnable):
             full_path = os.path.join(configuration.IMAGES_PATH, image_path)
             with Image.open(full_path) as image:
                 image = utils.create_thumbnail(image, max_size)
-                pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
+                pixmap = ImageQt.toqpixmap(image)
 
         except (IOError, OSError):
             pixmap = QPixmap(16, 16)

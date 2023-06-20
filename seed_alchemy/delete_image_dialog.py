@@ -1,9 +1,14 @@
-from PIL import Image
+from PIL import Image, ImageQt
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont, QPixmap
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QStyle, QVBoxLayout
-
-from . import utils
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QStyle,
+    QVBoxLayout,
+)
 
 
 class DeleteImageDialog(QDialog):
@@ -26,7 +31,7 @@ class DeleteImageDialog(QDialog):
         image_label = QLabel()
         with Image.open(image_path) as image:
             image.thumbnail((384, 384), Image.Resampling.LANCZOS, reducing_gap=None)
-            image_pixmap = QPixmap(utils.pil_to_qimage(image))
+            image_pixmap = ImageQt.toqpixmap(image)
         image_label.setPixmap(image_pixmap)
 
         yes_button = QPushButton("Yes")

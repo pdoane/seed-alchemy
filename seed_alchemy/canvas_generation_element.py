@@ -1,11 +1,14 @@
-from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, Signal
-from PySide6.QtGui import QCursor, QPainter, QPen
+from typing import Optional
 
-from . import utils, canvas_tool
-from .canvas_scene import CanvasScene
+from PIL import Image, ImageQt
+from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, Signal
+from PySide6.QtGui import QCursor, QPainter, QPen, QPixmap
+
+from . import canvas_tool, utils
 from .canvas_element import CanvasElement, register_class
 from .canvas_event import CanvasMouseEvent
 from .canvas_image_element import CanvasImageElement
+from .canvas_scene import CanvasScene
 
 HANDLE_SIZE = 5
 
@@ -16,6 +19,7 @@ class CanvasGenerationElement(CanvasElement):
     def __init__(self, scene: CanvasScene, parent=None):
         super().__init__(scene, parent)
         self._images: list[CanvasImageElement] = []
+        self._preview_pixmap: Optional[QPixmap] = None
         self._rect = QRectF()
         self._params = {}
         self._background_brush = utils.checkerboard_qbrush()
@@ -65,6 +69,9 @@ class CanvasGenerationElement(CanvasElement):
     def draw_content(self, painter: QPainter) -> None:
         for image in self._images:
             image.draw_content(painter)
+
+        if self._preview_pixmap is not None:
+            painter.drawPixmap(self._rect.topLeft(), self._preview_pixmap)
 
     def draw_controls(self, painter: QPainter) -> None:
         painter.save()
@@ -166,6 +173,13 @@ class CanvasGenerationElement(CanvasElement):
 
     def set_params(self, params):
         self._params = params
+
+    def set_preview_image(self, preview_image: Optional[Image.Image]):
+        if preview_image is not None:
+            self._preview_pixmap = ImageQt.toqpixmap(preview_image).scaled(self._rect.width(), self._rect.height())
+        else:
+            self._preview_pixmap = None
+        self.update()
 
     def _get_handles(self):
         offset = QPointF(-HANDLE_SIZE, -HANDLE_SIZE)

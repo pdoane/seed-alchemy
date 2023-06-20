@@ -160,14 +160,15 @@ class CanvasModeWidget(QWidget):
     def update_progress(self, progress_amount):
         self.backend.update_progress(progress_amount)
 
-    def image_preview(self, preview_image):
-        pass
+    def image_preview(self, preview_image: Image.Image):
+        self.generation_element.set_preview_image(preview_image)
 
     def image_complete(self, output_path):
         self.generation_element.add_image(output_path)
 
     def generate_complete(self):
         self.generation_panel.end_generate()
+        self.generation_element.set_preview_image(None)
         self.generate_task = None
 
     def panel_image_size_changed(self, image_size):

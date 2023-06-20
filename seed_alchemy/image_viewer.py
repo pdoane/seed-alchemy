@@ -1,11 +1,21 @@
-import darkdetect
 import json
 import os
+from typing import Optional
 
-from PIL import Image
+import darkdetect
+from PIL import Image, ImageQt
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QSizePolicy, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QSizePolicy,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from . import actions, configuration, utils
 from .image_history import ImageHistory
@@ -203,7 +213,7 @@ class ImageViewer(QWidget):
 
         self.image = None
         self.metadata = None
-        self.preview_image = None
+        self.preview_image: Optional[Image.Image] = None
 
         self.label = QLabel(self)
         self.controls_frame = QFrame()
@@ -308,7 +318,7 @@ class ImageViewer(QWidget):
 
         if image is not None:
             resized_image = image.resize((width, height), Image.Resampling.LANCZOS)
-            pixmap = QPixmap.fromImage(utils.pil_to_qimage(resized_image))
+            pixmap = ImageQt.toqpixmap(resized_image)
             self.label.setPixmap(pixmap)
 
         x = (widget_width - width) // 2
@@ -337,11 +347,8 @@ class ImageViewer(QWidget):
         self.back_button.setEnabled(self.history.navigate_back_valid())
         self.forward_button.setEnabled(self.history.navigate_forward_valid())
 
-    def set_preview_image(self, preview_image):
-        if preview_image is not None:
-            self.preview_image = preview_image
-        else:
-            self.preview_image = None
+    def set_preview_image(self, preview_image: Optional[Image.Image]):
+        self.preview_image = preview_image
         self.update_images()
 
     def on_metadata_button_changed(self, state):

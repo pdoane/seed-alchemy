@@ -236,7 +236,7 @@ class ImageModeWidget(QWidget):
     def update_progress(self, progress_amount):
         self.backend.update_progress(progress_amount)
 
-    def image_preview(self, preview_image):
+    def image_preview(self, preview_image: Image.Image):
         self.image_viewer.set_preview_image(preview_image)
 
     def image_complete(self, output_path):

@@ -1,9 +1,9 @@
-from PIL import Image
+from PIL import Image, ImageQt
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QDialog, QLabel, QPushButton, QVBoxLayout
 
-from . import configuration, utils
+from . import configuration
 
 
 class AboutDialog(QDialog):
@@ -14,7 +14,7 @@ class AboutDialog(QDialog):
         logo_label = QLabel()
         with Image.open(configuration.get_resource_path("app_icon.png")) as image:
             image.thumbnail((128, 128), Image.Resampling.LANCZOS, reducing_gap=None)
-            image_pixmap = QPixmap(utils.pil_to_qimage(image))
+            image_pixmap = ImageQt.toqpixmap(image)
         logo_label.setPixmap(image_pixmap)
 
         app_info_label = QLabel(f"{configuration.APP_NAME}\nVersion {configuration.APP_VERSION}")

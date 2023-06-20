@@ -4,8 +4,10 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPainter, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QWidget
 
+from . import utils
 from .canvas_element import CanvasElement
 from .canvas_image_element import CanvasImageElement
+from .canvas_generation_element import CanvasGenerationElement
 from .widgets import ElidedLabel
 
 ICON_SIZE = 32
@@ -23,23 +25,25 @@ class CanvasLayerWidget(QWidget):
         element.hovered_changed.connect(self.update)
         element.selection_changed.connect(self.update)
 
+        if type(element) == CanvasGenerationElement:
+            generation_element: CanvasGenerationElement = element
+            pixmap = QPixmap(ICON_SIZE, ICON_SIZE)
+            with QPainter(pixmap) as painter:
+                painter.fillRect(pixmap.rect(), utils.checkerboard_qbrush())
+
+            params = generation_element.params()
+
+            self.update_image_icon(pixmap)
+            self.update_label(params.get("prompt", ""), params.get("negative_prompt", ""))
+
         if type(element) == CanvasImageElement:
             image_element: CanvasImageElement = element
+            image_metadata = image_element.metadata()
+
             self.update_image_icon(image_element.pixmap())
+            self.update_label(image_metadata.prompt, image_metadata.negative_prompt)
 
             image_element.pixmap_changed.connect(self.update_image_icon)
-
-            metadata = image_element.metadata()
-            self.label.setText(metadata.prompt)
-            self.label.setToolTip(
-                textwrap.fill(
-                    "<b>Prompt</b>: {:s}<br/><br/><b>Negative Prompt</b>: {:s}".format(
-                        metadata.prompt,
-                        metadata.negative_prompt,
-                    ),
-                    50,
-                )
-            )
 
     def init_ui(self):
         self.icon = QLabel()
@@ -81,3 +85,15 @@ class CanvasLayerWidget(QWidget):
 
     def update_image_icon(self, pixmap: QPixmap):
         self.icon.setPixmap(pixmap.scaledToHeight(ICON_SIZE))
+
+    def update_label(self, prompt: str, negative_prompt: str):
+        self.label.setText(prompt)
+        self.label.setToolTip(
+            textwrap.fill(
+                "<b>Prompt</b>: {:s}<br/><br/><b>Negative Prompt</b>: {:s}".format(
+                    prompt,
+                    negative_prompt,
+                ),
+                50,
+            )
+        )

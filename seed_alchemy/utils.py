@@ -7,9 +7,9 @@ from typing import Any, Callable
 
 import requests
 import send2trash
-from PIL import Image, ImageQt
+from PIL import Image
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtGui import QBrush, QColor, QIcon, QPainter, QPixmap
 
 if sys.platform == "darwin":
     from AppKit import NSURL, NSWorkspace
@@ -110,14 +110,6 @@ def empty_qicon():
         empty_pixmap.fill(Qt.transparent)
         empty_icon = QIcon(empty_pixmap)
     return empty_icon
-
-
-def pil_to_qimage(pil_image: Image.Image):
-    return ImageQt.toqimage(pil_image)
-
-
-def qimage_to_pil(qimage: QImage):
-    return ImageQt.fromqimage(qimage)
 
 
 def set_current_data(widget, data):

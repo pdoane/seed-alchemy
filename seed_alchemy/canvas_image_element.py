@@ -1,11 +1,11 @@
 import os
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageQt
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QCursor, QPainter, QPen, QPixmap
 
-from . import canvas_tool, configuration, utils
+from . import canvas_tool, configuration
 from .canvas_element import CanvasElement, register_class
 from .canvas_event import CanvasMouseEvent
 from .canvas_scene import CanvasScene
@@ -170,7 +170,7 @@ class CanvasImageElement(CanvasElement):
                 # TODO - upscaled data
                 image = image.resize((self._metadata.width, self._metadata.height), Image.Resampling.LANCZOS)
 
-                pixmap = QPixmap.fromImage(utils.pil_to_qimage(image))
+                pixmap = ImageQt.toqpixmap(image)
         except (IOError, OSError):
             self._metadata = ImageMetadata()
             self._metadata.path = ""
