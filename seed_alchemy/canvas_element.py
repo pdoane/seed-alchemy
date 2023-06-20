@@ -46,6 +46,9 @@ class CanvasElement(QObject):
     def deserialize(self, data: dict) -> None:
         pass
 
+    def layer(self):
+        return 1
+
     def bounding_rect(self) -> QRectF:
         return QRectF()
 
@@ -70,13 +73,16 @@ class CanvasElement(QObject):
     def mouse_release_event(self, event: CanvasMouseEvent) -> None:
         pass
 
+    def accepts_hover(self, event: CanvasMouseEvent) -> bool:
+        return True
+
     def hover_move_event(self, event: CanvasMouseEvent) -> Optional[QCursor]:
         return None
 
-    def hover_enter_event(self, event: CanvasMouseEvent) -> None:
+    def hover_enter_event(self) -> None:
         pass
 
-    def hover_leave_event(self, event: CanvasMouseEvent) -> None:
+    def hover_leave_event(self) -> None:
         pass
 
 

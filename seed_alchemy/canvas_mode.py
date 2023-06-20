@@ -35,12 +35,10 @@ class CanvasModeWidget(QWidget):
         self.generate_task = None
         self.generation_element = None
 
-        self.generation_panel = ImageGenerationPanel(main_window)
+        self.generation_panel = ImageGenerationPanel(main_window, "canvas")
         self.generation_panel.generate_requested.connect(self.generate_requested)
         self.generation_panel.cancel_requested.connect(self.cancel_requested)
         self.generation_panel.image_size_changed.connect(self.panel_image_size_changed)
-
-        self.canvas_scene = CanvasScene()
 
         selection_button = actions.selection.tool_button()
         brush_button = actions.brush.tool_button()
@@ -63,21 +61,15 @@ class CanvasModeWidget(QWidget):
         tool_layout.addWidget(eraser_button)
         tool_layout.addStretch()
 
+        self.canvas_scene = CanvasScene()
         self.layer_panel = CanvasLayerPanel(self.canvas_scene)
-
-        composite_button = QPushButton("Composite")
-        composite_button.clicked.connect(self.on_composite_clicked)
-
-        vlayout = QVBoxLayout()
-        vlayout.addWidget(composite_button)
-        vlayout.addWidget(self.canvas_scene)
 
         mode_layout = QHBoxLayout(self)
         mode_layout.setContentsMargins(8, 2, 8, 8)
         mode_layout.setSpacing(8)
         mode_layout.addWidget(self.generation_panel)
         mode_layout.addWidget(tool_frame)
-        mode_layout.addLayout(vlayout)
+        mode_layout.addWidget(self.canvas_scene)
         mode_layout.addWidget(self.layer_panel)
 
         # Deserialize scene
@@ -142,9 +134,12 @@ class CanvasModeWidget(QWidget):
 
         params = self.generation_panel.serialize()
         self.generation_element.set_params(params)
+        self.serialize()
+
+        self.build_composite_image()
 
         req = GenerateRequest()
-        req.collection = self.settings.value("collection")
+        req.collection = configuration.TMP_DIR
         req.reduce_memory = self.settings.value("reduce_memory", type=bool)
         req.image_metadata = ImageMetadata()
         req.image_metadata.load_from_params(params)
@@ -181,7 +176,7 @@ class CanvasModeWidget(QWidget):
     def generation_image_size_changed(self, image_size):
         self.generation_panel.set_image_size(image_size)
 
-    def on_composite_clicked(self):
+    def build_composite_image(self):
         rect = self.generation_element.rect()
 
         origin = rect.topLeft().toPoint()
@@ -196,6 +191,5 @@ class CanvasModeWidget(QWidget):
                 pos = element.pos().toPoint()
                 composite_image.paste(pimage, (pos - origin).toTuple())
 
-        output_path = "composite.png"
-        full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+        full_path = os.path.join(configuration.IMAGES_PATH, configuration.TMP_DIR, configuration.COMPOSITE_IMAGE_NAME)
         composite_image.save(full_path)

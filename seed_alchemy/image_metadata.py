@@ -1,11 +1,12 @@
 import json
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
 from dataclasses_json import dataclass_json
 from PIL import Image
 
-from . import utils
+from . import configuration, utils
 
 
 @dataclass_json
@@ -67,6 +68,7 @@ class InpaintMetadata:
 @dataclass_json
 @dataclass
 class ImageMetadata:
+    mode: str = "image"
     model: str = "stabilityai/stable-diffusion-2-1-base"
     safety_checker: bool = True
     scheduler: str = "k_euler_a"
@@ -86,22 +88,28 @@ class ImageMetadata:
     inpaint: Optional[InpaintMetadata] = None
 
     def load_from_params(self, data: dict):
+        self.mode = data["mode"]
         self.model = data["model"]
         self.safety_checker = data["safety_checker"]
         self.scheduler = data["scheduler"]
         self.prompt = data["prompt"]
         self.negative_prompt = data["negative_prompt"]
-
         self.seed = data["seed"]
         self.num_inference_steps = data["num_inference_steps"]
         self.guidance_scale = data["guidance_scale"]
         self.width = data["width"]
         self.height = data["height"]
 
-        if data["img2img_enabled"]:
+        if self.mode == "image":
+            if data["img2img_enabled"]:
+                self.img2img = Img2ImgMetadata(
+                    source=data["img2img_source"],
+                    noise=data["img2img_noise"],
+                )
+        elif self.mode == "canvas":
             self.img2img = Img2ImgMetadata(
-                source=data["img2img_source"],
-                noise=data["img2img_noise"],
+                source=os.path.join(configuration.TMP_DIR, configuration.COMPOSITE_IMAGE_NAME),
+                noise=data["inpaint_noise"],
             )
 
         if data["control_net_enabled"]:
@@ -129,11 +137,18 @@ class ImageMetadata:
                 noise=data["high_res_noise"],
             )
 
-        if data["inpaint_enabled"]:
+        if self.mode == "image":
+            if data["inpaint_enabled"]:
+                self.inpaint = InpaintMetadata(
+                    source=data["inpaint_source"],
+                    use_alpha_channel=data["inpaint_use_alpha_channel"],
+                    invert_mask=data["inpaint_invert_mask"],
+                )
+        elif self.mode == "canvas":
             self.inpaint = InpaintMetadata(
-                source=data["inpaint_source"],
-                use_alpha_channel=data["inpaint_use_alpha_channel"],
-                invert_mask=data["inpaint_invert_mask"],
+                source=os.path.join(configuration.TMP_DIR, configuration.COMPOSITE_IMAGE_NAME),
+                use_alpha_channel=True,
+                invert_mask=True,
             )
 
     def load_from_image(self, image: Image.Image):

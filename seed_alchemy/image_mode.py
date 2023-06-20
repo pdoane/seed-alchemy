@@ -65,10 +65,11 @@ class ImageModeWidget(QWidget):
             self.move_image_menu.addAction(item_action)
 
         # Generation Panel
-        self.generation_panel = ImageGenerationPanel(main_window)
+        self.generation_panel = ImageGenerationPanel(main_window, "image")
         self.generation_panel.generate_requested.connect(self.generate_requested)
         self.generation_panel.cancel_requested.connect(self.cancel_requested)
         self.generation_panel.preprocess_requested.connect(self.preprocess_requested)
+        self.generation_panel.locate_source_requested.connect(self.locate_source_requested)
 
         # Image viewer
         self.image_viewer = ImageViewer(self.image_history)
@@ -268,10 +269,13 @@ class ImageModeWidget(QWidget):
         self.backend.start(self.preprocess_task)
 
     def preprocess_complete(self, image):
-        output_path = "preprocessed.png"
+        output_path = os.path.join(configuration.TMP_DIR, configuration.PREPROCESSED_IMAGE_NAME)
         full_path = os.path.join(configuration.IMAGES_PATH, output_path)
         image.save(full_path)
         self.image_viewer.set_current_image(output_path)
+
+    def locate_source_requested(self, image_path):
+        self.thumbnail_viewer.select_image(image_path)
 
     def on_current_image_changed(self, path):
         self.image_viewer.set_current_image(path)
@@ -369,13 +373,7 @@ class ImageModeWidget(QWidget):
         image_metadata = self.image_viewer.metadata
         if image_metadata is not None:
             self.generation_panel.begin_update()
-            self.generation_panel.use_prompt(image_metadata)
-            self.generation_panel.use_seed(image_metadata)
-            self.generation_panel.use_general(image_metadata)
-            self.generation_panel.use_img2img(image_metadata)
-            self.generation_panel.use_control_net(image_metadata)
-            self.generation_panel.use_post_processing(image_metadata)
-            self.generation_panel.use_source_images(image_metadata)
+            self.generation_panel.use_all(image_metadata)
             self.generation_panel.end_update()
 
     def on_move_image(self, collection: str):

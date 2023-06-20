@@ -51,13 +51,15 @@ class ImageGenerationPanel(QWidget):
     generate_requested = Signal()
     cancel_requested = Signal()
     preprocess_requested = Signal(ControlNetWidget)
+    locate_source_requested = Signal(str)
 
-    def __init__(self, main_window, parent=None):
+    def __init__(self, main_window, mode: str, parent=None):
         super().__init__(parent)
         self.main_window = main_window
         self.settings: QSettings = main_window.settings
         self.thumbnail_loader: ThumbnailLoader = main_window.thumbnail_loader
         self.thumbnail_model: ThumbnailModel = main_window.thumbnail_model
+        self.mode = mode
 
         self.needs_fix = False
 
@@ -196,15 +198,16 @@ class ImageGenerationPanel(QWidget):
         manual_seed_group_box_layout.addWidget(self.seed_frame)
 
         # Image to Image
-        self.img2img_source_widget = self.create_source_image_widget()
-        self.img2img_noise = FloatSliderSpinBox("Noise")
+        if self.mode == "image":
+            self.img2img_source_widget = self.create_source_image_widget()
+            self.img2img_noise = FloatSliderSpinBox("Noise")
 
-        self.img2img_group_box = QGroupBox("Image to Image")
-        self.img2img_group_box.setCheckable(True)
+            self.img2img_group_box = QGroupBox("Image to Image")
+            self.img2img_group_box.setCheckable(True)
 
-        img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
-        img2img_group_box_layout.addWidget(self.img2img_source_widget)
-        img2img_group_box_layout.addWidget(self.img2img_noise)
+            img2img_group_box_layout = QVBoxLayout(self.img2img_group_box)
+            img2img_group_box_layout.addWidget(self.img2img_source_widget)
+            img2img_group_box_layout.addWidget(self.img2img_noise)
 
         # ControlNet
         self.control_net_guidance_start = FloatSliderSpinBox("Guidance Start")
@@ -267,20 +270,27 @@ class ImageGenerationPanel(QWidget):
         high_res_group_box_layout.addWidget(self.high_res_noise)
 
         # Inpaint
-        self.inpaint_source_widget = self.create_source_image_widget()
-        self.inpaint_use_alpha_channel_check_box = QCheckBox("Use Alpha")
-        self.inpaint_invert_mask_check_box = QCheckBox("Invert Mask")
+        if self.mode == "image":
+            self.inpaint_source_widget = self.create_source_image_widget()
+            self.inpaint_use_alpha_channel_check_box = QCheckBox("Use Alpha")
+            self.inpaint_invert_mask_check_box = QCheckBox("Invert Mask")
 
-        self.inpaint_group_box = QGroupBox("Inpainting")
-        self.inpaint_group_box.setCheckable(True)
+            self.inpaint_group_box = QGroupBox("Inpainting")
+            self.inpaint_group_box.setCheckable(True)
 
-        inpaint_hlayout = QHBoxLayout()
-        inpaint_hlayout.addWidget(self.inpaint_use_alpha_channel_check_box)
-        inpaint_hlayout.addWidget(self.inpaint_invert_mask_check_box)
+            inpaint_hlayout = QHBoxLayout()
+            inpaint_hlayout.addWidget(self.inpaint_use_alpha_channel_check_box)
+            inpaint_hlayout.addWidget(self.inpaint_invert_mask_check_box)
 
-        inpaint_group_box_layout = QVBoxLayout(self.inpaint_group_box)
-        inpaint_group_box_layout.addWidget(self.inpaint_source_widget)
-        inpaint_group_box_layout.addLayout(inpaint_hlayout)
+            inpaint_group_box_layout = QVBoxLayout(self.inpaint_group_box)
+            inpaint_group_box_layout.addWidget(self.inpaint_source_widget)
+            inpaint_group_box_layout.addLayout(inpaint_hlayout)
+        elif self.mode == "canvas":
+            self.inpaint_noise = FloatSliderSpinBox("Noise")
+            self.inpaint_group_box = QGroupBox("Inpainting")
+
+            inpaint_group_box_layout = QVBoxLayout(self.inpaint_group_box)
+            inpaint_group_box_layout.addWidget(self.inpaint_noise)
 
         # Configuration
         config_layout = QVBoxLayout(self.config_frame)
@@ -288,12 +298,16 @@ class ImageGenerationPanel(QWidget):
         config_layout.addWidget(self.prompt_group_box)
         config_layout.addWidget(self.general_group_box)
         config_layout.addWidget(self.manual_seed_group_box)
-        config_layout.addWidget(self.img2img_group_box)
+        if self.mode == "image":
+            config_layout.addWidget(self.img2img_group_box)
+        else:
+            config_layout.addWidget(self.inpaint_group_box)
         config_layout.addWidget(self.control_net_group_box)
         config_layout.addWidget(self.upscale_group_box)
         config_layout.addWidget(self.face_restoration_group_box)
         config_layout.addWidget(self.high_res_group_box)
-        config_layout.addWidget(self.inpaint_group_box)
+        if self.mode == "image":
+            config_layout.addWidget(self.inpaint_group_box)
         config_layout.addStretch()
 
         panel_layout = QVBoxLayout(self)
@@ -302,9 +316,10 @@ class ImageGenerationPanel(QWidget):
         panel_layout.addWidget(self.config_scroll_area)
 
     def serialize(self) -> dict:
-        return {
+        base_dict = {
+            "mode": self.mode,
             "model": self.model_combo_box.currentText(),
-            "safety_checker": self.settings.value("safety_checker"),
+            "safety_checker": self.settings.value("safety_checker", type=bool),
             "scheduler": self.scheduler_combo_box.currentText(),
             "prompt": self.prompt_edit.toPlainText(),
             "negative_prompt": self.negative_prompt_edit.toPlainText(),
@@ -315,14 +330,11 @@ class ImageGenerationPanel(QWidget):
             "guidance_scale": self.guidance_scale_spin_box.value(),
             "width": self.width_spin_box.value(),
             "height": self.height_spin_box.value(),
-            "img2img_enabled": self.img2img_group_box.isChecked(),
-            "img2img_source": self.img2img_source_widget.line_edit.text(),
-            "img2img_noise": self.img2img_noise.value(),
             "control_net_enabled": self.control_net_group_box.isChecked(),
             "control_net_guidance_start": self.control_net_guidance_start.value(),
             "control_net_guidance_end": self.control_net_guidance_end.value(),
             "control_net_conditions": [
-                control_net_widget.get_condition_meta.to_dict() for control_net_widget in self.control_net_widgets
+                control_net_widget.get_condition_meta().to_dict() for control_net_widget in self.control_net_widgets
             ],
             "upscale_enabled": self.upscale_group_box.isChecked(),
             "upscale_factor": self.upscale_factor_combo_box.currentData(),
@@ -335,11 +347,24 @@ class ImageGenerationPanel(QWidget):
             "high_res_steps": self.high_res_steps.value(),
             "high_res_guidance_scale": self.high_res_guidance_scale.value(),
             "high_res_noise": self.high_res_noise.value(),
-            "inpaint_enabled": self.inpaint_group_box.isChecked(),
-            "inpaint_source": self.inpaint_source_widget.get_image_path(),
-            "inpaint_use_alpha_channel": self.inpaint_use_alpha_channel_check_box.isChecked(),
-            "inpaint_invert_mask": self.inpaint_invert_mask_check_box.isChecked(),
         }
+
+        if self.mode == "image":
+            image_dict = {
+                "img2img_enabled": self.img2img_group_box.isChecked(),
+                "img2img_source": self.img2img_source_widget.line_edit.text(),
+                "img2img_noise": self.img2img_noise.value(),
+                "inpaint_enabled": self.inpaint_group_box.isChecked(),
+                "inpaint_source": self.inpaint_source_widget.get_image_path(),
+                "inpaint_use_alpha_channel": self.inpaint_use_alpha_channel_check_box.isChecked(),
+                "inpaint_invert_mask": self.inpaint_invert_mask_check_box.isChecked(),
+            }
+            return {**base_dict, **image_dict}
+        elif self.mode == "canvas":
+            canvas_dict = {
+                "inpaint_noise": self.inpaint_noise.value(),
+            }
+            return {**base_dict, **canvas_dict}
 
     def deserialize(self, data):
         image_meta = ImageMetadata()
@@ -361,16 +386,18 @@ class ImageGenerationPanel(QWidget):
         self.scheduler_combo_box.setCurrentText(data.get("scheduler", image_meta.scheduler))
         self.seed_line_edit.setText(str(data.get("seed", image_meta.seed)))
         self.manual_seed_group_box.setChecked(data.get("manual_seed", False))
-        self.img2img_source_widget.line_edit.setText(data.get("img2img_source", img2img_meta.source))
-        self.img2img_noise.setValue(data.get("img2img_noise", img2img_meta.noise))
-        self.img2img_group_box.setChecked(data.get("img2img_enabled", False))
+        if self.mode == "image":
+            self.img2img_source_widget.line_edit.setText(data.get("img2img_source", img2img_meta.source))
+            self.img2img_noise.setValue(data.get("img2img_noise", img2img_meta.noise))
+            self.img2img_group_box.setChecked(data.get("img2img_enabled", False))
         self.control_net_guidance_start.setValue(
             data.get("control_net_guidance_start", control_net_meta.guidance_start)
         )
         self.control_net_guidance_end.setValue(data.get("control_net_guidance_end", control_net_meta.guidance_end))
         self.control_net_group_box.setChecked(data.get("control_net_enabled", False))
         self.control_net_widgets = []
-        for i, condition_meta in enumerate(data.get("control_net_conditions", [])):
+        for i, condition_meta_data in enumerate(data.get("control_net_conditions", [])):
+            condition_meta = ControlNetConditionMetadata.from_dict(condition_meta_data)
             control_net_widget = self.create_control_net_widget(condition_meta)
             self.control_net_group_box_layout.insertWidget(
                 self.control_net_dynamic_index + i, control_net_widget.frame
@@ -387,12 +414,15 @@ class ImageGenerationPanel(QWidget):
         self.high_res_guidance_scale.setValue(data.get("high_res_guidance_scale", high_res_meta.guidance_scale))
         self.high_res_noise.setValue(data.get("high_res_noise", high_res_meta.noise))
         self.high_res_group_box.setChecked(data.get("high_res_enabled", False))
-        self.inpaint_source_widget.line_edit.setText(data.get("inpaint_source", inpaint_meta.source))
-        self.inpaint_use_alpha_channel_check_box.setChecked(
-            data.get("inpaint_use_alpha_channel", inpaint_meta.use_alpha_channel)
-        )
-        self.inpaint_invert_mask_check_box.setChecked(data.get("inpaint_invert_mask", inpaint_meta.invert_mask))
-        self.inpaint_group_box.setChecked(data.get("inpaint_enabled", False))
+        if self.mode == "image":
+            self.inpaint_source_widget.line_edit.setText(data.get("inpaint_source", inpaint_meta.source))
+            self.inpaint_use_alpha_channel_check_box.setChecked(
+                data.get("inpaint_use_alpha_channel", inpaint_meta.use_alpha_channel)
+            )
+            self.inpaint_invert_mask_check_box.setChecked(data.get("inpaint_invert_mask", inpaint_meta.invert_mask))
+            self.inpaint_group_box.setChecked(data.get("inpaint_enabled", False))
+        elif self.mode == "canvas":
+            self.inpaint_noise.setValue(data.get("inpaint_noise", img2img_meta.noise))
 
     def get_image_size(self):
         width = self.width_spin_box.value()
@@ -411,6 +441,7 @@ class ImageGenerationPanel(QWidget):
         self.config_scroll_area.takeWidget()
         self.config_scroll_area.setWidget(self.config_frame)
         self.config_scroll_area.updateGeometry()
+        self.config_scroll_area.adjustSize()
         self.config_scroll_area.verticalScrollBar().setValue(scroll_pos)
 
     def create_source_image_widget(self) -> SourceImageWidget:
@@ -424,9 +455,7 @@ class ImageGenerationPanel(QWidget):
         image_metadata = source_image_widget.get_metadata()
 
         locate_source_action = actions.locate_source.create(self)
-        locate_source_action.triggered.connect(
-            lambda: self.thumbnail_viewer.select_image(source_image_widget.line_edit.text())
-        )
+        locate_source_action.triggered.connect(lambda: self.on_locate_source(image_metadata))
 
         set_as_source_menu = QMenu("Set as Source", self)
         set_as_source_menu.setIcon(QIcon(FontAwesomeIconEngine(fa.icon_share)))
@@ -477,6 +506,9 @@ class ImageGenerationPanel(QWidget):
         action = QAction("Interrogate", self)
         action.triggered.connect(lambda: self.on_interrogate_mode(image_metadata.path))
         menu.addAction(action)
+
+    def on_locate_source(self, image_metadata: ImageMetadata):
+        self.locate_source_requested.emit(image_metadata.path)
 
     def on_set_as_source(self, source_image_widget: SourceImageWidget, image_metadata: ImageMetadata):
         if image_metadata is not None:
@@ -564,6 +596,7 @@ class ImageGenerationPanel(QWidget):
         self.use_control_net(image_metadata)
         self.use_post_processing(image_metadata)
         self.use_source_images(image_metadata)
+        self.use_inpaint(image_metadata)
 
     def use_prompt(self, image_metadata: ImageMetadata):
         self.prompt_edit.setPlainText(image_metadata.prompt)
@@ -597,14 +630,15 @@ class ImageGenerationPanel(QWidget):
         self.needs_fix = True
 
     def use_img2img(self, image_metadata: ImageMetadata):
-        img2img_meta = image_metadata.img2img
-        if img2img_meta:
-            self.img2img_group_box.setChecked(True)
-            self.img2img_source_widget.line_edit.setText(img2img_meta.source)
-            self.img2img_noise.setValue(img2img_meta.noise)
-        else:
-            self.img2img_group_box.setChecked(False)
-            self.img2img_source_widget.line_edit.setText("")
+        if self.mode == "image":
+            img2img_meta = image_metadata.img2img
+            if img2img_meta:
+                self.img2img_group_box.setChecked(True)
+                self.img2img_source_widget.line_edit.setText(img2img_meta.source)
+                self.img2img_noise.setValue(img2img_meta.noise)
+            else:
+                self.img2img_group_box.setChecked(False)
+                self.img2img_source_widget.line_edit.setText("")
 
     def use_control_net(self, image_metadata: ImageMetadata):
         for control_net_widget in self.control_net_widgets.copy():
@@ -655,3 +689,18 @@ class ImageGenerationPanel(QWidget):
             self.high_res_noise.setValue(high_res_meta.noise)
         else:
             self.high_res_group_box.setChecked(False)
+
+    def use_inpaint(self, image_metadata: ImageMetadata):
+        if self.mode == "image":
+            inpaint_meta = image_metadata.inpaint
+            if inpaint_meta:
+                self.inpaint_group_box.setChecked(True)
+                self.img2img_source_widget.line_edit.setText(inpaint_meta.source)
+                self.inpaint_use_alpha_channel_check_box.setChecked(inpaint_meta.use_alpha_channel)
+                self.inpaint_invert_mask_check_box.setChecked(inpaint_meta.invert_mask)
+            else:
+                self.inpaint_group_box.setChecked(False)
+        elif self.mode == "canvas":
+            img2img_meta = image_metadata.img2img
+            if img2img_meta:
+                self.inpaint_noise.setValue(img2img_meta.noise)

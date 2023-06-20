@@ -1,7 +1,7 @@
 from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, Signal
 from PySide6.QtGui import QCursor, QPainter, QPen
 
-from . import utils
+from . import utils, canvas_tool
 from .canvas_scene import CanvasScene
 from .canvas_element import CanvasElement, register_class
 from .canvas_event import CanvasMouseEvent
@@ -43,6 +43,9 @@ class CanvasGenerationElement(CanvasElement):
             image.set_pos(self._rect.topLeft())
             self._images.append(image)
 
+    def layer(self):
+        return 0
+
     def bounding_rect(self) -> QRectF:
         return self._rect.adjusted(-HANDLE_SIZE, -HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE)
 
@@ -78,13 +81,15 @@ class CanvasGenerationElement(CanvasElement):
         painter.restore()
 
     def mouse_press_event(self, event: CanvasMouseEvent) -> bool:
-        self._start_scene_pos = event.scene_pos
-        self._start_rect = self._rect
-        cursor, resize_x, resize_y = self._get_resize_info(event.scene_pos)
-        self._resize_x = resize_x
-        self._resize_y = resize_y
-        self._cursor = cursor
-        return True
+        if self._scene.tool == canvas_tool.SELECTION:
+            self._start_scene_pos = event.scene_pos
+            self._start_rect = self._rect
+            cursor, resize_x, resize_y = self._get_resize_info(event.scene_pos)
+            self._resize_x = resize_x
+            self._resize_y = resize_y
+            self._cursor = cursor
+            return True
+        return False
 
     def mouse_move_event(self, event: CanvasMouseEvent) -> None:
         if self._start_scene_pos is None:
@@ -116,9 +121,7 @@ class CanvasGenerationElement(CanvasElement):
         if new_rect.height() < 8:
             new_rect.setHeight(8)
 
-        self.update()
         self.set_rect(new_rect)
-        self.update()
 
     def mouse_release_event(self, event: CanvasMouseEvent) -> None:
         self._start_scene_pos = None
@@ -126,6 +129,9 @@ class CanvasGenerationElement(CanvasElement):
         self._cursor = None
         self._resize_x = None
         self._resize_y = None
+
+    def accepts_hover(self, event: CanvasMouseEvent) -> bool:
+        return self._scene.tool == canvas_tool.SELECTION
 
     def hover_move_event(self, event: CanvasMouseEvent) -> QCursor:
         cursor, _, _ = self._get_resize_info(event.scene_pos)
@@ -135,7 +141,10 @@ class CanvasGenerationElement(CanvasElement):
         return self._rect
 
     def set_rect(self, rect):
+        self.update()
         self._rect = rect
+        self.update()
+
         for image in self._images:
             image.set_pos(rect.topLeft())
         self.image_size_changed.emit(rect.size().toSize())

@@ -42,6 +42,7 @@ class ImageMetadataFrame(QFrame):
         self.on_theme_changed()
 
         self.path = MetadataRow("Path:")
+        self.mode = MetadataRow("Mode:")
         self.model = MetadataRow("Model:")
         self.scheduler = MetadataRow("Scheduler:")
         self.prompt = MetadataRow("Prompt:")
@@ -55,6 +56,7 @@ class ImageMetadataFrame(QFrame):
         self.upscale = MetadataRow("Upscaling:")
         self.face = MetadataRow("Face Restoration:")
         self.high_res = MetadataRow("High Resolution:")
+        self.inpaint = MetadataRow("Inpainting:")
 
         vlayout = QVBoxLayout(self)
         vlayout.addWidget(self.path.frame)
@@ -71,6 +73,7 @@ class ImageMetadataFrame(QFrame):
         vlayout.addWidget(self.upscale.frame)
         vlayout.addWidget(self.face.frame)
         vlayout.addWidget(self.high_res.frame)
+        vlayout.addWidget(self.inpaint.frame)
         vlayout.addStretch()
 
     def paintEvent(self, event):
@@ -98,17 +101,18 @@ class ImageMetadataFrame(QFrame):
         self.guidance_scale.value.setText(str(metadata.guidance_scale))
         self.size.value.setText("{:d}x{:d}".format(metadata.width, metadata.height))
 
-        img2img_meta = metadata.img2img
-        if img2img_meta:
-            self.img2img.frame.setVisible(True)
-            self.img2img.value.setText(
-                "Source={:s}, Noise={:.2f}".format(
-                    img2img_meta.source,
-                    img2img_meta.noise,
+        if metadata.mode == "image":
+            img2img_meta = metadata.img2img
+            if img2img_meta:
+                self.img2img.frame.setVisible(True)
+                self.img2img.value.setText(
+                    "Source={:s}, Noise={:.2f}".format(
+                        img2img_meta.source,
+                        img2img_meta.noise,
+                    )
                 )
-            )
-        else:
-            self.img2img.frame.setVisible(False)
+            else:
+                self.img2img.frame.setVisible(False)
 
         control_net_meta = metadata.control_net
         if control_net_meta:
@@ -156,6 +160,28 @@ class ImageMetadataFrame(QFrame):
             )
         else:
             self.high_res.frame.setVisible(False)
+
+        inpaint_meta = metadata.inpaint
+        if inpaint_meta:
+            self.inpaint.frame.setVisible(True)
+            if metadata.mode == "image":
+                self.inpaint.value.setText(
+                    "Source={:s}, Use Alpha Channel={:s}, Invert Mask={:s}".format(
+                        inpaint_meta.source,
+                        str(inpaint_meta.use_alpha_channel),
+                        str(inpaint_meta.invert_mask),
+                    )
+                )
+            elif metadata.mode == "canvas":
+                img2img_meta = metadata.img2img
+                if img2img_meta:
+                    self.inpaint.value.setText(
+                        "Noise={:.2f}".format(
+                            img2img_meta.noise,
+                        )
+                    )
+        else:
+            self.inpaint.frame.setVisible(False)
 
 
 class ImageViewer(QWidget):

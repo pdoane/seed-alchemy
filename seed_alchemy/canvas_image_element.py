@@ -125,10 +125,10 @@ class CanvasImageElement(CanvasElement):
         else:
             return Qt.ArrowCursor
 
-    def hover_enter_event(self, event: CanvasMouseEvent) -> None:
+    def hover_enter_event(self) -> None:
         pass
 
-    def hover_leave_event(self, event: CanvasMouseEvent) -> None:
+    def hover_leave_event(self) -> None:
         self._cursor_pos = None
         self._update_cursor()
 

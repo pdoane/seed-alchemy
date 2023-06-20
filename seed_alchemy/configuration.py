@@ -24,6 +24,10 @@ APP_VERSION = 0.1
 IMAGES_PATH = "images"
 THUMBNAILS_PATH = "thumbnails"
 MODELS_PATH = ".models"
+TMP_DIR = ".canvas"
+
+COMPOSITE_IMAGE_NAME = "composite.png"
+PREPROCESSED_IMAGE_NAME = "preprocessed.png"
 
 EMBEDDINGS_DIR = "embeddings"
 LORA_DIR = "lora"

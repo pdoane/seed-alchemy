@@ -22,7 +22,7 @@ class CanvasScene(QFrame):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._elements = []
+        self._elements: list[CanvasElement] = []
         self._start_pos = None
         self._scale = 1.0
         self._translate = QPointF(0.0, 0.0)
@@ -70,22 +70,22 @@ class CanvasScene(QFrame):
 
             self.draw_grid(painter, rect)
 
-            for element in self._elements:
+            for element in reversed(self._elements):
                 if element.bounding_rect().intersects(rect):
                     element.draw_background(painter)
 
-            for element in self._elements:
+            for element in reversed(self._elements):
                 if element.bounding_rect().intersects(rect):
                     element.draw_content(painter)
 
-            for element in self._elements:
+            for element in reversed(self._elements):
                 if element.bounding_rect().intersects(rect):
                     element.draw_controls(painter)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         canvas_event = CanvasMouseEvent(scene_pos=self.point_to_scene(event.position()))
 
-        for element in reversed(self._elements):
+        for element in self._elements:
             if element.bounding_rect().contains(canvas_event.scene_pos) and element.contains_point(
                 canvas_event.scene_pos
             ):
@@ -111,26 +111,26 @@ class CanvasScene(QFrame):
             cursor = Qt.ArrowCursor
 
             new_hover_element = None
-            for element in reversed(self._elements):
+            for element in self._elements:
                 if element.bounding_rect().contains(canvas_event.scene_pos) and element.contains_point(
                     canvas_event.scene_pos
                 ):
-                    new_hover_element = element
-                    break
+                    if element.accepts_hover(canvas_event):
+                        new_hover_element = element
+                        break
 
             if self._hover_element != new_hover_element:
                 if self._hover_element is not None:
-                    self._hover_element.hover_leave_event(canvas_event)
+                    self._hover_element.hover_leave_event()
                     self._hover_element.set_hovered(False)
 
                 self._hover_element = new_hover_element
 
                 if self._hover_element is not None:
-                    self._hover_element.hover_enter_event(canvas_event)
+                    self._hover_element.set_hovered(True)
+                    self._hover_element.hover_enter_event()
 
             if self._hover_element is not None:
-                self._hover_element.set_hovered(True)
-
                 hover_cursor = self._hover_element.hover_move_event(canvas_event)
                 if hover_cursor is not None:
                     cursor = hover_cursor
@@ -174,11 +174,25 @@ class CanvasScene(QFrame):
 
                 self.update()
 
+    def leaveEvent(self, event):
+        if self._hover_element:
+            self._hover_element.hover_leave_event()
+            self._hover_element.set_hovered(False)
+            self._hover_element = None
+
+        super().leaveEvent(event)
+
     def elements(self):
         return self._elements
 
     def add_element(self, element):
-        self._elements.append(element)
+        # Insert in sorted order by layer
+        insert_index = next(
+            (i for i, e in enumerate(self._elements) if e.layer() >= element.layer()),
+            len(self._elements),
+        )
+        self._elements.insert(insert_index, element)
+
         self.update_element(element)
         self.element_added.emit(element)
 

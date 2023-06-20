@@ -51,8 +51,8 @@ Near-term:
 - Inpainting
   - Blending across edges
 - Canvas Mode
+  - Context menu for elements
   - Generators
-    - Panel specialization
     - Choose results
     - Multiple generators
   - Painting
