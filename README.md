@@ -24,6 +24,7 @@
 - Clip Interrogator
 - Real-time preview of latent space
 - Thumbnail viewer with collections
+- Image gallery/slideshow mode
 - Canvas mode (IN DEVELOPMENT)
 
 ## Installation

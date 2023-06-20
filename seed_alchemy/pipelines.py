@@ -50,6 +50,7 @@ class ImagePipeline(PipelineBase):
     def __init__(self, pipeline_cache: PipelineCache, image_metadata: ImageMetadata) -> None:
         super().__init__()
         self.pipe: StableDiffusionPipeline = None
+        self.scheduler_config: dict = None
         self.model: str = None
         self.control_nets: list[ControlNetModel] = []
         self.control_net_model_names: list[str] = []
@@ -96,6 +97,7 @@ class ImagePipeline(PipelineBase):
 
         if isinstance(prev_pipeline, ImagePipeline) and prev_pipeline.model == self.model:
             self.pipe = prev_pipeline.pipe
+            self.scheduler_config = prev_pipeline.scheduler_config
         else:
             prev_pipeline = None
             pipeline_cache.pipeline = None
@@ -117,6 +119,8 @@ class ImagePipeline(PipelineBase):
                         safety_checker=None,
                         requires_safety_checker=False,
                     )
+
+            self.scheduler_config = self.pipe.scheduler.config.copy()
 
             self.pipe.to(configuration.torch_device)
             self.pipe.enable_attention_slicing()

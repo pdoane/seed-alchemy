@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from . import actions, configuration
+from . import actions, configuration, scheduler_registry
 from . import font_awesome as fa
 from . import utils
 from .control_net_widget import ControlNetWidget
@@ -88,12 +88,6 @@ class ImageGenerationPanel(QWidget):
         self.config_scroll_area.setWidget(self.config_frame)
         self.config_scroll_area.setFocusPolicy(Qt.NoFocus)
 
-        # Model
-        model_label = QLabel("Stable Diffusion Model")
-        model_label.setAlignment(Qt.AlignCenter)
-        self.model_combo_box = ComboBox()
-        self.model_combo_box.addItems(configuration.stable_diffusion_models.keys())
-
         # Prompts
         self.prompt_edit = PromptTextEdit(8, "Prompt")
         self.prompt_edit.return_pressed.connect(self.on_generate_clicked)
@@ -106,6 +100,16 @@ class ImageGenerationPanel(QWidget):
         prompt_group_box_layout.addWidget(self.negative_prompt_edit)
 
         # General
+        model_label = QLabel("Stable Diffusion Model")
+        model_label.setAlignment(Qt.AlignCenter)
+        self.model_combo_box = ComboBox()
+        self.model_combo_box.addItems(configuration.stable_diffusion_models.keys())
+
+        scheduler_label = QLabel("Scheduler")
+        scheduler_label.setAlignment(Qt.AlignCenter)
+        self.scheduler_combo_box = ComboBox()
+        self.scheduler_combo_box.addItems(scheduler_registry.DICT.keys())
+
         num_images_label = QLabel("Images")
         num_images_label.setAlignment(Qt.AlignCenter)
         self.num_images_spin_box = SpinBox()
@@ -144,11 +148,6 @@ class ImageGenerationPanel(QWidget):
         self.height_spin_box.setMinimum(64)
         self.height_spin_box.setMaximum(2048)
         self.height_spin_box.valueChanged.connect(self.on_image_size_changed)
-        scheduler_label = QLabel("Scheduler")
-        scheduler_label.setAlignment(Qt.AlignCenter)
-        self.scheduler_combo_box = ComboBox()
-        self.scheduler_combo_box.addItems(configuration.schedulers.keys())
-        self.scheduler_combo_box.setFixedWidth(120)
 
         self.general_group_box = QGroupBox("General")
 
@@ -157,6 +156,12 @@ class ImageGenerationPanel(QWidget):
         model_vlayout.setSpacing(2)
         model_vlayout.addWidget(model_label)
         model_vlayout.addWidget(self.model_combo_box)
+
+        scheduler_vlayout = QVBoxLayout()
+        scheduler_vlayout.setContentsMargins(0, 0, 0, 0)
+        scheduler_vlayout.setSpacing(2)
+        scheduler_vlayout.addWidget(scheduler_label)
+        scheduler_vlayout.addWidget(self.scheduler_combo_box)
 
         controls_grid = QGridLayout()
         controls_grid.setVerticalSpacing(2)
@@ -167,16 +172,14 @@ class ImageGenerationPanel(QWidget):
         controls_grid.addWidget(self.num_steps_spin_box, 1, 1)
         controls_grid.addWidget(guidance_scale_label, 0, 2)
         controls_grid.addWidget(self.guidance_scale_spin_box, 1, 2)
-        controls_grid.setAlignment(self.guidance_scale_spin_box, Qt.AlignCenter)
         controls_grid.addWidget(width_label, 3, 0)
         controls_grid.addWidget(self.width_spin_box, 4, 0)
         controls_grid.addWidget(height_label, 3, 1)
         controls_grid.addWidget(self.height_spin_box, 4, 1)
-        controls_grid.addWidget(scheduler_label, 3, 2)
-        controls_grid.addWidget(self.scheduler_combo_box, 4, 2)
 
         controls_vlayout = QVBoxLayout(self.general_group_box)
         controls_vlayout.addLayout(model_vlayout)
+        controls_vlayout.addLayout(scheduler_vlayout)
         controls_vlayout.addLayout(controls_grid)
 
         # Seed

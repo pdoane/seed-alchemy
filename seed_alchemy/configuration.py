@@ -1,18 +1,6 @@
 import os
 
 import torch
-from diffusers import (
-    DDIMScheduler,
-    DDPMScheduler,
-    DEISMultistepScheduler,
-    EulerAncestralDiscreteScheduler,
-    EulerDiscreteScheduler,
-    HeunDiscreteScheduler,
-    LMSDiscreteScheduler,
-    PNDMScheduler,
-    SchedulerMixin,
-    UniPCMultistepScheduler,
-)
 from PySide6.QtCore import QSettings
 
 from . import utils
@@ -47,22 +35,6 @@ textual_inversions: dict[str, str]
 loras: dict[str, str]
 stable_diffusion_models: dict[str, str]
 promptgen_models: dict[str, str]
-
-schedulers: dict[str, SchedulerMixin] = {
-    "ddim": DDIMScheduler,
-    "ddpm": DDPMScheduler,
-    "deis_multi": DEISMultistepScheduler,
-    # 'dpm_multi': DPMSolverMultistepScheduler,
-    # 'dpm': DPMSolverSinglestepScheduler,
-    # 'k_dpm_2': KDPM2DiscreteScheduler,
-    # 'k_dpm_2_a': KDPM2AncestralDiscreteScheduler,
-    "k_euler": EulerDiscreteScheduler,
-    "k_euler_a": EulerAncestralDiscreteScheduler,
-    "k_heun": HeunDiscreteScheduler,
-    "k_lms": LMSDiscreteScheduler,
-    "pndm": PNDMScheduler,
-    "uni_pc": UniPCMultistepScheduler,
-}
 
 
 def load_from_settings(settings: QSettings):

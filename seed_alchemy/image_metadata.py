@@ -6,7 +6,7 @@ from typing import List, Optional
 from dataclasses_json import dataclass_json
 from PIL import Image
 
-from . import configuration, utils
+from . import configuration, utils, scheduler_registry
 
 
 @dataclass_json
@@ -159,6 +159,9 @@ class ImageMetadata:
             metadata = vars(ImageMetadata.from_json(image.info["seed-alchemy"]))
             metadata.pop("path")
             self.__dict__.update(metadata)
+
+        if self.scheduler not in scheduler_registry.DICT:
+            self.scheduler = "euler_a"
 
     def save_to_png_info(self, png_info):
         filtered_dict = utils.remove_none_fields(self.to_dict())

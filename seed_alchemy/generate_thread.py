@@ -6,7 +6,7 @@ from compel.diffusers_textual_inversion_manager import DiffusersTextualInversion
 from PIL import Image, ImageOps, PngImagePlugin
 from PySide6.QtCore import Signal
 
-from . import configuration, control_net_config, utils
+from . import configuration, control_net_config, scheduler_registry, utils
 from .backend import BackendTask, CancelTaskException
 from .image_metadata import ControlNetMetadata, ImageMetadata, Img2ImgMetadata
 from .pipelines import GenerateRequest, ImagePipeline, PipelineCache
@@ -123,7 +123,10 @@ class GenerateImageTask(BackendTask):
                 self.req.control_images.append(controlnet_conditioning_image)
 
         # scheduler
-        pipe.scheduler = configuration.schedulers[self.req.image_metadata.scheduler].from_config(pipe.scheduler.config)
+        scheduler_cls, config_params = scheduler_registry.DICT.get(
+            self.req.image_metadata.scheduler, scheduler_registry.DICT["euler_a"]
+        )
+        pipe.scheduler = scheduler_cls.from_config({**pipeline.scheduler_config, **config_params})
 
         # generator
         self.req.generator = torch.Generator().manual_seed(self.req.image_metadata.seed)
