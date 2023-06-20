@@ -70,22 +70,22 @@ class CanvasScene(QFrame):
 
             self.draw_grid(painter, rect)
 
-            for element in reversed(self._elements):
+            for element in self._elements:
                 if element.bounding_rect().intersects(rect):
                     element.draw_background(painter)
 
-            for element in reversed(self._elements):
+            for element in self._elements:
                 if element.bounding_rect().intersects(rect):
                     element.draw_content(painter)
 
-            for element in reversed(self._elements):
+            for element in self._elements:
                 if element.bounding_rect().intersects(rect):
                     element.draw_controls(painter)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         canvas_event = CanvasMouseEvent(scene_pos=self.point_to_scene(event.position()))
 
-        for element in self._elements:
+        for element in reversed(self._elements):
             if element.bounding_rect().contains(canvas_event.scene_pos) and element.contains_point(
                 canvas_event.scene_pos
             ):
@@ -111,7 +111,7 @@ class CanvasScene(QFrame):
             cursor = Qt.ArrowCursor
 
             new_hover_element = None
-            for element in self._elements:
+            for element in reversed(self._elements):
                 if element.bounding_rect().contains(canvas_event.scene_pos) and element.contains_point(
                     canvas_event.scene_pos
                 ):
@@ -188,11 +188,10 @@ class CanvasScene(QFrame):
     def add_element(self, element):
         # Insert in sorted order by layer
         insert_index = next(
-            (i for i, e in enumerate(self._elements) if e.layer() >= element.layer()),
+            (i for i, e in enumerate(self._elements) if e.layer() > element.layer()),
             len(self._elements),
         )
         self._elements.insert(insert_index, element)
-
         self.update_element(element)
         self.element_added.emit(element)
 

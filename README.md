@@ -54,7 +54,6 @@ Near-term:
 - Canvas Mode
   - Context menu for elements
   - Generators
-    - Choose results
     - Multiple generators
   - Painting
     - Color/alpha channels
@@ -74,6 +73,10 @@ Near-term:
     - Reordering
     - Upscale/downscale
     - Collapse
+- Image Gallery
+  - Preferences
+  - Collection chooser
+  - Thumbnail version
 - Image Browser
 - Project files (replaces --root)
 - Replace collections with directory hierarchy

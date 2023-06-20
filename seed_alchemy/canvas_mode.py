@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from . import actions, canvas_tool, configuration
+from . import font_awesome as fa
 from .backend import Backend
 from .canvas_generation_element import CanvasGenerationElement
 from .canvas_image_element import CanvasImageElement
@@ -64,12 +65,36 @@ class CanvasModeWidget(QWidget):
         self.canvas_scene = CanvasScene()
         self.layer_panel = CanvasLayerPanel(self.canvas_scene)
 
+        prev_image_button = QPushButton("<")
+        prev_image_button.clicked.connect(self.on_prev_image)
+        next_image_button = QPushButton(">")
+        next_image_button.clicked.connect(self.on_next_image)
+        delete_image_button = QPushButton(fa.icon_trash)
+        delete_image_button.setFont(fa.font)
+        delete_image_button.clicked.connect(self.on_delete_image)
+        accept_image_button = QPushButton("Accept")
+        accept_image_button.clicked.connect(self.on_accept_image)
+        flatten_image_button = QPushButton("Flatten")
+        flatten_image_button.clicked.connect(self.on_flatten_image)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(prev_image_button)
+        button_layout.addWidget(next_image_button)
+        button_layout.addWidget(delete_image_button)
+        button_layout.addWidget(accept_image_button)
+        button_layout.addWidget(flatten_image_button)
+
+        scene_vlayout = QVBoxLayout()
+        scene_vlayout.setContentsMargins(0, 0, 0, 0)
+        scene_vlayout.addLayout(button_layout)
+        scene_vlayout.addWidget(self.canvas_scene)
+
         mode_layout = QHBoxLayout(self)
         mode_layout.setContentsMargins(8, 2, 8, 8)
         mode_layout.setSpacing(8)
         mode_layout.addWidget(self.generation_panel)
         mode_layout.addWidget(tool_frame)
-        mode_layout.addWidget(self.canvas_scene)
+        mode_layout.addLayout(scene_vlayout)
         mode_layout.addWidget(self.layer_panel)
 
         # Deserialize scene
@@ -128,6 +153,21 @@ class CanvasModeWidget(QWidget):
 
         self.canvas_scene.tool = button_id
 
+    def on_prev_image(self):
+        self.generation_element.prev_image()
+
+    def on_next_image(self):
+        self.generation_element.next_image()
+
+    def on_delete_image(self):
+        self.generation_element.delete_image()
+
+    def on_accept_image(self):
+        self.generation_element.accept_image()
+
+    def on_flatten_image(self):
+        self.generation_element.flatten_image()
+
     def generate_requested(self):
         if self.generate_task:
             return
@@ -136,10 +176,10 @@ class CanvasModeWidget(QWidget):
         self.generation_element.set_params(params)
         self.serialize()
 
-        self.build_composite_image()
+        self.generation_element.inpaint_image()
 
         req = GenerateRequest()
-        req.collection = configuration.TMP_DIR
+        req.collection = configuration.CANVAS_DIR
         req.reduce_memory = self.settings.value("reduce_memory", type=bool)
         req.image_metadata = ImageMetadata()
         req.image_metadata.load_from_params(params)
@@ -176,21 +216,3 @@ class CanvasModeWidget(QWidget):
 
     def generation_image_size_changed(self, image_size):
         self.generation_panel.set_image_size(image_size)
-
-    def build_composite_image(self):
-        rect = self.generation_element.rect()
-
-        origin = rect.topLeft().toPoint()
-        composite_size = (int(rect.width()), int(rect.height()))
-        composite_image = Image.new("RGBA", composite_size)
-
-        for element in self.canvas_scene.elements():
-            if type(element) == CanvasImageElement:
-                image_element: CanvasImageElement = element
-                pimage = image_element.get_image()
-
-                pos = element.pos().toPoint()
-                composite_image.paste(pimage, (pos - origin).toTuple())
-
-        full_path = os.path.join(configuration.IMAGES_PATH, configuration.TMP_DIR, configuration.COMPOSITE_IMAGE_NAME)
-        composite_image.save(full_path)

@@ -57,9 +57,9 @@ class CanvasLayerPanel(ScrollArea):
     def on_element_added(self, element: CanvasElement):
         layer_widget = CanvasLayerWidget(element)
         if type(element) == CanvasGenerationElement:
-            self.generator_elements_layout.addWidget(layer_widget)
+            self.generator_elements_layout.insertWidget(0, layer_widget)
         else:
-            self.image_elements_layout.addWidget(layer_widget)
+            self.image_elements_layout.insertWidget(0, layer_widget)
 
     def on_element_removed(self, element: CanvasElement):
         if type(element) == CanvasGenerationElement:

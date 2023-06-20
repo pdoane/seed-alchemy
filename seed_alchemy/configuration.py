@@ -12,9 +12,9 @@ APP_VERSION = 0.1
 IMAGES_PATH = "images"
 THUMBNAILS_PATH = "thumbnails"
 MODELS_PATH = ".models"
-TMP_DIR = ".canvas"
+CANVAS_DIR = ".canvas"
 
-COMPOSITE_IMAGE_NAME = "composite.png"
+INPAINT_IMAGE_NAME = "inpaint.png"
 PREPROCESSED_IMAGE_NAME = "preprocessed.png"
 
 EMBEDDINGS_DIR = "embeddings"

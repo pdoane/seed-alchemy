@@ -269,7 +269,7 @@ class ImageModeWidget(QWidget):
         self.backend.start(self.preprocess_task)
 
     def preprocess_complete(self, image):
-        output_path = os.path.join(configuration.TMP_DIR, configuration.PREPROCESSED_IMAGE_NAME)
+        output_path = configuration.PREPROCESSED_IMAGE_NAME
         full_path = os.path.join(configuration.IMAGES_PATH, output_path)
         image.save(full_path)
         self.image_viewer.set_current_image(output_path)

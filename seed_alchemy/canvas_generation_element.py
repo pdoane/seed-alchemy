@@ -1,10 +1,12 @@
+import math
+import os
 from typing import Optional
 
 from PIL import Image, ImageQt
-from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, QSize, QSizeF, Qt, Signal, QPoint
 from PySide6.QtGui import QCursor, QPainter, QPen, QPixmap
 
-from . import canvas_tool, utils
+from . import canvas_tool, utils, configuration
 from .canvas_element import CanvasElement, register_class
 from .canvas_event import CanvasMouseEvent
 from .canvas_image_element import CanvasImageElement
@@ -14,11 +16,13 @@ HANDLE_SIZE = 5
 
 
 class CanvasGenerationElement(CanvasElement):
+    pixmap_changed = Signal(QPixmap)
     image_size_changed = Signal(QSize)
 
     def __init__(self, scene: CanvasScene, parent=None):
         super().__init__(scene, parent)
         self._images: list[CanvasImageElement] = []
+        self._image_index = 0
         self._preview_pixmap: Optional[QPixmap] = None
         self._rect = QRectF()
         self._params = {}
@@ -35,11 +39,13 @@ class CanvasGenerationElement(CanvasElement):
             "rect": (self.rect().left(), self.rect().top(), self.rect().width(), self.rect().height()),
             "params": self._params,
             "images": [image.serialize() for image in self._images],
+            "image_index": self._image_index,
         }
 
     def deserialize(self, data):
         self.set_rect(QRectF(*data.get("rect", (0, 0, 512, 512))))
         self._params = data.get("params", {})
+        self.set_image_index(data.get("image_index", 0))
 
         for image_data in data.get("images", []):
             image = CanvasImageElement(self._scene)
@@ -67,7 +73,8 @@ class CanvasGenerationElement(CanvasElement):
         painter.restore()
 
     def draw_content(self, painter: QPainter) -> None:
-        for image in self._images:
+        if self._images:
+            image = self._images[self._image_index]
             image.draw_content(painter)
 
         if self._preview_pixmap is not None:
@@ -161,12 +168,11 @@ class CanvasGenerationElement(CanvasElement):
         rect.setSize(size)
         self.set_rect(rect)
 
-    def add_image(self, image_path):
-        image = CanvasImageElement(self._scene)
-        image.set_image(image_path)
-        image.set_pos(self._rect.topLeft())
-        self._images.append(image)
-        self.update()
+    def pixmap(self):
+        if self._images:
+            image = self._images[self._image_index]
+            return image.pixmap()
+        return None
 
     def params(self):
         return self._params
@@ -174,12 +180,121 @@ class CanvasGenerationElement(CanvasElement):
     def set_params(self, params):
         self._params = params
 
+    def add_image(self, image_path):
+        image = CanvasImageElement(self._scene)
+        image.set_image(image_path)
+        image.set_pos(self._rect.topLeft())
+        self._images.append(image)
+        self.set_image_index(len(self._images) - 1)
+
     def set_preview_image(self, preview_image: Optional[Image.Image]):
         if preview_image is not None:
             self._preview_pixmap = ImageQt.toqpixmap(preview_image).scaled(self._rect.width(), self._rect.height())
         else:
             self._preview_pixmap = None
         self.update()
+
+    def prev_image(self):
+        self.set_image_index(self._image_index - 1)
+
+    def next_image(self):
+        self.set_image_index(self._image_index + 1)
+
+    def delete_image(self):
+        if not self._images:
+            return
+        self._images.pop(self._image_index)
+        self.set_image_index(self._image_index)
+
+    def accept_image(self):
+        if not self._images:
+            return
+        image = self._images[self._image_index]
+        self._scene.add_element(image)
+        self._images.clear()
+        self.set_image_index(-1)
+
+    def set_image_index(self, index):
+        if self._images:
+            self._image_index = (index) % len(self._images)
+        else:
+            self._image_index = -1
+        self.pixmap_changed.emit(self.pixmap())
+        self.update()
+
+    def flatten_image(self):
+        if not self._images:
+            return
+
+        # Find rectangle arond all images the intersect with the generation element
+        rect = QRectF(self._rect)
+        intersecting_elements = []
+        for element in self._scene.elements():
+            if type(element) == CanvasImageElement:
+                image_element: CanvasImageElement = element
+                if image_element.rect().intersects(self._rect):
+                    rect = rect.united(image_element.rect())
+                    intersecting_elements.append(image_element)
+
+        # Create flattened image
+        image = self._images[self._image_index]
+        flattened_image = self._make_composite_image(rect)
+        flattened_image.paste(
+            image.get_image(),
+            (image.pos() - rect.topLeft()).toPoint().toTuple(),
+            mask=image.get_image(),
+        )
+
+        # Save
+        def io_operation():
+            collection = configuration.CANVAS_DIR
+            next_image_id = utils.next_image_id(os.path.join(configuration.IMAGES_PATH, collection))
+            output_path = os.path.join(collection, "{:05d}.png".format(next_image_id))
+            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+
+            flattened_image.save(full_path)
+            return output_path
+
+        image_path = utils.retry_on_failure(io_operation)
+
+        # Build new element
+        image = CanvasImageElement(self._scene)
+        image.set_image(image_path)
+        image.set_pos(rect.topLeft())
+
+        self._scene.add_element(image)
+
+        # Remove flattened elements
+        self._images.clear()
+        self.set_image_index(-1)
+
+        for element in intersecting_elements:
+            self._scene.remove_element(element)
+
+    def inpaint_image(self):
+        composite_image = self._make_composite_image(self._rect)
+
+        def io_operation():
+            output_path = os.path.join(configuration.CANVAS_DIR, configuration.INPAINT_IMAGE_NAME)
+            full_path = os.path.join(configuration.IMAGES_PATH, output_path)
+            composite_image.save(full_path)
+
+        utils.retry_on_failure(io_operation)
+
+    def _make_composite_image(self, rect: QRectF):
+        composite_image = Image.new("RGBA", rect.size().toSize().toTuple())
+
+        for element in reversed(self._scene.elements()):
+            if type(element) == CanvasImageElement:
+                image_element: CanvasImageElement = element
+                if image_element.rect().intersects(rect):
+                    composite_image.paste(
+                        image_element.get_image(),
+                        (element.pos() - rect.topLeft()).toPoint().toTuple(),
+                        mask=image_element.get_image(),
+                    )
+
+        return composite_image
 
     def _get_handles(self):
         offset = QPointF(-HANDLE_SIZE, -HANDLE_SIZE)

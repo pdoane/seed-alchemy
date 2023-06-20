@@ -39,7 +39,7 @@ class Application(QApplication):
         # Directories
         os.makedirs(configuration.IMAGES_PATH, exist_ok=True)
         os.makedirs(configuration.MODELS_PATH, exist_ok=True)
-        os.makedirs(os.path.join(configuration.IMAGES_PATH, configuration.TMP_DIR), exist_ok=True)
+        os.makedirs(os.path.join(configuration.IMAGES_PATH, configuration.CANVAS_DIR), exist_ok=True)
 
         # Settings
         self.settings = QSettings("settings.ini", QSettings.IniFormat)

@@ -25,25 +25,20 @@ class CanvasLayerWidget(QWidget):
         element.hovered_changed.connect(self.update)
         element.selection_changed.connect(self.update)
 
+        self.update_image_icon(element.pixmap())
+        element.pixmap_changed.connect(self.update_image_icon)
+
         if type(element) == CanvasGenerationElement:
             generation_element: CanvasGenerationElement = element
-            pixmap = QPixmap(ICON_SIZE, ICON_SIZE)
-            with QPainter(pixmap) as painter:
-                painter.fillRect(pixmap.rect(), utils.checkerboard_qbrush())
-
             params = generation_element.params()
 
-            self.update_image_icon(pixmap)
             self.update_label(params.get("prompt", ""), params.get("negative_prompt", ""))
 
         if type(element) == CanvasImageElement:
             image_element: CanvasImageElement = element
             image_metadata = image_element.metadata()
 
-            self.update_image_icon(image_element.pixmap())
             self.update_label(image_metadata.prompt, image_metadata.negative_prompt)
-
-            image_element.pixmap_changed.connect(self.update_image_icon)
 
     def init_ui(self):
         self.icon = QLabel()
@@ -84,7 +79,14 @@ class CanvasLayerWidget(QWidget):
         self.update()
 
     def update_image_icon(self, pixmap: QPixmap):
-        self.icon.setPixmap(pixmap.scaledToHeight(ICON_SIZE))
+        if pixmap is None or pixmap.isNull():
+            pixmap = QPixmap(ICON_SIZE, ICON_SIZE)
+            with QPainter(pixmap) as painter:
+                painter.fillRect(pixmap.rect(), utils.checkerboard_qbrush())
+        else:
+            pixmap = pixmap.scaledToHeight(ICON_SIZE)
+
+        self.icon.setPixmap(pixmap)
 
     def update_label(self, prompt: str, negative_prompt: str):
         self.label.setText(prompt)

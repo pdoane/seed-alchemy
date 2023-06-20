@@ -108,7 +108,7 @@ class ImageMetadata:
                 )
         elif self.mode == "canvas":
             self.img2img = Img2ImgMetadata(
-                source=os.path.join(configuration.TMP_DIR, configuration.COMPOSITE_IMAGE_NAME),
+                source=os.path.join(configuration.CANVAS_DIR, configuration.INPAINT_IMAGE_NAME),
                 noise=data["inpaint_noise"],
             )
 
@@ -146,7 +146,7 @@ class ImageMetadata:
                 )
         elif self.mode == "canvas":
             self.inpaint = InpaintMetadata(
-                source=os.path.join(configuration.TMP_DIR, configuration.COMPOSITE_IMAGE_NAME),
+                source=os.path.join(configuration.CANVAS_DIR, configuration.INPAINT_IMAGE_NAME),
                 use_alpha_channel=True,
                 invert_mask=True,
             )
