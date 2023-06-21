@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 from seed_alchemy.application import Application
 from seed_alchemy.image_mode import ImageModeWidget
+from seed_alchemy.image_generation_panel import ImageGenerationPanel
 
 
 def wait_for_task(task, timeout=5):
@@ -56,6 +57,7 @@ def app(request):
         app = Application(["seed_alchemy", "--root=" + dir_name])
         yield app
         app.main_window.close()
+        app.exit()
     finally:
         if not request.config.test_failed:
             shutil.rmtree(dir_name)
@@ -66,12 +68,13 @@ def test(app: Application):
     assert main_window is not None
 
     image_mode_widget: ImageModeWidget = main_window.set_mode("image")
+    generation_panel = image_mode_widget.generation_panel
 
-    image_mode_widget.prompt_edit.setPlainText("a fantasy landscape")
-    image_mode_widget.manual_seed_group_box.setChecked(True)
-    image_mode_widget.seed_line_edit.setText("2")
+    generation_panel.prompt_edit.setPlainText("a fantasy landscape")
+    generation_panel.manual_seed_group_box.setChecked(True)
+    generation_panel.seed_line_edit.setText("2")
 
-    image_mode_widget.generate_button.click()
+    generation_panel.generate_button.click()
     generate_task = image_mode_widget.generate_task
     assert generate_task is not None
 

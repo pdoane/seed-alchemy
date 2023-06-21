@@ -71,7 +71,7 @@ class ImageMetadata:
     mode: str = "image"
     model: str = "stabilityai/stable-diffusion-2-1-base"
     safety_checker: bool = True
-    scheduler: str = "k_euler_a"
+    scheduler: str = "euler_a"
     path: str = ""  # TODO - remove as this is just for runtime convenience
     prompt: str = ""
     negative_prompt: str = ""

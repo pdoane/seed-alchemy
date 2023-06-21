@@ -93,7 +93,7 @@ class Application(QApplication):
             [
                 entry
                 for entry in os.listdir(configuration.IMAGES_PATH)
-                if os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))
+                if entry[0] != "." and os.path.isdir(os.path.join(configuration.IMAGES_PATH, entry))
             ]
         )
         if not self.collections:
