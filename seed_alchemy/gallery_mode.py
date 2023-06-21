@@ -119,6 +119,9 @@ class GalleryModeWidget(QWidget):
             self.start_animation(self.animation2, self.animation1)
 
     def set_next_image(self, increment):
+        if not self.image_files:
+            return
+        
         if self.auto_next_image:
             self.timer.stop()
             self.timer.start(self.interval)
