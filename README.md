@@ -10,42 +10,43 @@
 
 ## Features
 
+- Stable Diffusion 1.x, 2.x, SDXL
 - Text to Image
 - Image to Image
 - Inpainting
 - Prompt Weighting using [Compel](https://github.com/damian0815/compel/blob/main/Reference.md)
-- ControlNet (1.0, 1.1, Txt2Img, Img2Img, Multi-model)
+- ControlNet
 - LoRA
-- Textual Inversion
+- Textual Inversion/Embeddings
 - High-resolution fix
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
-- Prompt Generator
-- Clip Interrogator
 - Real-time preview of latent space
 - Thumbnail viewer with collections
-- Image gallery/slideshow mode
-- Canvas mode (IN DEVELOPMENT)
 
 ## Installation
 
-### Windows
+1. Install Python and Node.js as prerequisites.
+2. Execute `install.sh` or `install.bat`. Also use these scripts when dependencies change.
 
-1. Install [Python](https://www.python.org/downloads/windows/), checking "Add Python to PATH".
-2. Install [git](https://git-scm.com/download/win).
-3. Download this repository, for example by running `git clone https://github.com/pdoane/seed-alchemy.git`.
-4. Execute `install.bat` from Windows Explorer as normal, non-administrator, user.
-   Use this also to update when requirements/dependency versions change
-5. Execute `run.bat` from Windows Explorer as normal, non-administrator, user.
+## Running
 
-### macOS
+Backend:
 
-1. Install Python and git, one option is via the MacOS Developer Tools
-2. Download this repository, for example by running `git clone https://github.com/pdoane/seed-alchemy.git`.
-3. Navigate a terminal to the directory containing this project.
-4. Execute `install.sh` (use this also to update when requirements/dependency versions change)
-5. Execute `run.sh`
+- In the top-level directory, execute `backend/run.sh` or `backend\run.bat`.
+
+Frontend:
+
+- In the `frontend` directory:
+- `npm run dev` for development in a web browser
+- `npm run build` to compile .js to be served from the backend
+- Electron support is available with `npm run electron-dev` and `npm run electron-build`
 
 ## Roadmap
 
-QT performance on Windows for the Canvas feature is not as I good as I would like. So I have put development on hold for a moment to test other technology stacks. I have a basic prototype complete now using React and expect to switch to that soon.
+In progress switching technology stacks to use React for the frontend. Features from the earlier QT version to still implement:
+
+- Prompt Generator
+- Clip Interrogator
+- Image gallery/slideshow mode
+- Canvas mode (IN DEVELOPMENT)

@@ -1,6 +1,5 @@
-.venv
-.DS_Store
-.models
 __pycache__
-images
-settings.ini
+.DS_Store
+.env
+.venv
+storage
