@@ -5,17 +5,17 @@ import { FormLabel } from "./components/FormLabel";
 import { Slider } from "./components/Slider";
 import { Img2ImgParamsState } from "./schema";
 
-interface Img2ImgParamsProps {
+interface ImageSourceParamsProps {
   state: Img2ImgParamsState;
 }
 
-const SourceParam = ({ state }: Img2ImgParamsProps) => {
+const SourceParam = ({ state }: ImageSourceParamsProps) => {
   const snap = useSnapshot(state, { sync: true });
 
   return <SourceImage label="Source" value={snap.source} onChange={(x) => (state.source = x)} />;
 };
 
-const NoiseParam = ({ state }: Img2ImgParamsProps) => {
+const NoiseParam = ({ state }: ImageSourceParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -25,7 +25,7 @@ const NoiseParam = ({ state }: Img2ImgParamsProps) => {
   );
 };
 
-export const Img2ImgParams = ({ state }: Img2ImgParamsProps) => {
+export const ImageSourceParams = ({ state }: ImageSourceParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

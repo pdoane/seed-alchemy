@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { GenerationParams } from "./GenerationParams";
+import { ImageGenerationParams } from "./ImageGenerationParams";
 import { MetadataViewer } from "./MetadataViewer";
 import { CanvasElementState } from "./schema";
 import { stateCanvas } from "./store";
@@ -23,7 +23,7 @@ export const CanvasGenerationSettings = ({ stateElement }: CanvasElementSettings
     };
   }, [stateGeneration]);
 
-  return <GenerationParams state={stateGeneration} generatorId={stateElement.id} />;
+  return <ImageGenerationParams state={stateGeneration} generatorId={stateElement.id} />;
 };
 
 export const CanvasImageSettings = ({ stateElement }: CanvasElementSettingsProps) => {

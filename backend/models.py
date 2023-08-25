@@ -46,7 +46,7 @@ class ControlNetParams(BaseModel):
 
 
 class RefinerParams(BaseModel):
-    model: str = "stabilityai/stable-diffusion-xl-refiner-1.0"
+    model: str = "stable-diffusion-xl-refiner-1.0"
     cfg_scale: float = 4.0
     high_noise_end: Optional[float]
     steps: Optional[int]
@@ -79,10 +79,12 @@ class InpaintParams(BaseModel):
 class ImageRequest(BaseModel):
     session_id: Optional[UUID] = None
     generator_id: Optional[UUID] = None
-    user: str
+    user: str = "default"
     collection: str = "outputs"
     image_count: int = 1
-    model: str = "runwayml/stable-diffusion-v1-5"
+    preview: Optional[PreviewType] = PreviewType.LATENT
+
+    model: str = "stable-diffusion-v1-5"
     scheduler: str = "euler_a"
     safety_checker: bool = True
     prompt: str = ""
@@ -100,7 +102,21 @@ class ImageRequest(BaseModel):
     face: Optional[FaceRestorationParams] = None
     high_res: Optional[HighResParams] = None
     inpaint: Optional[InpaintParams] = None
-    preview: Optional[PreviewType] = PreviewType.LATENT
+
+
+class PromptGenRequest(BaseModel):
+    model: str = "promptgen-lexart"
+    prompt: str = ""
+    temperature: float = 1.0
+    top_k: int = 12
+    top_p: float = 1.0
+    beam_count: int = 1
+    repetition_penalty: float = 1.0
+    length_penalty: float = 1.0
+    min_length: int = 20
+    max_length: int = 150
+    count: int = 5
+    seed: int = 1
 
 
 class ProcessRequest(BaseModel):

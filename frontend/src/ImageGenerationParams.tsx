@@ -1,28 +1,28 @@
 import { useHotkeys } from "react-hotkeys-hook";
 import { AiOutlineStop } from "react-icons/ai";
+import { useSnapshot } from "valtio";
 import { ControlNetParams } from "./ControlNetParams";
-import { FaceParams } from "./FaceParams";
-import { GeneralParams } from "./GeneralParams";
-import { Img2ImgParams } from "./Img2ImgParams";
-import { PromptParams } from "./PromptParams";
-import { SeedParams } from "./SeedParams";
-import { UpscaleParams } from "./UpscaleParams";
+import { ImageFaceParams } from "./ImageFaceParams";
+import { ImageGeneralParams } from "./ImageGeneralParams";
+import { ImageHighResParams } from "./ImageHighResParams";
+import { ImageInpaintParams } from "./ImageInpaintParams";
+import { ImagePromptParams } from "./ImagePromptParams";
+import { ImageRefinerParams } from "./ImageRefinerParams";
+import { ImageSeedParams } from "./ImageSeedParams";
+import { ImageSourceParams } from "./ImageSourceParams";
+import { ImageUpscaleParams } from "./ImageUpscaleParams";
+import { LoraParams } from "./LoraParams";
 import { Button, IconButton } from "./components/Button";
 import { useCancel, useGenerateImage, usePutSettings } from "./mutations";
-import { GenerationParamsState } from "./schema";
-import { HighResParams } from "./HighResParams";
-import { InpaintParams } from "./InpaintParams";
-import { RefinerParams } from "./RefinerParams";
-import { LoraParams } from "./LoraParams";
 import { useBaseModelType } from "./queries";
-import { useSnapshot } from "valtio";
+import { GenerationParamsState } from "./schema";
 
-interface GenerationParamsProps {
+interface ImageGenerationParamsProps {
   state: GenerationParamsState;
   generatorId: string | null;
 }
 
-export const GenerationParams = ({ state, generatorId }: GenerationParamsProps) => {
+export const ImageGenerationParams = ({ state, generatorId }: ImageGenerationParamsProps) => {
   const snapGeneral = useSnapshot(state.general);
   const queryBaseModelType = useBaseModelType(snapGeneral.model);
   const postGenerateImage = useGenerateImage(state, generatorId);
@@ -60,17 +60,17 @@ export const GenerationParams = ({ state, generatorId }: GenerationParamsProps) 
         </div>
       </div>
       <div className="flex-grow px-2 pb-2 space-y-2 overflow-y-auto bg-zinc-900">
-        <PromptParams state={state.prompt} onGenerate={onGenerate} />
-        <GeneralParams state={state} />
-        <SeedParams state={state.seed} />
-        <Img2ImgParams state={state.img2img} />
+        <ImagePromptParams state={state.prompt} onGenerate={onGenerate} />
+        <ImageGeneralParams state={state} />
+        <ImageSeedParams state={state.seed} />
+        <ImageSourceParams state={state.img2img} />
         <LoraParams state={state.lora} baseModelType={queryBaseModelType.data} />
         <ControlNetParams state={state.controlNet} baseModelType={queryBaseModelType.data} />
-        <HighResParams state={state.highRes} />
-        <RefinerParams state={state.refiner} baseModelType={queryBaseModelType.data} />
-        <UpscaleParams state={state.upscale} />
-        <FaceParams state={state.face} />
-        <InpaintParams state={state.inpaint} />
+        <ImageHighResParams state={state.highRes} />
+        <ImageRefinerParams state={state.refiner} baseModelType={queryBaseModelType.data} />
+        <ImageUpscaleParams state={state.upscale} />
+        <ImageFaceParams state={state.face} />
+        <ImageInpaintParams state={state.inpaint} />
       </div>
     </>
   );

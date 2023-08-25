@@ -299,7 +299,7 @@ class UniversalPipeline:
                     control_net = self.control_nets[index]
                 except ValueError:
                     print("Loading ControlNet", condition.model)
-                    model_info = config.diffusion_models[condition.model]
+                    model_info = config.models[condition.model]
                     variant = "fp16" if self.torch_dtype == torch.float16 else None
 
                     if model_info.local:
@@ -334,7 +334,7 @@ class UniversalPipeline:
 
         if not self.pipe:
             print("Loading Stable Diffusion Pipeline", model)
-            model_info = config.diffusion_models[model]
+            model_info = config.models[model]
             variant = "fp16" if self.torch_dtype == torch.float16 else None
 
             if model_info.base == BaseModelType.SD_1 or model_info.base == BaseModelType.SD_2:
@@ -403,7 +403,7 @@ class UniversalPipeline:
             if isinstance(pipe, TextualInversionLoaderMixin):
                 data = [
                     (key, info.path)
-                    for key, info in config.diffusion_models.items()
+                    for key, info in config.models.items()
                     if info.type == "textual-inversion" and info.base == model_info.base
                 ]
                 if data:
@@ -472,7 +472,7 @@ class UniversalPipeline:
             if loras:
                 if len(loras) == 1:
                     lora_weight = loras[0]
-                    info = config.diffusion_models.get(lora_weight.model)
+                    info = config.models.get(lora_weight.model)
                     if info:
                         self.pipe.load_lora_weights(info.path)
                         self.pipe._lora_scale = lora_weight.weight
@@ -484,7 +484,7 @@ class UniversalPipeline:
             lora_models = []
             lora_multipliers = []
             for lora_entry in loras:
-                info = config.diffusion_models.get(lora_entry.model)
+                info = config.models.get(lora_entry.model)
                 if info:
                     lora_models.append(lora.load(info.path, self.device, self.torch_dtype))
                     lora_multipliers.append(lora_entry.weight)

@@ -7,6 +7,7 @@ class ModelType(str, Enum):
     Checkpoint = "checkpoint"
     ControlNet = "controlnet"
     Lora = "lora"
+    PromptGen = "promptgen"
     TextualInversion = "textual-inversion"
     Vae = "vae"
 
@@ -19,9 +20,9 @@ class BaseModelType(str, Enum):
 
 
 @dataclass
-class DiffusionModelInfo:
+class ModelInfo:
     path: str
     local: bool
     type: ModelType
-    base: BaseModelType
+    base: Optional[BaseModelType] = None
     subfolder: Optional[str] = None

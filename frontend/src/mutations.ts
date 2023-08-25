@@ -3,12 +3,16 @@ import { useSnapshot } from "valtio";
 import { dirName } from "./util/pathUtil";
 import { addImages, removeImage } from "./queries";
 import { stateToImageRequest } from "./requestUtil";
-import { CanvasImage, ControlNetConditionParamsState, GenerationParamsState } from "./schema";
+import {
+  CanvasImage,
+  ControlNetConditionParamsState,
+  GenerationParamsState,
+  PromptGenResult,
+  PromptGenViewState,
+} from "./schema";
 import { stateCanvas, stateSession, stateSettings, stateSystem } from "./store";
-
-function generateSeed(): number {
-  return 1 + Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-}
+import { PromptGenRequest } from "./requests";
+import { generateSeed } from "./random";
 
 async function postJson(url: string, data: any) {
   const response = await fetch(url, {
@@ -219,6 +223,29 @@ export function useRevealPath(path: string) {
       onSuccess: (_) => {},
       onError: (error) => {
         console.error("Error:", error);
+      },
+    }
+  );
+}
+
+export function useGeneratePrompt(req: PromptGenRequest, stateView: PromptGenViewState) {
+  return useMutation(
+    async () => {
+      const newSeed = stateView.seedIsEnabled ? req.seed : generateSeed();
+      req.seed = newSeed;
+
+      stateSession.progressAmount = -1;
+
+      return await postJson("/api/v1/prompt-generate", req);
+    },
+    {
+      onSuccess: (prompts: string[]) => {
+        stateSession.promptGenResults = prompts.map((x) => new PromptGenResult().load({ prompt: x }));
+        setTimeout(() => (stateSession.progressAmount = 0), 250);
+      },
+      onError: (error) => {
+        console.error("Error:", error);
+        stateSession.progressAmount = 0;
       },
     }
   );

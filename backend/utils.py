@@ -2,9 +2,11 @@ import os
 import time
 from typing import Any
 
+import numpy as np
 import requests
-from tqdm import tqdm
+import torch
 from PIL import Image
+from tqdm import tqdm
 
 
 class Timer:
@@ -69,3 +71,8 @@ def create_thumbnail(image: Image.Image, max_size: int) -> Image.Image:
     position = ((thumbnail_size - new_width) // 2, (thumbnail_size - new_height) // 2)
     thumbnail.paste(scaled_image, position)
     return thumbnail
+
+
+def set_seed(seed):
+    np.random.seed(seed % (2**32))
+    torch.manual_seed(seed)

@@ -30,15 +30,15 @@ const schedulers = [
   "unipc",
 ];
 
-interface GeneralParamsProps {
+interface ImageGeneralParamsProps {
   state: GenerationParamsState;
 }
 
-interface GeneralParamProps {
+interface ImageGeneralParamProps {
   state: GeneralParamsState;
 }
 
-const ModelParam = ({ state }: GeneralParamsProps) => {
+const ModelParam = ({ state }: ImageGeneralParamsProps) => {
   const snapGeneral = useSnapshot(state.general);
   const queryModels = useModels();
 
@@ -101,7 +101,7 @@ const ModelParam = ({ state }: GeneralParamsProps) => {
   );
 };
 
-const SchedulerParam = ({ state }: GeneralParamProps) => {
+const SchedulerParam = ({ state }: ImageGeneralParamProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -115,7 +115,7 @@ const SchedulerParam = ({ state }: GeneralParamProps) => {
   );
 };
 
-const ImageCountParam = ({ state }: GeneralParamProps) => {
+const CountParam = ({ state }: ImageGeneralParamProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -125,7 +125,7 @@ const ImageCountParam = ({ state }: GeneralParamProps) => {
   );
 };
 
-const StepsParam = ({ state }: GeneralParamProps) => {
+const StepsParam = ({ state }: ImageGeneralParamProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -135,7 +135,7 @@ const StepsParam = ({ state }: GeneralParamProps) => {
   );
 };
 
-const CfgScaleParam = ({ state }: GeneralParamProps) => {
+const CfgScaleParam = ({ state }: ImageGeneralParamProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -145,7 +145,7 @@ const CfgScaleParam = ({ state }: GeneralParamProps) => {
   );
 };
 
-const WidthParam = ({ state }: GeneralParamProps) => {
+const WidthParam = ({ state }: ImageGeneralParamProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -155,7 +155,7 @@ const WidthParam = ({ state }: GeneralParamProps) => {
   );
 };
 
-const HeightParam = ({ state }: GeneralParamProps) => {
+const HeightParam = ({ state }: ImageGeneralParamProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -165,7 +165,7 @@ const HeightParam = ({ state }: GeneralParamProps) => {
   );
 };
 
-export const GeneralParams = ({ state }: GeneralParamsProps) => {
+export const ImageGeneralParams = ({ state }: ImageGeneralParamsProps) => {
   const snapGeneral = useSnapshot(state.general);
 
   return (
@@ -177,7 +177,7 @@ export const GeneralParams = ({ state }: GeneralParamsProps) => {
       <ModelParam state={state} />
       <SchedulerParam state={state.general} />
       <div className="flex space-x-3">
-        <ImageCountParam state={state.general} />
+        <CountParam state={state.general} />
         <StepsParam state={state.general} />
         <CfgScaleParam state={state.general} />
       </div>

@@ -33,6 +33,7 @@ from .models import (
     MoveRequest,
     PathRequest,
     ProcessRequest,
+    PromptGenRequest,
 )
 from .session import Session
 
@@ -74,16 +75,23 @@ def controlnet_processor():
 
 @lru_cache(maxsize=1)
 def image_generator():
-    from .generate_image import ImageGenerator
+    from .image_generator import ImageGenerator
 
     return ImageGenerator(controlnet_processor())
 
 
 @lru_cache(maxsize=1)
 def preview_processor():
-    from .generate_image import PreviewProcessor
+    from .image_generator import PreviewProcessor
 
     return PreviewProcessor(controlnet_processor())
+
+
+@lru_cache(maxsize=1)
+def prompt_generator():
+    from .prompt_generator import PromptGenerator
+
+    return PromptGenerator()
 
 
 @app.on_event("startup")
@@ -114,8 +122,10 @@ async def post_control_net_process(req: ProcessRequest, processor=Depends(previe
 
 
 @app.post("/api/v1/prompt-generate")
-async def post_prompt_generate():
-    pass
+async def post_prompt_generate(req: PromptGenRequest, generator=Depends(prompt_generator)):
+    async with lock:
+        print("prompt_generate", req)
+        return await background_task(None, generator, req)
 
 
 @app.post("/api/v1/image-interrogate")
@@ -174,7 +184,7 @@ async def get_users():
 
 @app.get("/api/v1/models")
 async def get_models():
-    return sorted([(info.type, info.base, key) for key, info in config.diffusion_models.items()])
+    return sorted([(info.type, info.base, key) for key, info in config.models.items()])
 
 
 @app.get("/api/v1/schedulers")

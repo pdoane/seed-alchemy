@@ -3,17 +3,14 @@ import { Button } from "./components/Button";
 import { CollapsibleContainer } from "./components/Container";
 import { FormLabel } from "./components/FormLabel";
 import { SpinBox } from "./components/SpinBox";
+import { generateSeed } from "./random";
 import { SeedParamsState } from "./schema";
 
-function generateSeed(): number {
-  return 1 + Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-}
-
-interface SeedParamsProps {
+interface ImageSeedParamsProps {
   state: SeedParamsState;
 }
 
-const SeedParam = ({ state }: SeedParamsProps) => {
+const SeedParam = ({ state }: ImageSeedParamsProps) => {
   const snap = useSnapshot(state);
 
   function handleNewSeedClick(): void {
@@ -30,7 +27,7 @@ const SeedParam = ({ state }: SeedParamsProps) => {
   );
 };
 
-export const SeedParams = ({ state }: SeedParamsProps) => {
+export const ImageSeedParams = ({ state }: ImageSeedParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

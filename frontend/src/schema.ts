@@ -6,6 +6,7 @@ import {
   ImageRequest,
   Img2ImgRequest,
   LoraModelRequest,
+  PromptGenRequest,
   RefinerRequest,
   UpscaleRequest,
 } from "./requests.ts";
@@ -222,6 +223,28 @@ export class GenerationParamsState {
   }
 }
 
+export class PromptGenViewState {
+  promptIsOpen: boolean = true;
+  generalIsOpen: boolean = true;
+  seedIsOpen: boolean = true;
+  seedIsEnabled: boolean = false;
+
+  load(src: Partial<PromptGenViewState>) {
+    loadProps(this, src);
+    return this;
+  }
+}
+
+export class PromptGenResult {
+  prompt: string = "";
+  used: boolean = false;
+
+  load(src: Partial<PromptGenResult>) {
+    loadProps(this, src);
+    return this;
+  }
+}
+
 export class CanvasImage {
   path: string = "";
 
@@ -290,6 +313,7 @@ export class SessionState {
   previewUrl: string | null = null;
   historyStack: string[] = [];
   historyStackIndex: number = -1;
+  promptGenResults: PromptGenResult[] = [];
   dialog: string | null = null;
   deleteImagePath: string = "";
 
@@ -304,12 +328,16 @@ export class SettingsState {
   safetyChecker: boolean = true;
   collection: string = "outputs";
   generation = new GenerationParamsState();
+  promptGen = new PromptGenRequest();
+  promptGenView = new PromptGenViewState();
   showMetadata: boolean = false;
   showPreview: boolean = false;
 
   load(src: Partial<SettingsState>) {
     loadProps(this, src);
     this.generation = loadNew(src.generation, GenerationParamsState);
+    this.promptGen = loadNew(src.promptGen, PromptGenRequest);
+    this.promptGenView = loadNew(src.promptGenView, PromptGenViewState);
     return this;
   }
 }

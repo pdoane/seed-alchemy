@@ -4,11 +4,11 @@ import { FormLabel } from "./components/FormLabel";
 import { Slider } from "./components/Slider";
 import { FaceParamsState } from "./schema";
 
-interface FaceParamsProps {
+interface ImageFaceParamsProps {
   state: FaceParamsState;
 }
 
-const BlendParam = ({ state }: FaceParamsProps) => {
+const BlendParam = ({ state }: ImageFaceParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -18,7 +18,7 @@ const BlendParam = ({ state }: FaceParamsProps) => {
   );
 };
 
-export const FaceParams = ({ state }: FaceParamsProps) => {
+export const ImageFaceParams = ({ state }: ImageFaceParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

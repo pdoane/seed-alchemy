@@ -62,7 +62,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             ? "bg-blue-700 hover:bg-blue-600"
             : "bg-zinc-950 hover:bg-slate-800",
           "text-sm",
-          "text-white",
           "transition duration-250 ease-in-out"
         )}
         disabled={disabled}
@@ -87,9 +86,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         ref={ref}
         className={cx(
           "py-1 px-2",
-          disabled ? "cursor-not-allowed bg-gray-700" : "bg-zinc-950 hover:bg-slate-800",
+          disabled ? "cursor-not-allowed bg-gray-700" : " hover:bg-slate-800",
           "text-base",
-          "text-white",
           "transition duration-250 ease-in-out"
         )}
         disabled={disabled}
@@ -110,9 +108,8 @@ export const ModeButton = ({ icon, value }: ModeButtonProps) => {
   return (
     <button
       className={cx(
-        "w-10 h-10 flex items-center justify-center text-2xl text-white focus:outline-none",
+        "w-10 h-10 flex items-center justify-center text-2xl focus:outline-none",
         isChecked ? " bg-blue-600" : "hover:bg-zinc-600",
-        "text-white",
         "transition duration-250 ease-in-out"
       )}
       onClick={() => group.onChange?.(value)}
@@ -147,7 +144,7 @@ export const ToolbarButton = ({ icon, disabled = false, onClick, menu, placement
         ref={ref}
         className={cx(
           "w-10 h-10 flex items-center justify-center text-lg",
-          disabled ? "text-gray-500 cursor-not-allowed" : "text-white hover:bg-zinc-600",
+          disabled ? "text-gray-500 cursor-not-allowed" : " hover:bg-zinc-600",
           contextMenuPoint ? "bg-slate-600" : "",
           "transition duration-250 ease-in-out"
         )}
@@ -177,9 +174,8 @@ export const ToolbarCheckButton = ({ icon, value, onChange }: ToolbarCheckButton
   return (
     <button
       className={cx(
-        "w-10 h-10 flex items-center justify-center text-lg text-white focus:outline-none",
-        value ? " bg-blue-600 hover:bg-blue-500" : "hover:bg-zinc-600",
-        "text-white",
+        "w-10 h-10 flex items-center justify-center text-lg focus:outline-none",
+        value ? "bg-blue-600 hover:bg-blue-500" : "hover:bg-zinc-600",
         "transition duration-250 ease-in-out"
       )}
       onClick={handleClick}

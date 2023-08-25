@@ -36,17 +36,43 @@ export function useBaseModelType(path: string) {
 export function useLoraModels(baseModelType: string | undefined) {
   const queryModels = useModels();
 
-  return useQuery(["loraModels", baseModelType], async () => {
-    return queryModels.data?.filter(([t, b, _]) => t == "lora" && b === baseModelType).map(([_, __, p]) => p);
-  });
+  return useQuery(
+    ["loraModels", baseModelType],
+    async () => {
+      return queryModels.data?.filter(([t, b, _]) => t == "lora" && b === baseModelType).map(([_, __, p]) => p);
+    },
+    {
+      enabled: queryModels.isSuccess && queryModels.data !== null,
+    }
+  );
 }
 
 export function useControlNetModels(baseModelType: string | undefined) {
   const queryModels = useModels();
 
-  return useQuery(["controlNetModels", baseModelType], async () => {
-    return queryModels.data?.filter(([t, b, _]) => t == "controlnet" && b === baseModelType).map(([_, __, p]) => p);
-  });
+  return useQuery(
+    ["controlNetModels", baseModelType],
+    async () => {
+      return queryModels.data?.filter(([t, b, _]) => t == "controlnet" && b === baseModelType).map(([_, __, p]) => p);
+    },
+    {
+      enabled: queryModels.isSuccess && queryModels.data !== null,
+    }
+  );
+}
+
+export function usePromptGenModels() {
+  const queryModels = useModels();
+
+  return useQuery(
+    ["promptGenModels"],
+    async () => {
+      return queryModels.data?.filter(([t, _, __]) => t == "promptgen").map(([_, __, p]) => p);
+    },
+    {
+      enabled: queryModels.isSuccess && queryModels.data !== null,
+    }
+  );
 }
 
 export function useCollections() {

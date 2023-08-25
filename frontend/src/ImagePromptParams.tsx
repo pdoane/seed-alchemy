@@ -4,12 +4,12 @@ import { TextArea } from "./components/TextArea";
 import { PromptParamsState } from "./schema";
 import { KeyboardEvent } from "react";
 
-interface PromptParamsProps {
+interface ImagePromptParamsProps {
   state: PromptParamsState;
   onGenerate: () => void;
 }
 
-const PositivePromptParam = ({ state, onGenerate }: PromptParamsProps) => {
+const PositivePromptParam = ({ state, onGenerate }: ImagePromptParamsProps) => {
   const snap = useSnapshot(state, { sync: true });
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -30,7 +30,7 @@ const PositivePromptParam = ({ state, onGenerate }: PromptParamsProps) => {
   );
 };
 
-const NegativePromptParam = ({ state, onGenerate }: PromptParamsProps) => {
+const NegativePromptParam = ({ state, onGenerate }: ImagePromptParamsProps) => {
   const snap = useSnapshot(state, { sync: true });
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>): void {
@@ -50,7 +50,7 @@ const NegativePromptParam = ({ state, onGenerate }: PromptParamsProps) => {
   );
 };
 
-export const PromptParams = ({ state, onGenerate }: PromptParamsProps) => {
+export const ImagePromptParams = ({ state, onGenerate }: ImagePromptParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

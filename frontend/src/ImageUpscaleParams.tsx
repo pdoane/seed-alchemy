@@ -5,11 +5,11 @@ import { Select, SelectItem } from "./components/Select";
 import { Slider } from "./components/Slider";
 import { UpscaleParamsState } from "./schema";
 
-interface UpscaleParamsProps {
+interface ImageUpscaleParamsProps {
   state: UpscaleParamsState;
 }
 
-const FactorParam = ({ state }: UpscaleParamsProps) => {
+const FactorParam = ({ state }: ImageUpscaleParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -22,7 +22,7 @@ const FactorParam = ({ state }: UpscaleParamsProps) => {
   );
 };
 
-const DenoisingParam = ({ state }: UpscaleParamsProps) => {
+const DenoisingParam = ({ state }: ImageUpscaleParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -32,7 +32,7 @@ const DenoisingParam = ({ state }: UpscaleParamsProps) => {
   );
 };
 
-const BlendParam = ({ state }: UpscaleParamsProps) => {
+const BlendParam = ({ state }: ImageUpscaleParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -42,7 +42,7 @@ const BlendParam = ({ state }: UpscaleParamsProps) => {
   );
 };
 
-export const UpscaleParams = ({ state }: UpscaleParamsProps) => {
+export const ImageUpscaleParams = ({ state }: ImageUpscaleParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

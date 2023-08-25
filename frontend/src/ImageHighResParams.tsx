@@ -4,11 +4,11 @@ import { FormLabel } from "./components/FormLabel";
 import { Slider } from "./components/Slider";
 import { HighResParamsState } from "./schema";
 
-interface HighResParamsProps {
+interface ImageHighResParamsProps {
   state: HighResParamsState;
 }
 
-const FactorParam = ({ state }: HighResParamsProps) => {
+const FactorParam = ({ state }: ImageHighResParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -18,17 +18,17 @@ const FactorParam = ({ state }: HighResParamsProps) => {
   );
 };
 
-const StepsParam = ({ state }: HighResParamsProps) => {
+const StepsParam = ({ state }: ImageHighResParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
     <FormLabel label="Steps">
-      <Slider value={snap.steps} onChange={(x) => (state.steps = x)} min={1} max={200} step={1} />
+      <Slider value={snap.steps} onChange={(x) => (state.steps = x)} min={1} max={200} step={1} decimals={0} />
     </FormLabel>
   );
 };
 
-const CfgScaleParam = ({ state }: HighResParamsProps) => {
+const CfgScaleParam = ({ state }: ImageHighResParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -38,7 +38,7 @@ const CfgScaleParam = ({ state }: HighResParamsProps) => {
   );
 };
 
-const NoiseParam = ({ state }: HighResParamsProps) => {
+const NoiseParam = ({ state }: ImageHighResParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -48,7 +48,7 @@ const NoiseParam = ({ state }: HighResParamsProps) => {
   );
 };
 
-export const HighResParams = ({ state }: HighResParamsProps) => {
+export const ImageHighResParams = ({ state }: ImageHighResParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

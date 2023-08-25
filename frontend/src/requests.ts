@@ -149,3 +149,23 @@ export class ImageRequest {
     return this;
   }
 }
+
+export class PromptGenRequest {
+  model: string = "promptgen-lexart";
+  prompt: string = "";
+  temperature: number = 1.0;
+  top_k: number = 12;
+  top_p: number = 1.0;
+  beam_count: number = 1;
+  repetition_penalty: number = 1.0;
+  length_penalty: number = 1.0;
+  min_length: number = 20;
+  max_length: number = 75;
+  count: number = 5;
+  seed: number = 1;
+
+  load(src: Partial<PromptGenRequest>) {
+    loadProps(this, src);
+    return this;
+  }
+}

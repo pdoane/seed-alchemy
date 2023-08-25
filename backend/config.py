@@ -6,7 +6,7 @@ from typing import Optional
 from pydantic import BaseSettings, Field
 
 from . import control_net_registry
-from .types import ModelType, BaseModelType, DiffusionModelInfo
+from .types import ModelType, BaseModelType, ModelInfo
 
 
 class Settings(BaseSettings):
@@ -19,20 +19,20 @@ class Settings(BaseSettings):
             "checkpoint:sd-1:runwayml/stable-diffusion-v1-5",
             "checkpoint:sd-2:stabilityai/stable-diffusion-2-1",
             "checkpoint:sdxl:stabilityai/stable-diffusion-xl-base-1.0",
+            "promptgen::AUTOMATIC/promptgen-lexart",
         ],
         split=",",
     )
     install_control_net_v10: bool = False
     install_control_net_v11: bool = True
     install_control_net_mediapipe_v2: bool = True
-    huggingface_promptgen: list[str] = Field(default_factory=lambda: ["AUTOMATIC/promptgen-lexart"], split=",")
 
     def __str__(self):
         return "\n".join(f"{key}={value}" for key, value in self.dict().items())
 
 
 settings: Settings
-diffusion_models: dict[str, DiffusionModelInfo] = {}  # Different namespace for each base model?
+models: dict[str, ModelInfo] = {}  # Different namespace for each base model?
 promptgen_models: dict[str, str] = {}
 
 
@@ -65,8 +65,8 @@ def add_hf_model(type, base, path, name):
         repo_id = "/".join(components[:2])
         subfolder = "/".join(components[2:])
 
-    info = DiffusionModelInfo(path=repo_id, subfolder=subfolder, local=False, type=type, base=base)
-    diffusion_models[name] = info
+    info = ModelInfo(path=repo_id, subfolder=subfolder, local=False, type=type, base=base)
+    models[name] = info
 
 
 def add_hf_models(entries):
@@ -94,7 +94,7 @@ def load_settings(root_dir: str):
     settings.models_path = resolve_path(settings.models_path)
 
     # Diffusion Models
-    diffusion_models.clear()
+    models.clear()
     if settings.models_path:
         for base in [BaseModelType.SD_1, BaseModelType.SD_2, BaseModelType.SDXL, BaseModelType.SDXL_REFINER]:
             base_path = os.path.join(settings.models_path, base)
@@ -109,12 +109,12 @@ def load_settings(root_dir: str):
                     type_path = os.path.join(base_path, type)
                     for name in safe_list_dir(type_path):
                         path = os.path.join(type_path, name)
-                        info = DiffusionModelInfo(path=path, local=True, type=type, base=base)
+                        info = ModelInfo(path=path, local=True, type=type, base=base)
                         if is_valid_diffusers_model(path):
-                            diffusion_models[name] = info
+                            models[name] = info
                         elif is_valid_single_file(path):
                             base_name, _ = os.path.splitext(name)
-                            diffusion_models[base_name] = info
+                            models[base_name] = info
 
     if settings.install_control_net_v10:
         add_hf_models(control_net_registry.v10_models)
@@ -136,11 +136,6 @@ def load_settings(root_dir: str):
             name = "/".join(path_components[1:])
 
         add_hf_model(type=components[0], base=components[1], path=components[2], name=name)
-
-    # PromptGen
-    promptgen_models.clear()
-    for repo_id in settings.huggingface_promptgen:
-        promptgen_models[repo_id] = repo_id
 
 
 def get_settings_path(user: str):

@@ -1,4 +1,4 @@
-import { GenerationPanel } from "./GenerationPanel";
+import { ImageGenerationPanel } from "./ImageGenerationPanel";
 import { ImageViewer } from "./ImageViewer";
 import { SessionProgress } from "./SessionProgress";
 import { ThumbnailViewer } from "./ThumbnailViewer";
@@ -9,7 +9,7 @@ export const ImageMode = () => {
     <div className="flex flex-col w-full h-full">
       <SessionProgress />
       <div className="flex flex-grow overflow-hidden">
-        <GenerationPanel state={stateSettings.generation} />
+        <ImageGenerationPanel state={stateSettings.generation} />
         <ImageViewer />
         <ThumbnailViewer />
       </div>

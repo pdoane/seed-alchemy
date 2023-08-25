@@ -21,6 +21,7 @@
 - High-resolution fix
 - ESRGAN Upscaling
 - GFPGAN Face Restoration
+- Prompt Generator
 - Real-time preview of latent space
 - Thumbnail viewer with collections
 
@@ -46,7 +47,6 @@ Frontend:
 
 In progress switching technology stacks to use React for the frontend. Features from the earlier QT version to still implement:
 
-- Prompt Generator
 - Clip Interrogator
 - Image gallery/slideshow mode
 - Canvas mode (IN DEVELOPMENT)

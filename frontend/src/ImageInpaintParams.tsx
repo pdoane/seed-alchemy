@@ -4,17 +4,17 @@ import { CollapsibleContainer } from "./components/Container";
 import { Switch } from "./components/Switch";
 import { InpaintParamsState } from "./schema";
 
-interface InpaintParamsProps {
+interface ImageInpaintParamsProps {
   state: InpaintParamsState;
 }
 
-const SourceParam = ({ state }: InpaintParamsProps) => {
+const SourceParam = ({ state }: ImageInpaintParamsProps) => {
   const snap = useSnapshot(state, { sync: true });
 
   return <SourceImage label="Source" value={snap.source} onChange={(x) => (state.source = x)} />;
 };
 
-const UseAlphaChannelParam = ({ state }: InpaintParamsProps) => {
+const UseAlphaChannelParam = ({ state }: ImageInpaintParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -25,7 +25,7 @@ const UseAlphaChannelParam = ({ state }: InpaintParamsProps) => {
   );
 };
 
-const InvertMaskParam = ({ state }: InpaintParamsProps) => {
+const InvertMaskParam = ({ state }: ImageInpaintParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -36,7 +36,7 @@ const InvertMaskParam = ({ state }: InpaintParamsProps) => {
   );
 };
 
-export const InpaintParams = ({ state }: InpaintParamsProps) => {
+export const ImageInpaintParams = ({ state }: ImageInpaintParamsProps) => {
   const snap = useSnapshot(state);
 
   return (

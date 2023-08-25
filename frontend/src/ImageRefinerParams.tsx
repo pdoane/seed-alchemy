@@ -5,12 +5,12 @@ import { Slider } from "./components/Slider";
 import { Switch } from "./components/Switch";
 import { RefinerParamsState } from "./schema";
 
-interface RefinerParamsProps {
+interface ImageRefinerParamsProps {
   state: RefinerParamsState;
   baseModelType: string | undefined;
 }
 
-const EnsembleModeParam = ({ state }: RefinerParamsProps) => {
+const EnsembleModeParam = ({ state }: ImageRefinerParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -21,7 +21,7 @@ const EnsembleModeParam = ({ state }: RefinerParamsProps) => {
   );
 };
 
-const CfgScaleParam = ({ state }: RefinerParamsProps) => {
+const CfgScaleParam = ({ state }: ImageRefinerParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -31,7 +31,7 @@ const CfgScaleParam = ({ state }: RefinerParamsProps) => {
   );
 };
 
-const HighNoiseEndParam = ({ state }: RefinerParamsProps) => {
+const HighNoiseEndParam = ({ state }: ImageRefinerParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -41,17 +41,17 @@ const HighNoiseEndParam = ({ state }: RefinerParamsProps) => {
   );
 };
 
-const StepsParam = ({ state }: RefinerParamsProps) => {
+const StepsParam = ({ state }: ImageRefinerParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
     <FormLabel label="Steps">
-      <Slider value={snap.steps} onChange={(x) => (state.steps = x)} min={1} max={200} step={1} />
+      <Slider value={snap.steps} onChange={(x) => (state.steps = x)} min={1} max={200} step={1} decimals={0} />
     </FormLabel>
   );
 };
 
-const NoiseParam = ({ state }: RefinerParamsProps) => {
+const NoiseParam = ({ state }: ImageRefinerParamsProps) => {
   const snap = useSnapshot(state);
 
   return (
@@ -61,7 +61,7 @@ const NoiseParam = ({ state }: RefinerParamsProps) => {
   );
 };
 
-export const RefinerParams = (props: RefinerParamsProps) => {
+export const ImageRefinerParams = (props: ImageRefinerParamsProps) => {
   const { state, baseModelType } = props;
   const snap = useSnapshot(state);
 
