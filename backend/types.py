@@ -16,7 +16,7 @@ class BaseModelType(str, Enum):
     SD_1 = "sd-1"
     SD_2 = "sd-2"
     SDXL = "sdxl"
-    SDXL_REFINER = "sdxl-rediner"
+    SDXL_REFINER = "sdxl-refiner"
 
 
 @dataclass

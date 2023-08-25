@@ -20,7 +20,7 @@ interface PromptGenerationPanelProps {
 }
 
 export const PromptGenerationPanel = ({ state, stateView }: PromptGenerationPanelProps) => {
-  const snap = useSnapshot(state);
+  const snap = useSnapshot(state, { sync: true });
   const snapView = useSnapshot(stateView);
   const queryPromptGenModels = usePromptGenModels();
   const postGeneratePrompt = useGeneratePrompt(state, stateView);
