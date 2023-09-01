@@ -313,14 +313,16 @@ class ImageRender {
     element: CanvasElementState,
     texture: WebGLTexture | null,
     tc_sx: number,
-    tc_sy: number
+    tc_sy: number,
+    tc_dx: number,
+    tc_dy: number
   ) {
     this.setup(context);
     const { gl } = context;
 
     gl.uniform4f(this.u_world, element.width, element.height, element.x, element.y);
     gl.uniform1f(this.u_depth, depthValue(index));
-    gl.uniform4f(this.u_tc, tc_sx, tc_sy, 0, 0);
+    gl.uniform4f(this.u_tc, tc_sx, tc_sy, tc_dx, tc_dy);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
 
@@ -989,7 +991,7 @@ export class CanvasSceneRender {
       const element = stateCanvas.elements[stateCanvas.elements.length - i - 1];
       const sceneTexture = this.textures.get(element.id);
       if (sceneTexture && sceneTexture.url) {
-        this.imageRender.render(context, i + 1, element, sceneTexture.texture, 1.0, 1.0);
+        this.imageRender.render(context, i + 1, element, sceneTexture.texture, 1.0, 1.0, 0.0, 0.0);
       } else {
         this.imageRender.render(
           context,
@@ -997,7 +999,9 @@ export class CanvasSceneRender {
           element,
           this.checkerboardTexture,
           element.width / 16.0,
-          element.height / 16.0
+          element.height / 16.0,
+          (element.x % 16) / 16.0,
+          (element.y % 16) / 16.0
         );
       }
     }
@@ -1056,7 +1060,7 @@ export class CanvasSceneRender {
       const element = stateCanvas.elements[stateCanvas.elements.length - i - 1];
       const sceneTexture = this.textures.get(element.id);
       if (sceneTexture && sceneTexture.url) {
-        this.imageRender.render(context, i, element, sceneTexture.texture, 1.0, 1.0);
+        this.imageRender.render(context, i, element, sceneTexture.texture, 1.0, 1.0, 0.0, 0.0);
       }
     }
     gl.colorMask(false, false, false, true);

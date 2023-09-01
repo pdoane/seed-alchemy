@@ -74,10 +74,14 @@ export const CanvasScene = () => {
     if (captureElementRef.current) {
       e.preventDefault();
 
-      captureElementRef.current.x =
-        Math.round((startElementPosRef.current!.x + scenePos.x - startMousePosRef.current!.x) / 8) * 8;
-      captureElementRef.current.y =
-        Math.round((startElementPosRef.current!.y + scenePos.y - startMousePosRef.current!.y) / 8) * 8;
+      const newPosX = startElementPosRef.current!.x + scenePos.x - startMousePosRef.current!.x;
+      const newPosY = startElementPosRef.current!.y + scenePos.y - startMousePosRef.current!.y;
+
+      const snappedPosX = Math.round(newPosX / 8) * 8;
+      const snappedPosY = Math.round(newPosY / 8) * 8;
+
+      captureElementRef.current.x = snappedPosX;
+      captureElementRef.current.y = snappedPosY;
     } else if (panningRef.current) {
       e.preventDefault();
 
