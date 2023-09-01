@@ -117,6 +117,7 @@ export class ImageRequest {
   user: string = "";
   collection: string = "outputs";
   image_count: number = 1;
+
   model: string = "stable-diffusion-v1-5";
   scheduler: string = "euler_a";
   safety_checker: boolean = true;

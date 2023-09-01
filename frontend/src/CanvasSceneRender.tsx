@@ -1022,10 +1022,7 @@ export class CanvasSceneRender {
     checkError(gl);
   }
 
-  generateMask() {
-    const element = stateCanvas.elements.find((x) => x.id == stateCanvas.selectedId);
-    if (element === undefined) return;
-
+  generateMask(element: CanvasElementState): HTMLCanvasElement {
     const gl = this.gl;
     const width = element.width;
     const height = element.height;
@@ -1094,20 +1091,6 @@ export class CanvasSceneRender {
     const imgData = ctx.createImageData(width, height);
     imgData.data.set(imageData);
     ctx.putImageData(imgData, 0, 0);
-    offscreenCanvas.toBlob((blob) => {
-      if (!blob) return;
-
-      // Send to server
-      const formData = new FormData();
-      formData.append("image", blob);
-
-      fetch("/api/v1/upload", {
-        method: "POST",
-        body: formData,
-      })
-        .then((response) => response.json())
-        .then((data) => console.log(data))
-        .catch((error) => console.error("Error:", error));
-    });
+    return offscreenCanvas;
   }
 }

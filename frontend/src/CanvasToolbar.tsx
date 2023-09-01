@@ -5,16 +5,26 @@ import { canvasSceneRender } from "./CanvasScene";
 import { Button, ModeButton } from "./components/Button";
 import { RadioGroup } from "./components/RadioGroup";
 import { stateCanvas } from "./store";
+import { useUploadFile } from "./mutations";
 
 export const CanvasToolbar = () => {
   const snapCanvas = useSnapshot(stateCanvas);
+  const postUploadFile = useUploadFile(".canvas");
 
   function handleClearClick(): void {
     stateCanvas.strokes.length = 0;
   }
 
   function handleTestClick(): void {
-    canvasSceneRender?.generateMask();
+    const element = stateCanvas.elements.find((x) => x.id == stateCanvas.selectedId);
+    if (element === undefined || canvasSceneRender === null) return;
+
+    const offscreenCanvas = canvasSceneRender.generateMask(element);
+    offscreenCanvas.toBlob((blob) => {
+      if (!blob) return;
+
+      postUploadFile.mutate(blob);
+    });
   }
 
   return (

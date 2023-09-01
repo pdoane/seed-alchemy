@@ -1,4 +1,4 @@
-import { MouseEvent, useState } from "react";
+import { DragEvent, MouseEvent, useState } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { useSnapshot } from "valtio";
 import { ThumbnailMenu } from "./ThumbnailMenu";
@@ -6,6 +6,7 @@ import { ContextMenu } from "./components/Menu";
 import { useImages } from "./queries";
 import { stateSession, stateSettings, stateSystem } from "./store";
 import { cx } from "./util/classNameUtil";
+import { useUploadFile } from "./mutations";
 
 export const ThumbnailImageList = () => {
   const snapSession = useSnapshot(stateSession);
@@ -14,6 +15,8 @@ export const ThumbnailImageList = () => {
   const queryImages = useImages(snapSettings.collection);
   const imagePath = queryImages.data?.[snapSession.selectedIndex ?? -1] ?? null;
   const [contextMenuPoint, setContextMenuPoint] = useState<DOMPoint | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const postUploadFile = useUploadFile(snapSettings.collection);
 
   function updateSelection(delta: number) {
     if (queryImages.data && stateSession.selectedIndex !== null) {
@@ -33,12 +36,31 @@ export const ThumbnailImageList = () => {
     setContextMenuPoint(new DOMPoint(event.clientX, event.clientY));
   }
 
+  function handleDragOver(e: DragEvent<HTMLDivElement>): void {
+    e.preventDefault();
+    setDragging(true);
+  }
+
+  function handleDragLeave(_: DragEvent<HTMLDivElement>): void {
+    setDragging(false);
+  }
+
+  function handleDrop(e: DragEvent<HTMLDivElement>): void {
+    e.preventDefault();
+    setDragging(false);
+    const uploadedFile = e.dataTransfer.files[0];
+    postUploadFile.mutate(uploadedFile);
+  }
+
   return (
     <div
-      className="flex-grow px-2 pb-2 pt-1 gap-3 grid content-start overflow-y-scroll"
+      className={cx("flex-grow px-2 pb-2 pt-1 gap-3 grid content-start overflow-y-scroll", dragging ? "border-2" : "")}
       style={{
         gridTemplateColumns: "repeat(auto-fit, minmax(96px, 1fr))",
       }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {queryImages.data?.map((str, index) => (
         <div

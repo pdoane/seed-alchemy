@@ -63,6 +63,47 @@ export function usePutSettings() {
   );
 }
 
+export function useUploadFile(collection: string) {
+  const snapSystem = useSnapshot(stateSystem);
+  const user = snapSystem.user;
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    async (image: File | Blob) => {
+      const formData = new FormData();
+      formData.append("image", image);
+      formData.append("user", user);
+      formData.append("collection", collection);
+
+      const response = await fetch("/api/v1/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error("File upload failed");
+      }
+
+      return response.json();
+    },
+    {
+      onSuccess: (imagePath: string) => {
+        // Update React Query state
+        addImages(queryClient, user, [imagePath]);
+
+        // Update selection if the images are in the current collection
+        const collection = dirName(imagePath);
+        if (collection == stateSettings.collection) {
+          stateSession.selectedIndex = 0;
+        }
+      },
+      onError: (error) => {
+        console.error("Error:", error);
+      },
+    }
+  );
+}
+
 export function useCancel() {
   return useMutation(
     async () => {

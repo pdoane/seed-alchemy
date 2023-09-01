@@ -13,6 +13,7 @@ from fastapi import (
     Depends,
     FastAPI,
     File,
+    Form,
     HTTPException,
     Request,
     UploadFile,
@@ -270,13 +271,13 @@ async def get_metadata(user: str, path: str):
 
 
 @app.post("/api/v1/upload")
-async def upload_image(image: UploadFile = File(...)):
-    path = "test.png"
+async def upload_image(image: UploadFile = File(...), user: str = Form(...), collection: str = Form(...)):
+    output_path = config.generate_output_path(user, collection)
+    full_path = config.get_image_path(user, output_path)
+    with open(full_path, "wb") as dst:
+        shutil.copyfileobj(image.file, dst)
 
-    with open(path, "wb") as buffer:
-        shutil.copyfileobj(image.file, buffer)
-
-    return path
+    return utils.normalize_path(output_path)
 
 
 @app.get("/images/{user}/{path:path}")
