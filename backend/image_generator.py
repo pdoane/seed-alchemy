@@ -1,7 +1,7 @@
 import io
 import json
 import os
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 from PIL import Image, ImageOps, PngImagePlugin
@@ -119,7 +119,7 @@ class ImageGenerator:
                     control_net=req.control_net,
                     control_images=control_images,
                     output_type="latent" if req.refiner else "pil",
-                    callback=self.callback,
+                    callback_on_step_end=self.callback_on_step_end,
                 )
 
             # Post-process
@@ -144,7 +144,7 @@ class ImageGenerator:
                         control_net=None,
                         control_images=None,
                         output_type="pil",
-                        callback=self.callback,
+                        callback_on_step_end=self.callback_on_step_end,
                     )[0]
 
                 # High Resolution
@@ -179,7 +179,7 @@ class ImageGenerator:
                         control_net=req.control_net,
                         control_images=control_images,
                         output_type="pil",
-                        callback=self.callback,
+                        callback_on_step_end=self.callback_on_step_end,
                     )[0]
 
                 # ESRGAN
@@ -231,7 +231,8 @@ class ImageGenerator:
         except CancelException:
             return []
 
-    def callback(self, step: int, timestep: int, latents: torch.FloatTensor):
+    def callback_on_step_end(self, pipeline, step: int, timestep: int, callback_kwargs: Dict):
+        latents = callback_kwargs["latents"]
         req = self.req
         self.next_step()
 
@@ -260,6 +261,8 @@ class ImageGenerator:
             image.save(buffered, format="png")
 
             self.session.queue.sync_q.put(messages.build_image(req.generator_id, buffered.getvalue()))
+
+        return callback_kwargs
 
     def next_step(self):
         req = self.req

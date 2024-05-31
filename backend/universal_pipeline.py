@@ -62,7 +62,7 @@ class UniversalPipeline:
         control_net: Optional[ControlNetParams],
         control_images: Optional[list[Union[Image.Image, torch.FloatTensor]]],
         output_type: str,
-        callback: Optional[Callable[[int, int, torch.FloatTensor], None]],
+        callback_on_step_end: Optional[Callable[[int, int, torch.FloatTensor], None]],
     ):
         # Step adjustment
         # if source_image is not None and noise is not None:
@@ -117,7 +117,7 @@ class UniversalPipeline:
                     controlnet=controlnet,
                     requires_safety_checker=False,
                 )(
-                    callback=callback,
+                    callback_on_step_end=callback_on_step_end,
                     control_image=control_image,
                     controlnet_conditioning_scale=controlnet_conditioning_scale,
                     generator=generator,
@@ -139,7 +139,7 @@ class UniversalPipeline:
                     controlnet=controlnet,
                     requires_safety_checker=False,
                 )(
-                    callback=callback,
+                    callback_on_step_end=callback_on_step_end,
                     control_image=control_image,
                     controlnet_conditioning_scale=controlnet_conditioning_scale,
                     generator=generator,
@@ -158,7 +158,7 @@ class UniversalPipeline:
                         **self.pipe.components,
                         controlnet=controlnet,
                     )(
-                        callback=callback,
+                        callback_on_step_end=callback_on_step_end,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         # denoising_end=denoising_end,
                         generator=generator,
@@ -180,7 +180,7 @@ class UniversalPipeline:
                         controlnet=controlnet,
                         requires_safety_checker=False,
                     )(
-                        callback=callback,
+                        callback_on_step_end=callback_on_step_end,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         generator=generator,
                         guidance_scale=cfg_scale,
@@ -200,7 +200,7 @@ class UniversalPipeline:
                     **self.pipe.components,
                     requires_safety_checker=False,
                 )(
-                    callback=callback,
+                    callback_on_step_end=callback_on_step_end,
                     generator=generator,
                     guidance_scale=cfg_scale,
                     height=height,
@@ -220,7 +220,7 @@ class UniversalPipeline:
                         **self.pipe.components,
                         requires_aesthetics_score=self.base_model_type == BaseModelType.SDXL_REFINER,
                     )(
-                        callback=callback,
+                        callback_on_step_end=callback_on_step_end,
                         denoising_start=denoising_start,
                         denoising_end=denoising_end,
                         generator=generator,
@@ -240,7 +240,7 @@ class UniversalPipeline:
                         **self.pipe.components,
                         requires_safety_checker=False,
                     )(
-                        callback=callback,
+                        callback_on_step_end=callback_on_step_end,
                         generator=generator,
                         guidance_scale=cfg_scale,
                         image=source_image,
@@ -254,7 +254,7 @@ class UniversalPipeline:
             else:
                 if self.base_model_type == BaseModelType.SDXL:
                     return self.pipe(
-                        callback=callback,
+                        callback_on_step_end=callback_on_step_end,
                         denoising_end=denoising_end,
                         generator=generator,
                         guidance_scale=cfg_scale,
@@ -270,7 +270,7 @@ class UniversalPipeline:
                     ).images
                 else:
                     return self.pipe(
-                        callback=callback,
+                        callback_on_step_end=callback_on_step_end,
                         generator=generator,
                         guidance_scale=cfg_scale,
                         height=height,
