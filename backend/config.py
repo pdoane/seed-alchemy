@@ -20,6 +20,8 @@ class Settings(BaseSettings):
             "checkpoint:sd-2:stabilityai/stable-diffusion-2-1",
             "checkpoint:sdxl:stabilityai/stable-diffusion-xl-base-1.0",
             "promptgen::AUTOMATIC/promptgen-lexart",
+            "checkpoint:flux:black-forest-labs/FLUX.1-dev",
+            "checkpoint:flux:black-forest-labs/FLUX.1-schnell",
         ],
         split=",",
     )
@@ -96,7 +98,13 @@ def load_settings(root_dir: str):
     # Diffusion Models
     models.clear()
     if settings.models_path:
-        for base in [BaseModelType.SD_1, BaseModelType.SD_2, BaseModelType.SDXL, BaseModelType.SDXL_REFINER]:
+        for base in [
+            BaseModelType.SD_1,
+            BaseModelType.SD_2,
+            BaseModelType.SDXL,
+            BaseModelType.SDXL_REFINER,
+            BaseModelType.FLUX,
+        ]:
             base_path = os.path.join(settings.models_path, base)
             if os.path.exists(base_path):
                 for type in [

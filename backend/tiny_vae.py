@@ -19,10 +19,13 @@ class TinyVAE:
             device = default_device()
             torch_dtype = default_dtype()
 
-            if base_model_type in [BaseModelType.SDXL, BaseModelType.SDXL_REFINER]:
+            if base_model_type in [BaseModelType.SD_1, BaseModelType.SD_2]:
+                repo_id = "madebyollin/taesd"
+            elif base_model_type in [BaseModelType.SDXL, BaseModelType.SDXL_REFINER]:
                 repo_id = "madebyollin/taesdxl"
             else:
-                repo_id = "madebyollin/taesd"
+                raise ValueError("Unsupported base model: ", base_model_type)
+
             vae = AutoencoderTiny.from_pretrained(repo_id, torch_dtype=torch_dtype)
             vae.to(device)
             image_processsor = VaeImageProcessor(vae_scale_factor=vae.config.scaling_factor)
