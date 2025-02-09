@@ -56,6 +56,7 @@ export function stateToImageRequest(
     width: generation.general.width,
     height: generation.general.height,
     seed: generation.seed.seed,
+    clip_skip: generation.general.clipSkip,
     img2img: generation.img2img.isEnabled
       ? new Img2ImgRequest().load({
           source: generation.img2img.source,
@@ -102,6 +103,7 @@ export function stateToImageRequest(
           steps: generation.highRes.steps,
           cfg_scale: generation.highRes.cfgScale,
           noise: generation.highRes.noise,
+          clip_skip: generation.highRes.clipSkip,
         })
       : null,
     inpaint: generation.inpaint.isEnabled
@@ -138,6 +140,7 @@ export function updateGeneral(generation: GenerationParamsState, req: ImageReque
   generation.general.cfgScale = req.cfg_scale;
   generation.general.width = req.width;
   generation.general.height = req.height;
+  generation.general.clipSkip = req.clip_skip;
 }
 
 export function updateSeed(generation: GenerationParamsState, req: ImageRequest) {
@@ -257,6 +260,7 @@ export function updatePostProcessing(generation: GenerationParamsState, req: Ima
     generation.highRes.steps = req.high_res.steps;
     generation.highRes.cfgScale = req.high_res.cfg_scale;
     generation.highRes.noise = req.high_res.noise;
+    generation.highRes.clipSkip = req.high_res.clip_skip;
   } else {
     generation.highRes.isEnabled = false;
   }

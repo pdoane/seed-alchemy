@@ -42,6 +42,7 @@ export class GeneralParamsState {
   cfgScale: number = imageRequest.cfg_scale;
   width: number = imageRequest.width;
   height: number = imageRequest.height;
+  clipSkip: number = imageRequest.clip_skip;
 
   load(src: Partial<GeneralParamsState>) {
     loadProps(this, src);
@@ -173,6 +174,7 @@ export class HighResParamsState {
   steps: number = highResRequest.steps;
   cfgScale: number = highResRequest.cfg_scale;
   noise: number = highResRequest.noise;
+  clipSkip: number = highResRequest.clip_skip;
 
   load(src: Partial<HighResParamsState>) {
     loadProps(this, src);

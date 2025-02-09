@@ -93,6 +93,7 @@ export class HighResRequest {
   steps: number = 20;
   cfg_scale: number = 4.0;
   noise: number = 0.5;
+  clip_skip: number = 0;
 
   load(src: Partial<HighResRequest>) {
     loadProps(this, src);
@@ -128,6 +129,7 @@ export class ImageRequest {
   width: number = 512;
   height: number = 512;
   seed: number = 1;
+  clip_skip: number = 0;
   img2img: Img2ImgRequest | null = null;
   lora: LoraRequest | null = null;
   control_net: ControlNetRequest | null = null;

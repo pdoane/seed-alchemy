@@ -58,6 +58,7 @@ class UniversalPipeline:
         height: int,
         generator: torch.Generator,
         noise: Optional[float],
+        clip_skip: Optional[int],
         source_image: Optional[Union[Image.Image, torch.FloatTensor]],
         mask_image: Optional[Union[Image.Image, torch.FloatTensor]],
         control_net: Optional[ControlNetParams],
@@ -131,6 +132,7 @@ class UniversalPipeline:
                         requires_safety_checker=False,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         control_image=control_image,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         generator=generator,
@@ -156,6 +158,7 @@ class UniversalPipeline:
                         requires_safety_checker=False,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         control_image=control_image,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         generator=generator,
@@ -178,6 +181,7 @@ class UniversalPipeline:
                         requires_safety_checker=False,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         generator=generator,
                         guidance_scale=cfg_scale,
@@ -196,6 +200,7 @@ class UniversalPipeline:
                         controlnet=controlnet,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         controlnet_conditioning_scale=controlnet_conditioning_scale,
                         # denoising_end=denoising_end,
                         generator=generator,
@@ -221,6 +226,7 @@ class UniversalPipeline:
                         requires_safety_checker=False,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         generator=generator,
                         guidance_scale=cfg_scale,
                         height=height,
@@ -243,6 +249,7 @@ class UniversalPipeline:
                         requires_safety_checker=False,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         generator=generator,
                         guidance_scale=cfg_scale,
                         image=source_image,
@@ -259,6 +266,7 @@ class UniversalPipeline:
                         requires_aesthetics_score=self.base_model_type == BaseModelType.SDXL_REFINER,
                     )(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         denoising_start=denoising_start,
                         denoising_end=denoising_end,
                         generator=generator,
@@ -279,6 +287,7 @@ class UniversalPipeline:
                 if self.base_model_type in [BaseModelType.SD_1, BaseModelType.SD_2]:
                     return self.pipe(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         generator=generator,
                         guidance_scale=cfg_scale,
                         height=height,
@@ -292,6 +301,7 @@ class UniversalPipeline:
                 elif self.base_model_type == BaseModelType.SDXL:
                     return self.pipe(
                         callback_on_step_end=callback_on_step_end,
+                        clip_skip=clip_skip,
                         denoising_end=denoising_end,
                         generator=generator,
                         guidance_scale=cfg_scale,
@@ -460,11 +470,7 @@ class UniversalPipeline:
 
             # Textual Inversions
             if isinstance(pipe, TextualInversionLoaderMixin):
-                data = [
-                    (key, info.path)
-                    for key, info in config.models.items()
-                    if info.type == "textual-inversion" and info.base == model_info.base
-                ]
+                data = [(key, info.path) for key, info in config.models.items() if info.type == "textual-inversion" and info.base == model_info.base]
                 if data:
                     tokens, paths = zip(*data)
                     print("Loading Textual Inversions")
@@ -524,26 +530,29 @@ class UniversalPipeline:
 
     def set_scheduler(self, scheduler: str):
         if self.base_model_type != BaseModelType.FLUX:
-            scheduler_cls, config_params = scheduler_registry.DICT.get(
-                scheduler, (EulerAncestralDiscreteScheduler, {})
-            )
+            scheduler_cls, config_params = scheduler_registry.DICT.get(scheduler, (EulerAncestralDiscreteScheduler, {}))
             self.pipe.scheduler = scheduler_cls.from_config({**self.scheduler_config, **config_params})
 
     def set_loras(self, loras: list[LoraModelParams]):
         if self.base_model_type in [BaseModelType.SDXL, BaseModelType.SDXL_REFINER, BaseModelType.FLUX]:
             # Use diffusers implementation
             self.pipe.unload_lora_weights()
-            if loras:
-                if len(loras) == 1:
-                    lora_weight = loras[0]
-                    info = config.models.get(lora_weight.model)
-                    if info:
-                        self.pipe.load_lora_weights(info.path)
-                        self.pipe._lora_scale = lora_weight.weight
-                    else:
-                        print("Unknown LoRA: ", lora_weight.model)
+            adapter_names = []
+            adapter_weights = []
+            n = 0
+            for lora_entry in loras:
+                info = config.models.get(lora_entry.model)
+                if info:
+                    adapter_name = f"{n}"
+                    self.pipe.load_lora_weights(info.path, adapter_name=adapter_name)
+                    adapter_names.append(adapter_name)
+                    adapter_weights.append(lora_entry.weight)
+                    n += 1
                 else:
-                    raise ValueError("Only 1 LoRA currently supported")
+                    print("Unknown LoRA: ", lora_entry.model)
+            if n > 0:
+                self.pipe.set_adapters(adapter_names, adapter_weights)
+
         else:
             lora_models = []
             lora_multipliers = []
@@ -563,9 +572,7 @@ class UniversalPipeline:
 
         def to_image(samples, latent_rgb_factors):
             latent_image = samples[0].permute(1, 2, 0) @ latent_rgb_factors
-            latents_ubyte = (
-                ((latent_image + 1) / 2).clamp(0, 1).mul(0xFF).byte()  # change scale from -1..1 to 0..1  # to 0..255
-            ).cpu()
+            latents_ubyte = (((latent_image + 1) / 2).clamp(0, 1).mul(0xFF).byte()).cpu()  # change scale from -1..1 to 0..1  # to 0..255
 
             return Image.fromarray(latents_ubyte.numpy())
 

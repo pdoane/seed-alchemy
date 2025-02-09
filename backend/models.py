@@ -68,6 +68,7 @@ class HighResParams(BaseModel):
     steps: int = 20
     cfg_scale: float = 4.0
     noise: float = 0.5
+    clip_skip: int = 0
 
 
 class InpaintParams(BaseModel):
@@ -94,6 +95,7 @@ class ImageRequest(BaseModel):
     width: int = 512
     height: int = 512
     seed: int = 1
+    clip_skip: int = 0
     img2img: Optional[Img2ImgParams] = None
     lora: Optional[LoraParams] = None
     control_net: Optional[ControlNetParams] = None

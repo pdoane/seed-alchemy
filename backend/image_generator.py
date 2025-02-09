@@ -4,6 +4,7 @@ import os
 from typing import Dict, Optional
 
 import torch
+import torch.nn.functional as F
 from PIL import Image, ImageOps, PngImagePlugin
 
 from . import config, messages, utils
@@ -74,9 +75,7 @@ class ImageGenerator:
                 full_path = config.get_image_path(req.user, condition.source)
                 with Image.open(full_path) as image:
                     if condition.processor != "none":
-                        image = self.controlnet_processor(
-                            image, min(req.width, req.height), condition.processor, condition.params
-                        )
+                        image = self.controlnet_processor(image, min(req.width, req.height), condition.processor, condition.params)
                         image = image.resize((req.width, req.height), Image.Resampling.LANCZOS)
                     control_images.append(image.copy())
 
@@ -114,6 +113,7 @@ class ImageGenerator:
                     height=req.height,
                     generator=generator,
                     noise=req.img2img.noise if req.img2img else None,
+                    clip_skip=req.clip_skip,
                     source_image=source_image,
                     mask_image=mask_image,
                     control_net=req.control_net,
@@ -139,6 +139,7 @@ class ImageGenerator:
                         height=req.height,
                         generator=generator,
                         noise=req.refiner.noise if req.refiner.high_noise_end is None else None,
+                        clip_skip=0,
                         source_image=image,
                         mask_image=mask_image,
                         control_net=None,
@@ -151,6 +152,7 @@ class ImageGenerator:
                 if req.high_res:
                     high_res_width = align_down(int(req.width * req.high_res.factor), 8)
                     high_res_height = align_down(int(req.height * req.high_res.factor), 8)
+                    # source_image = F.interpolate(image.unsqueeze(0), size=(int(high_res_height / 8), int(high_res_width / 8)), mode="bicubic", align_corners=False)
                     source_image = image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
                     if mask_image is not None:
                         mask_image = mask_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
@@ -158,9 +160,7 @@ class ImageGenerator:
                     orig_control_images = control_images
                     control_images = []
                     for control_image in orig_control_images:
-                        control_images.append(
-                            control_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
-                        )
+                        control_images.append(control_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS))
 
                     image = self.base_pipeline(
                         image_count=1,
@@ -174,6 +174,7 @@ class ImageGenerator:
                         height=high_res_height,
                         generator=generator,
                         noise=req.high_res.noise,
+                        clip_skip=req.high_res.clip_skip,
                         source_image=source_image,
                         mask_image=mask_image,
                         control_net=req.control_net,

@@ -165,6 +165,16 @@ const HeightParam = ({ state }: ImageGeneralParamProps) => {
   );
 };
 
+const ClipSkipParam = ({ state }: ImageGeneralParamProps) => {
+  const snap = useSnapshot(state);
+
+  return (
+    <FormLabel label="Clip Skip">
+      <SpinBox value={snap.clipSkip} onChange={(x) => (state.clipSkip = x)} min={0} max={10} />
+    </FormLabel>
+  );
+};
+
 export const ImageGeneralParams = ({ state }: ImageGeneralParamsProps) => {
   const snapGeneral = useSnapshot(state.general);
 
@@ -178,12 +188,13 @@ export const ImageGeneralParams = ({ state }: ImageGeneralParamsProps) => {
       <SchedulerParam state={state.general} />
       <div className="flex space-x-3">
         <CountParam state={state.general} />
-        <StepsParam state={state.general} />
-        <CfgScaleParam state={state.general} />
-      </div>
-      <div className="flex space-x-3">
         <WidthParam state={state.general} />
         <HeightParam state={state.general} />
+      </div>
+      <div className="flex space-x-3">
+        <StepsParam state={state.general} />
+        <CfgScaleParam state={state.general} />
+        <ClipSkipParam state={state.general} />
       </div>
     </CollapsibleContainer>
   );
