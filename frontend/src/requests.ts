@@ -12,7 +12,7 @@ export class Img2ImgRequest {
 
 export class LoraModelRequest {
   model: string = "";
-  weight: number = 0.5;
+  weight: number = 1.0;
 
   load(src: Partial<LoraModelRequest>) {
     loadProps(this, src);

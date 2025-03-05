@@ -16,7 +16,7 @@ export const LoraModelParams = ({ state, onDelete }: LoraModelParamsProps) => {
   return (
     <FormLabel label={snap.model}>
       <div className="flex space-x-1">
-        <Slider value={snap.weight} onChange={(x) => (state.weight = x)} min={-1.0} max={2.0} />
+        <Slider value={snap.weight} onChange={(x) => (state.weight = x)} min={-1.0} max={3.0} />
         <IconButton icon={FaTrash} onClick={onDelete} />
       </div>
     </FormLabel>
