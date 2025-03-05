@@ -11,6 +11,7 @@ from diffusers import (
     DiffusionPipeline,
     EulerAncestralDiscreteScheduler,
     FluxPipeline,
+    FluxImg2ImgPipeline,
     StableDiffusionControlNetImg2ImgPipeline,
     StableDiffusionControlNetInpaintPipeline,
     StableDiffusionControlNetPipeline,
@@ -102,10 +103,8 @@ class UniversalPipeline:
         elif self.base_model_type == BaseModelType.FLUX:
             # TODO - expose 2nd prompt
             prompt2 = prompt
+            negative_prompt2 = negative_prompt
 
-            # prompt1_embeds = self.compel(prompt)
-            # prompt2_embeds, pooled_prompt_embeds = self.compel2(prompt2)
-            # prompt_embeds = torch.cat((prompt1_embeds, prompt2_embeds), dim=-1)
         else:
             raise ValueError("Unsupported base model: ", self.base_model_type)
 
@@ -281,6 +280,27 @@ class UniversalPipeline:
                         prompt_embeds=prompt_embeds,
                         strength=strength,
                     ).images
+                elif self.base_model_type == BaseModelType.FLUX:
+                    return FluxImg2ImgPipeline(
+                        scheduler=self.pipe.scheduler,
+                        text_encoder_2=self.pipe.text_encoder_2,
+                        text_encoder=self.pipe.text_encoder,
+                        tokenizer_2=self.pipe.tokenizer_2,
+                        tokenizer=self.pipe.tokenizer,
+                        transformer=self.pipe.transformer,
+                        vae=self.pipe.vae,
+                    )(
+                        callback_on_step_end=callback_on_step_end,
+                        generator=generator,
+                        guidance_scale=cfg_scale,
+                        image=source_image,
+                        num_images_per_prompt=image_count,
+                        num_inference_steps=steps,
+                        output_type=output_type,
+                        prompt=prompt,
+                        prompt_2=prompt2,
+                        strength=strength,
+                    ).images
                 else:
                     raise ValueError("Unsupported base model: ", self.base_model_type)
             else:
@@ -321,12 +341,13 @@ class UniversalPipeline:
                         generator=generator,
                         guidance_scale=cfg_scale,
                         height=height,
+                        negative_prompt=negative_prompt,
+                        negative_prompt_2=negative_prompt2,
                         num_images_per_prompt=image_count,
                         num_inference_steps=steps,
                         output_type=output_type,
                         prompt=prompt,
-                        # pooled_prompt_embeds=pooled_prompt_embeds,
-                        # prompt_embeds=prompt_embeds,
+                        prompt_2=prompt2,
                         width=width,
                     ).images
                 else:
