@@ -89,7 +89,7 @@ class ImageRequest(BaseModel):
     scheduler: str = "euler_a"
     safety_checker: bool = True
     prompt: str = ""
-    negative_prompt: str = ""
+    negative_prompt: str | None = None
     steps: int = 20
     cfg_scale: float = 4.0
     width: int = 512

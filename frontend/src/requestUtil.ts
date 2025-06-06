@@ -50,7 +50,7 @@ export function stateToImageRequest(
     scheduler: generation.general.scheduler,
     safety_checker: safetyChecker,
     prompt: generation.prompt.prompt,
-    negative_prompt: generation.prompt.negativePrompt,
+    negative_prompt: generation.prompt.negativePrompt !== "" ? generation.prompt.negativePrompt : null,
     steps: generation.general.steps,
     cfg_scale: generation.general.cfgScale,
     width: generation.general.width,
@@ -130,7 +130,7 @@ export function updateAll(generation: GenerationParamsState, req: ImageRequest) 
 
 export function updatePrompt(generation: GenerationParamsState, req: ImageRequest) {
   generation.prompt.prompt = req.prompt;
-  generation.prompt.negativePrompt = req.negative_prompt;
+  generation.prompt.negativePrompt = req.negative_prompt !== null ? req.negative_prompt : "";
 }
 
 export function updateGeneral(generation: GenerationParamsState, req: ImageRequest) {

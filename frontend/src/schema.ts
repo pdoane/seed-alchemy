@@ -25,7 +25,7 @@ const highResRequest = new HighResRequest();
 export class PromptParamsState {
   isOpen: boolean = true;
   prompt: string = imageRequest.prompt;
-  negativePrompt: string = imageRequest.negative_prompt;
+  negativePrompt: string = imageRequest.negative_prompt !== null ? imageRequest.negative_prompt : "";
 
   load(src: Partial<PromptParamsState>) {
     loadProps(this, src);

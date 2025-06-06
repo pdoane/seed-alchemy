@@ -123,7 +123,7 @@ export class ImageRequest {
   scheduler: string = "euler_a";
   safety_checker: boolean = true;
   prompt: string = "";
-  negative_prompt: string = "";
+  negative_prompt: string | null = null;
   steps: number = 20;
   cfg_scale: number = 4.0;
   width: number = 512;

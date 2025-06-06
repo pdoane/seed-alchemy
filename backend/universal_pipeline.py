@@ -12,6 +12,7 @@ from diffusers import (
     EulerAncestralDiscreteScheduler,
     FluxPipeline,
     FluxImg2ImgPipeline,
+    FluxTransformer2DModel,
     StableDiffusionControlNetImg2ImgPipeline,
     StableDiffusionControlNetInpaintPipeline,
     StableDiffusionControlNetPipeline,
@@ -50,7 +51,7 @@ class UniversalPipeline:
         self,
         image_count: int,
         prompt: str,
-        negative_prompt: str,
+        negative_prompt: str | None,
         steps: int,
         denoising_start: Optional[float],
         denoising_end: Optional[float],
@@ -81,10 +82,12 @@ class UniversalPipeline:
         # Prompt
         if self.base_model_type in [BaseModelType.SD_1, BaseModelType.SD_2]:
             prompt_embeds = self.compel(prompt)
-            negative_prompt_embeds = self.compel(negative_prompt)
+            if negative_prompt is not None:
+                negative_prompt_embeds = self.compel(negative_prompt)
+            else:
+                negative_prompt_embeds = None
 
         elif self.base_model_type == BaseModelType.SDXL:
-            # TODO - expose 2nd prompt
             prompt2 = prompt
             negative_prompt2 = negative_prompt
 
@@ -92,13 +95,21 @@ class UniversalPipeline:
             prompt2_embeds, pooled_prompt_embeds = self.compel2(prompt2)
             prompt_embeds = torch.cat((prompt1_embeds, prompt2_embeds), dim=-1)
 
-            negative_prompt1_embeds = self.compel(negative_prompt)
-            negative_prompt2_embeds, negative_pooled_prompt_embeds = self.compel2(negative_prompt2)
-            negative_prompt_embeds = torch.cat((negative_prompt1_embeds, negative_prompt2_embeds), dim=-1)
+            if negative_prompt is not None:
+                negative_prompt1_embeds = self.compel(negative_prompt)
+                negative_prompt2_embeds, negative_pooled_prompt_embeds = self.compel2(negative_prompt2)
+                negative_prompt_embeds = torch.cat((negative_prompt1_embeds, negative_prompt2_embeds), dim=-1)
+            else:
+                negative_prompt_embeds = None
+                negative_pooled_prompt_embeds = None
 
         elif self.base_model_type == BaseModelType.SDXL_REFINER:
             prompt_embeds, pooled_prompt_embeds = self.compel(prompt)
-            negative_prompt_embeds, negative_pooled_prompt_embeds = self.compel(negative_prompt)
+            if negative_prompt is not None:
+                negative_prompt_embeds, negative_pooled_prompt_embeds = self.compel(negative_prompt)
+            else:
+                negative_prompt_embeds = None
+                negative_pooled_prompt_embeds = None
 
         elif self.base_model_type == BaseModelType.FLUX:
             # TODO - expose 2nd prompt
@@ -472,9 +483,15 @@ class UniversalPipeline:
                     )
             elif model_info.base == BaseModelType.FLUX:
                 if model_info.local:
-                    pipe = FluxPipeline.from_single_file(
-                        model_info.path,
+                    transformer = FluxTransformer2DModel.from_single_file(model_info.path, torch_dtype=torch.bfloat16)
+                    pipe = FluxPipeline.from_pretrained(
+                        "black-forest-labs/FLUX.1-dev",
+                        transformer=transformer,
                         torch_dtype=torch.bfloat16,
+                        variant=variant,
+                        # pipe = FluxPipeline.from_single_file(
+                        #    model_info.path,
+                        #    torch_dtype=torch.bfloat16,
                     )
                 else:
                     pipe = FluxPipeline.from_pretrained(
