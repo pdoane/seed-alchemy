@@ -3,7 +3,7 @@ import os
 from typing import Callable, Optional, Union
 
 import torch
-from compel import Compel, ReturnedEmbeddingsType
+from compel import Compel, ReturnedEmbeddingsType, SplitLongTextMode
 from compel.diffusers_textual_inversion_manager import DiffusersTextualInversionManager
 from diffusers import (
     AutoencoderKL,
@@ -84,6 +84,8 @@ class UniversalPipeline:
             prompt_embeds = self.compel(prompt)
             if negative_prompt is not None:
                 negative_prompt_embeds = self.compel(negative_prompt)
+                [prompt_embeds, negative_prompt_embeds] = self.compel.pad_conditioning_tensors_to_same_length([prompt_embeds, negative_prompt_embeds])
+
             else:
                 negative_prompt_embeds = None
 
@@ -93,13 +95,17 @@ class UniversalPipeline:
 
             prompt1_embeds = self.compel(prompt)
             prompt2_embeds, pooled_prompt_embeds = self.compel2(prompt2)
-            prompt_embeds = torch.cat((prompt1_embeds, prompt2_embeds), dim=-1)
 
             if negative_prompt is not None:
                 negative_prompt1_embeds = self.compel(negative_prompt)
                 negative_prompt2_embeds, negative_pooled_prompt_embeds = self.compel2(negative_prompt2)
+                [prompt1_embeds, negative_prompt1_embeds] = self.compel.pad_conditioning_tensors_to_same_length([prompt1_embeds, negative_prompt1_embeds])
+                [prompt2_embeds, negative_prompt2_embeds] = self.compel2.pad_conditioning_tensors_to_same_length([prompt2_embeds, negative_prompt2_embeds])
+                # [pooled_prompt_embeds, negative_pooled_prompt_embeds] = self.compel2.pad_conditioning_tensors_to_same_length([pooled_prompt_embeds, negative_pooled_prompt_embeds])
+                prompt_embeds = torch.cat((prompt1_embeds, prompt2_embeds), dim=-1)
                 negative_prompt_embeds = torch.cat((negative_prompt1_embeds, negative_prompt2_embeds), dim=-1)
             else:
+                prompt_embeds = torch.cat((prompt1_embeds, prompt2_embeds), dim=-1)
                 negative_prompt_embeds = None
                 negative_pooled_prompt_embeds = None
 
@@ -107,6 +113,8 @@ class UniversalPipeline:
             prompt_embeds, pooled_prompt_embeds = self.compel(prompt)
             if negative_prompt is not None:
                 negative_prompt_embeds, negative_pooled_prompt_embeds = self.compel(negative_prompt)
+                [prompt_embeds, negative_prompt_embeds] = self.compel.pad_conditioning_tensors_to_same_length([prompt_embeds, negative_prompt_embeds])
+                [pooled_prompt_embeds, negative_pooled_prompt_embeds] = self.compel.pad_conditioning_tensors_to_same_length([pooled_prompt_embeds, negative_pooled_prompt_embeds])
             else:
                 negative_prompt_embeds = None
                 negative_pooled_prompt_embeds = None
@@ -523,6 +531,7 @@ class UniversalPipeline:
                     tokenizer=pipe.tokenizer,
                     text_encoder=pipe.text_encoder,
                     textual_inversion_manager=DiffusersTextualInversionManager(pipe),
+                    truncate_long_prompts=False,
                 )
             elif model_info.base == BaseModelType.SDXL:
                 compel = Compel(
@@ -530,6 +539,7 @@ class UniversalPipeline:
                     text_encoder=pipe.text_encoder,
                     returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
                     requires_pooled=False,
+                    truncate_long_prompts=False,
                 )
 
                 compel2 = Compel(
@@ -537,6 +547,7 @@ class UniversalPipeline:
                     text_encoder=pipe.text_encoder_2,
                     returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
                     requires_pooled=True,
+                    truncate_long_prompts=False,
                 )
             elif model_info.base == BaseModelType.SDXL_REFINER:
                 compel = Compel(
@@ -544,6 +555,7 @@ class UniversalPipeline:
                     text_encoder=pipe.text_encoder_2,
                     returned_embeddings_type=ReturnedEmbeddingsType.PENULTIMATE_HIDDEN_STATES_NON_NORMALIZED,
                     requires_pooled=True,
+                    truncate_long_prompts=False,
                 )
             elif model_info.base == BaseModelType.FLUX:
                 compel = None
