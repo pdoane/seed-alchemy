@@ -14,4 +14,4 @@ elapsed_time = end_time - start_time
 
 print(f"Startup in {elapsed_time:.6f} seconds")
 
-uvicorn.run(app, host="0.0.0.0", port=8000)
+uvicorn.run(app, host="0.0.0.0", port=8100)
