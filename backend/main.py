@@ -28,6 +28,7 @@ from pydantic.json import ENCODERS_BY_TYPE
 from websockets.exceptions import ConnectionClosedError
 
 from . import config, messages, utils
+from .memory_utils import log_memory
 from .models import (
     CancelRequest,
     ImageRequest,
@@ -99,6 +100,17 @@ def prompt_generator():
 async def startup_event():
     global lock
     lock = asyncio.Lock()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on application shutdown."""
+    executor.shutdown(wait=False)
+    # Clear cached singletons
+    controlnet_processor.cache_clear()
+    image_generator.cache_clear()
+    preview_processor.cache_clear()
+    prompt_generator.cache_clear()
 
 
 @app.post("/api/v1/cancel")
@@ -320,6 +332,7 @@ async def websocket_reader(websocket: WebSocket):
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    log_memory("ws_connect")
     await websocket.accept()
     reader_task = asyncio.create_task(websocket_reader(websocket))
 
@@ -350,6 +363,7 @@ async def websocket_endpoint(websocket: WebSocket):
     queue.close()
     await queue.wait_closed()
     sessions.pop(session_id)
+    log_memory("ws_disconnect")
 
 
 if os.path.exists("frontend/dist"):

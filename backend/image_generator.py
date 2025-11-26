@@ -12,6 +12,7 @@ from .control_net import ControlNetProcessor
 from .device import default_device, default_dtype
 from .esrgan import ESRGANProcessor
 from .gfpgan import GFPGANProcessor
+from .memory_utils import clear_memory_cache, log_memory
 from .models import ImageRequest, PreviewType, ProcessRequest
 from .session import CancelException, Session
 from .tiny_vae import TinyVAE
@@ -40,6 +41,23 @@ class ImageGenerator:
         self.step = -1
 
     def __call__(self, req: ImageRequest, session: Optional[Session]):
+        log_memory("generation_start")
+        try:
+            return self._generate(req, session)
+        except CancelException:
+            return []
+        finally:
+            self._cleanup()
+            log_memory("generation_end")
+
+    def _cleanup(self):
+        """Clear temporary state after request completion."""
+        self.req = None
+        self.session = None
+        self.step = -1
+        clear_memory_cache()
+
+    def _generate(self, req: ImageRequest, session: Optional[Session]):
         # Init
         self.req = req
         self.session = session
@@ -93,144 +111,140 @@ class ImageGenerator:
         # Seed
         generator = torch.Generator().manual_seed(req.seed)
 
-        try:
-            # Generate
-            if req.img2img and req.img2img.noise == 0.0:
-                images = [source_image] * req.image_count
-            else:
-                if source_image is not None:
-                    source_image = source_image.resize((req.width, req.height), Image.Resampling.LANCZOS)
+        # Generate
+        if req.img2img and req.img2img.noise == 0.0:
+            images = [source_image] * req.image_count
+        else:
+            if source_image is not None:
+                source_image = source_image.resize((req.width, req.height), Image.Resampling.LANCZOS)
 
-                images = self.base_pipeline(
-                    image_count=req.image_count,
+            images = self.base_pipeline(
+                image_count=req.image_count,
+                prompt=req.prompt,
+                negative_prompt=req.negative_prompt,
+                steps=req.steps,
+                denoising_start=None,
+                denoising_end=req.refiner.high_noise_end if req.refiner else None,
+                cfg_scale=req.cfg_scale,
+                width=req.width,
+                height=req.height,
+                generator=generator,
+                noise=req.img2img.noise if req.img2img else None,
+                clip_skip=req.clip_skip,
+                source_image=source_image,
+                mask_image=mask_image,
+                control_net=req.control_net,
+                control_images=control_images,
+                output_type="latent" if req.refiner else "pil",
+                callback_on_step_end=self.callback_on_step_end,
+            )
+
+        # Post-process
+        output_paths = []
+        for image in images:
+            # Refiner
+            if req.refiner:
+                image = self.refiner_pipeline(
+                    image_count=1,
                     prompt=req.prompt,
                     negative_prompt=req.negative_prompt,
-                    steps=req.steps,
-                    denoising_start=None,
-                    denoising_end=req.refiner.high_noise_end if req.refiner else None,
-                    cfg_scale=req.cfg_scale,
+                    steps=req.steps if req.refiner.high_noise_end is not None else req.refiner.steps,
+                    denoising_start=req.refiner.high_noise_end,
+                    denoising_end=None,
+                    cfg_scale=req.refiner.cfg_scale,
                     width=req.width,
                     height=req.height,
                     generator=generator,
-                    noise=req.img2img.noise if req.img2img else None,
-                    clip_skip=req.clip_skip,
+                    noise=req.refiner.noise if req.refiner.high_noise_end is None else None,
+                    clip_skip=0,
+                    source_image=image,
+                    mask_image=mask_image,
+                    control_net=None,
+                    control_images=None,
+                    output_type="pil",
+                    callback_on_step_end=self.callback_on_step_end,
+                )[0]
+
+            # High Resolution
+            if req.high_res:
+                high_res_width = align_down(int(req.width * req.high_res.factor), 8)
+                high_res_height = align_down(int(req.height * req.high_res.factor), 8)
+                # source_image = F.interpolate(image.unsqueeze(0), size=(int(high_res_height / 8), int(high_res_width / 8)), mode="bicubic", align_corners=False)
+                source_image = image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
+                if mask_image is not None:
+                    mask_image = mask_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
+
+                orig_control_images = control_images
+                control_images = []
+                for control_image in orig_control_images:
+                    control_images.append(control_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS))
+
+                image = self.base_pipeline(
+                    image_count=1,
+                    prompt=req.prompt,
+                    negative_prompt=req.negative_prompt,
+                    steps=req.high_res.steps,
+                    denoising_start=None,
+                    denoising_end=None,
+                    cfg_scale=req.high_res.cfg_scale,
+                    width=high_res_width,
+                    height=high_res_height,
+                    generator=generator,
+                    noise=req.high_res.noise,
+                    clip_skip=req.high_res.clip_skip,
                     source_image=source_image,
                     mask_image=mask_image,
                     control_net=req.control_net,
                     control_images=control_images,
-                    output_type="latent" if req.refiner else "pil",
+                    output_type="pil",
                     callback_on_step_end=self.callback_on_step_end,
+                )[0]
+
+            # ESRGAN
+            if req.upscale:
+                upscaled_image = self.esrgan(
+                    image=image,
+                    upscale_factor=req.upscale.factor,
+                    denoising_strength=req.upscale.denoising,
+                    blend_strength=req.upscale.blend,
+                    float32=True,  # TODO - 16bit
                 )
-
-            # Post-process
-            output_paths = []
-            for image in images:
-                # Refiner
-                if req.refiner:
-                    image = self.refiner_pipeline(
-                        image_count=1,
-                        prompt=req.prompt,
-                        negative_prompt=req.negative_prompt,
-                        steps=req.steps if req.refiner.high_noise_end is not None else req.refiner.steps,
-                        denoising_start=req.refiner.high_noise_end,
-                        denoising_end=None,
-                        cfg_scale=req.refiner.cfg_scale,
-                        width=req.width,
-                        height=req.height,
-                        generator=generator,
-                        noise=req.refiner.noise if req.refiner.high_noise_end is None else None,
-                        clip_skip=0,
-                        source_image=image,
-                        mask_image=mask_image,
-                        control_net=None,
-                        control_images=None,
-                        output_type="pil",
-                        callback_on_step_end=self.callback_on_step_end,
-                    )[0]
-
-                # High Resolution
-                if req.high_res:
-                    high_res_width = align_down(int(req.width * req.high_res.factor), 8)
-                    high_res_height = align_down(int(req.height * req.high_res.factor), 8)
-                    # source_image = F.interpolate(image.unsqueeze(0), size=(int(high_res_height / 8), int(high_res_width / 8)), mode="bicubic", align_corners=False)
-                    source_image = image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
-                    if mask_image is not None:
-                        mask_image = mask_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS)
-
-                    orig_control_images = control_images
-                    control_images = []
-                    for control_image in orig_control_images:
-                        control_images.append(control_image.resize((high_res_width, high_res_height), Image.Resampling.LANCZOS))
-
-                    image = self.base_pipeline(
-                        image_count=1,
-                        prompt=req.prompt,
-                        negative_prompt=req.negative_prompt,
-                        steps=req.high_res.steps,
-                        denoising_start=None,
-                        denoising_end=None,
-                        cfg_scale=req.high_res.cfg_scale,
-                        width=high_res_width,
-                        height=high_res_height,
-                        generator=generator,
-                        noise=req.high_res.noise,
-                        clip_skip=req.high_res.clip_skip,
-                        source_image=source_image,
-                        mask_image=mask_image,
-                        control_net=req.control_net,
-                        control_images=control_images,
-                        output_type="pil",
-                        callback_on_step_end=self.callback_on_step_end,
-                    )[0]
-
-                # ESRGAN
-                if req.upscale:
-                    upscaled_image = self.esrgan(
-                        image=image,
-                        upscale_factor=req.upscale.factor,
-                        denoising_strength=req.upscale.denoising,
-                        blend_strength=req.upscale.blend,
-                        float32=True,  # TODO - 16bit
-                    )
-                    self.next_step()
-                else:
-                    upscaled_image = image
-
-                # GFPGAN
-                if req.face:
-                    image = self.gfpgan(
-                        image=image,
-                        upscale_factor=req.upscale.factor if req.upscale else 1,
-                        upscaled_image=upscaled_image,
-                        blend_strength=req.face.blend,
-                    )
-                    self.next_step()
-                else:
-                    image = upscaled_image
-
-                # Metadata
-                filtered_dict = utils.remove_none_fields(req.dict())
-                for key in ["session_id", "generator_id", "user", "collection", "image_count", "preview"]:
-                    if key in filtered_dict:
-                        filtered_dict.pop(key)
-                png_info = PngImagePlugin.PngInfo()
-                png_info.add_text("seed-alchemy", json.dumps(filtered_dict))
-
-                # Serialize
-                output_path = config.generate_output_path(req.user, req.collection)
-                full_path = config.get_image_path(req.user, output_path)
-                with open(full_path, "wb") as f:
-                    image.save(f, pnginfo=png_info)
-                    f.flush()
-                    os.fsync(f.fileno())
-
                 self.next_step()
+            else:
+                upscaled_image = image
 
-                output_paths.append(utils.normalize_path(output_path))
-            return output_paths
+            # GFPGAN
+            if req.face:
+                image = self.gfpgan(
+                    image=image,
+                    upscale_factor=req.upscale.factor if req.upscale else 1,
+                    upscaled_image=upscaled_image,
+                    blend_strength=req.face.blend,
+                )
+                self.next_step()
+            else:
+                image = upscaled_image
 
-        except CancelException:
-            return []
+            # Metadata
+            filtered_dict = utils.remove_none_fields(req.dict())
+            for key in ["session_id", "generator_id", "user", "collection", "image_count", "preview"]:
+                if key in filtered_dict:
+                    filtered_dict.pop(key)
+            png_info = PngImagePlugin.PngInfo()
+            png_info.add_text("seed-alchemy", json.dumps(filtered_dict))
+
+            # Serialize
+            output_path = config.generate_output_path(req.user, req.collection)
+            full_path = config.get_image_path(req.user, output_path)
+            with open(full_path, "wb") as f:
+                image.save(f, pnginfo=png_info)
+                f.flush()
+                os.fsync(f.fileno())
+
+            self.next_step()
+
+            output_paths.append(utils.normalize_path(output_path))
+        return output_paths
 
     def callback_on_step_end(self, pipeline, step: int, timestep: int, callback_kwargs: Dict):
         latents = callback_kwargs["latents"]

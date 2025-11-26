@@ -618,6 +618,11 @@ class UniversalPipeline:
 
             lora.apply(self.pipe, lora_models, lora_multipliers)
 
+            # Clear LoRA model tensors after application to free memory
+            for model in lora_models:
+                model.layer_elems.clear()
+            lora_models.clear()
+
     def preview(self, latents):
         # Code from InvokeAI
         # https://github.com/invoke-ai/InvokeAI/blob/89b82b3dc4892f2bbf6d15f4e39c56225a54f3a6/invokeai/app/util/step_callback.py#L12
