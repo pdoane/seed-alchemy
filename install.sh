@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-rm -rf .venv
-python3.12 -m venv .venv --prompt SeedAlchemy
-source .venv/bin/activate
-pip install -r requirements.txt
-deactivate
-cd frontend
-npm install

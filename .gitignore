@@ -1,5 +1,29 @@
-__pycache__
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+release/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
 .DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Environment
 .env
-.venv
-storage
+.env.local
+.env.*.local
+
+# Testing
+coverage/
+
+# TypeScript
+*.tsbuildinfo

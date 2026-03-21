@@ -1,0 +1,36 @@
+@import "@radix-ui/themes/styles.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+
+  /* Truncate text in Select triggers */
+  .rt-SelectTriggerInner {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--gray-2);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--gray-6);
+    border-radius: 4px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--gray-7);
+  }
+}
