@@ -3,7 +3,6 @@ import {
   Flex,
   Text,
   Button,
-  Select,
   Badge,
   Spinner,
   Box,
@@ -11,20 +10,8 @@ import {
   IconButton,
 } from "@radix-ui/themes";
 import { useState, useCallback, useEffect, useRef } from "react";
-import type { ModelFolder } from "../../shared/types/models";
 import { api } from "../api/client";
 import { UploadSimpleIcon, XIcon } from "@phosphor-icons/react";
-
-const FOLDER_OPTIONS: { value: ModelFolder; label: string }[] = [
-  { value: "checkpoints", label: "Checkpoints" },
-  { value: "loras", label: "LoRAs" },
-  { value: "vae", label: "VAE" },
-  { value: "controlnet", label: "ControlNet" },
-  { value: "unet", label: "UNet" },
-  { value: "clip", label: "CLIP" },
-  { value: "embeddings", label: "Embeddings" },
-  { value: "upscale_models", label: "Upscalers" },
-];
 
 const MODEL_EXTENSIONS = [".safetensors", ".ckpt", ".pt", ".pth", ".bin"];
 
@@ -32,40 +19,6 @@ interface ImportModelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImportSuccess: () => void;
-}
-
-interface FileEntry {
-  file: File;
-  folder: ModelFolder;
-}
-
-// Suggest folder based on filename and size
-function suggestFolder(filename: string, fileSize: number): ModelFolder {
-  const lower = filename.toLowerCase();
-  const sizeGB = fileSize / 1_000_000_000;
-
-  if (
-    lower.includes("lora") ||
-    lower.includes("loha") ||
-    lower.includes("lokr")
-  )
-    return "loras";
-  if (lower.includes("vae")) return "vae";
-  if (lower.includes("controlnet") || lower.includes("control_"))
-    return "controlnet";
-  if (
-    lower.includes("upscale") ||
-    lower.includes("esrgan") ||
-    lower.includes("realesrgan")
-  )
-    return "upscale_models";
-  if (lower.includes("embed") || lower.includes("ti_")) return "embeddings";
-  if (lower.includes("clip") && !lower.includes("clip_skip")) return "clip";
-  if (lower.includes("unet") || lower.includes("diffusion_model"))
-    return "unet";
-  if (sizeGB > 1.5) return "checkpoints";
-  if (sizeGB < 0.5) return "loras";
-  return "checkpoints";
 }
 
 function formatSize(bytes: number): string {
@@ -85,7 +38,7 @@ export function ImportModelDialog({
   onOpenChange,
   onImportSuccess,
 }: ImportModelDialogProps) {
-  const [entries, setEntries] = useState<FileEntry[]>([]);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadIndex, setUploadIndex] = useState(0);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -96,7 +49,7 @@ export function ImportModelDialog({
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setEntries([]);
+      setFiles([]);
       setUploadProgress(null);
       setUploadIndex(0);
       setError(null);
@@ -106,48 +59,37 @@ export function ImportModelDialog({
   }, [open]);
 
   const addFiles = useCallback(
-    (files: File[]) => {
+    (newFiles: File[]) => {
       setError(null);
 
-      const invalid = files.filter((f) => !isValidModelFile(f.name));
+      const invalid = newFiles.filter((f) => !isValidModelFile(f.name));
       if (invalid.length > 0) {
         setError(
           `Skipped ${invalid.length} unsupported file(s). Expected: ${MODEL_EXTENSIONS.join(", ")}`
         );
       }
 
-      const valid = files.filter((f) => isValidModelFile(f.name));
+      const valid = newFiles.filter((f) => isValidModelFile(f.name));
       if (valid.length === 0) return;
 
-      // Deduplicate by name against existing entries
-      const existingNames = new Set(entries.map((e) => e.file.name));
-      const newEntries = valid
-        .filter((f) => !existingNames.has(f.name))
-        .map((f) => ({
-          file: f,
-          folder: suggestFolder(f.name, f.size),
-        }));
+      // Deduplicate by name against existing files
+      const existingNames = new Set(files.map((f) => f.name));
+      const deduped = valid.filter((f) => !existingNames.has(f.name));
 
-      setEntries((prev) => [...prev, ...newEntries]);
+      setFiles((prev) => [...prev, ...deduped]);
     },
-    [entries]
+    [files]
   );
 
-  const removeEntry = useCallback((index: number) => {
-    setEntries((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const updateFolder = useCallback((index: number, folder: ModelFolder) => {
-    setEntries((prev) =>
-      prev.map((entry, i) => (i === index ? { ...entry, folder } : entry))
-    );
+  const removeFile = useCallback((index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const handleFileSelect = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = event.target.files;
-      if (files && files.length > 0) {
-        addFiles(Array.from(files));
+      const selected = event.target.files;
+      if (selected && selected.length > 0) {
+        addFiles(Array.from(selected));
       }
       event.target.value = "";
     },
@@ -172,34 +114,34 @@ export function ImportModelDialog({
       event.stopPropagation();
       setIsDragOver(false);
 
-      const files = event.dataTransfer.files;
-      if (files.length > 0) {
-        addFiles(Array.from(files));
+      const dropped = event.dataTransfer.files;
+      if (dropped.length > 0) {
+        addFiles(Array.from(dropped));
       }
     },
     [addFiles]
   );
 
   const handleUpload = useCallback(async () => {
-    if (entries.length === 0) return;
+    if (files.length === 0) return;
 
     setUploading(true);
     setError(null);
 
     let anySuccess = false;
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i]!;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]!;
       setUploadIndex(i);
       setUploadProgress(0);
 
       try {
-        await api.uploadModel(entry.file, entry.folder, (progress) => {
+        await api.uploadModel(file, (progress) => {
           setUploadProgress(progress);
         });
         anySuccess = true;
       } catch (err) {
         setError(
-          `Failed to upload ${entry.file.name}: ${err instanceof Error ? err.message : "Unknown error"}`
+          `Failed to upload ${file.name}: ${err instanceof Error ? err.message : "Unknown error"}`
         );
         setUploading(false);
         setUploadProgress(null);
@@ -212,14 +154,15 @@ export function ImportModelDialog({
     setUploadProgress(null);
     onImportSuccess();
     onOpenChange(false);
-  }, [entries, onImportSuccess, onOpenChange]);
+  }, [files, onImportSuccess, onOpenChange]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="500px">
         <Dialog.Title>Import Models</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="4">
-          Upload model files to your models folder.
+          Upload model files. The server will automatically classify each file
+          into the correct folder.
         </Dialog.Description>
 
         <Flex direction="column" gap="4">
@@ -258,66 +201,45 @@ export function ImportModelDialog({
           </Box>
 
           {/* File list */}
-          {entries.length > 0 && (
+          {files.length > 0 && (
             <Flex
               direction="column"
               gap="2"
               style={{ maxHeight: 300, overflowY: "auto" }}
             >
-              {entries.map((entry, index) => (
+              {files.map((file, index) => (
                 <Box
-                  key={entry.file.name}
+                  key={file.name}
                   p="3"
                   className="rounded border border-[var(--gray-6)]"
                   style={{ backgroundColor: "var(--gray-2)" }}
                 >
-                  <Flex direction="column" gap="2">
-                    <Flex justify="between" align="center" gap="2">
-                      <Text
-                        size="2"
-                        weight="medium"
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          minWidth: 0,
-                          flex: 1,
-                        }}
-                      >
-                        {entry.file.name}
-                      </Text>
-                      <Flex align="center" gap="2" flexShrink="0">
-                        <Badge color="gray">
-                          {formatSize(entry.file.size)}
-                        </Badge>
-                        <IconButton
-                          size="1"
-                          variant="ghost"
-                          color="gray"
-                          disabled={uploading}
-                          onClick={() => removeEntry(index)}
-                        >
-                          <XIcon size={14} />
-                        </IconButton>
-                      </Flex>
-                    </Flex>
-                    <Select.Root
-                      size="1"
-                      value={entry.folder}
-                      disabled={uploading}
-                      onValueChange={(v) =>
-                        updateFolder(index, v as ModelFolder)
-                      }
+                  <Flex justify="between" align="center" gap="2">
+                    <Text
+                      size="2"
+                      weight="medium"
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        minWidth: 0,
+                        flex: 1,
+                      }}
                     >
-                      <Select.Trigger />
-                      <Select.Content>
-                        {FOLDER_OPTIONS.map((opt) => (
-                          <Select.Item key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </Select.Item>
-                        ))}
-                      </Select.Content>
-                    </Select.Root>
+                      {file.name}
+                    </Text>
+                    <Flex align="center" gap="2" flexShrink="0">
+                      <Badge color="gray">{formatSize(file.size)}</Badge>
+                      <IconButton
+                        size="1"
+                        variant="ghost"
+                        color="gray"
+                        disabled={uploading}
+                        onClick={() => removeFile(index)}
+                      >
+                        <XIcon size={14} />
+                      </IconButton>
+                    </Flex>
                   </Flex>
                 </Box>
               ))}
@@ -328,7 +250,7 @@ export function ImportModelDialog({
           {uploading && uploadProgress !== null && (
             <Flex direction="column" gap="2">
               <Text size="2" color="gray">
-                Uploading {uploadIndex + 1} of {entries.length}...{" "}
+                Uploading {uploadIndex + 1} of {files.length}...{" "}
                 {Math.round(uploadProgress)}%
               </Text>
               <Progress value={uploadProgress} />
@@ -351,17 +273,17 @@ export function ImportModelDialog({
             </Dialog.Close>
             <Button
               onClick={handleUpload}
-              disabled={entries.length === 0 || uploading}
+              disabled={files.length === 0 || uploading}
             >
               {uploading ? (
                 <>
                   <Spinner size="1" />
                   Uploading...
                 </>
-              ) : entries.length <= 1 ? (
+              ) : files.length <= 1 ? (
                 "Upload"
               ) : (
-                `Upload ${entries.length} Files`
+                `Upload ${files.length} Files`
               )}
             </Button>
           </Flex>

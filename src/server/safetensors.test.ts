@@ -98,6 +98,46 @@ describe("safetensors", () => {
         expect(result.source).toBe("kohya");
       });
 
+      it("detects Flux from Kohya metadata", () => {
+        const header: SafetensorsHeader = {
+          tensors: {},
+          metadata: { ss_base_model_version: "flux1-dev" },
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("flux");
+        expect(result.source).toBe("kohya");
+      });
+
+      it("detects SD3 from Kohya metadata", () => {
+        const header: SafetensorsHeader = {
+          tensors: {},
+          metadata: { ss_base_model_version: "sd3_medium" },
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("sd3");
+        expect(result.source).toBe("kohya");
+      });
+
+      it("detects SD3.5 from Kohya metadata", () => {
+        const header: SafetensorsHeader = {
+          tensors: {},
+          metadata: { ss_base_model_version: "sd3.5_large" },
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("sd35");
+        expect(result.source).toBe("kohya");
+      });
+
+      it("detects ZIT from Kohya metadata", () => {
+        const header: SafetensorsHeader = {
+          tensors: {},
+          metadata: { ss_base_model_version: "zimage" },
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("zit");
+        expect(result.source).toBe("kohya");
+      });
+
       it("detects SD2.1 from Kohya metadata with 768", () => {
         const header: SafetensorsHeader = {
           tensors: {},
@@ -155,6 +195,53 @@ describe("safetensors", () => {
         };
         const result = detectArchitecture(header);
         expect(result.architecture).toBe("cascade");
+        expect(result.source).toBe("tensor");
+      });
+
+      it("detects Flux LoRA from Kohya-style tensor names (lora_unet_ with double_blocks)", () => {
+        const header: SafetensorsHeader = {
+          tensors: {
+            "lora_unet_double_blocks_0_img_attn_proj.lora_down.weight": {
+              dtype: "BF16",
+              shape: [16, 3072],
+              data_offsets: [0, 98304],
+            },
+            "lora_unet_double_blocks_0_img_attn_proj.lora_up.weight": {
+              dtype: "BF16",
+              shape: [3072, 16],
+              data_offsets: [98304, 196608],
+            },
+            "lora_unet_single_blocks_0_linear1.lora_down.weight": {
+              dtype: "BF16",
+              shape: [16, 3072],
+              data_offsets: [196608, 294912],
+            },
+          },
+          metadata: {},
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("flux");
+        expect(result.source).toBe("tensor");
+      });
+
+      it("detects ZIT LoRA from diffusers-style tensor names (diffusion_model.layers)", () => {
+        const header: SafetensorsHeader = {
+          tensors: {
+            "diffusion_model.layers.0.attention.to_q.lora_A.weight": {
+              dtype: "BF16",
+              shape: [16, 1536],
+              data_offsets: [0, 49152],
+            },
+            "diffusion_model.layers.0.attention.to_q.lora_B.weight": {
+              dtype: "BF16",
+              shape: [1536, 16],
+              data_offsets: [49152, 98304],
+            },
+          },
+          metadata: {},
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("zit");
         expect(result.source).toBe("tensor");
       });
 
@@ -248,6 +335,85 @@ describe("safetensors", () => {
         };
         const result = detectArchitecture(header);
         expect(result.architecture).toBe("sdxl");
+        expect(result.source).toBe("tensor");
+      });
+
+      it("detects Flux LoRA from diffusers-style tensor names (lora_A/lora_B)", () => {
+        const header: SafetensorsHeader = {
+          tensors: {
+            "transformer.double_blocks.0.img_attn.proj.lora_A.weight": {
+              dtype: "BF16",
+              shape: [16, 3072],
+              data_offsets: [0, 98304],
+            },
+            "transformer.double_blocks.0.img_attn.proj.lora_B.weight": {
+              dtype: "BF16",
+              shape: [3072, 16],
+              data_offsets: [98304, 196608],
+            },
+          },
+          metadata: {},
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("flux");
+        expect(result.source).toBe("tensor");
+      });
+
+      it("detects Flux LoRA from diffusers-style tensor names (lora_down/lora_up)", () => {
+        const header: SafetensorsHeader = {
+          tensors: {
+            "double_blocks.0.img_attn.proj.lora_down.weight": {
+              dtype: "BF16",
+              shape: [16, 3072],
+              data_offsets: [0, 98304],
+            },
+            "double_blocks.0.img_attn.proj.lora_up.weight": {
+              dtype: "BF16",
+              shape: [3072, 16],
+              data_offsets: [98304, 196608],
+            },
+          },
+          metadata: {},
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("flux");
+        expect(result.source).toBe("tensor");
+      });
+
+      it("detects SD3 LoRA from diffusers-style tensor names", () => {
+        const header: SafetensorsHeader = {
+          tensors: {
+            "transformer.joint_blocks.0.attn.to_q.lora_A.weight": {
+              dtype: "F16",
+              shape: [16, 768],
+              data_offsets: [0, 24576],
+            },
+            "transformer.joint_blocks.0.attn.to_q.lora_B.weight": {
+              dtype: "F16",
+              shape: [768, 16],
+              data_offsets: [24576, 49152],
+            },
+          },
+          metadata: {},
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("sd3");
+        expect(result.source).toBe("tensor");
+      });
+
+      it("detects ZIT from context_refiner tensors", () => {
+        const header: SafetensorsHeader = {
+          tensors: {
+            "context_refiner.0.attention.to_q.weight": {
+              dtype: "F16",
+              shape: [768, 768],
+              data_offsets: [0, 1179648],
+            },
+          },
+          metadata: {},
+        };
+        const result = detectArchitecture(header);
+        expect(result.architecture).toBe("zit");
         expect(result.source).toBe("tensor");
       });
     });

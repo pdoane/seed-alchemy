@@ -19,7 +19,7 @@ import { writePngMetadata } from "../png-metadata.js";
 import { getUserImagesDir } from "../user-utils.js";
 import { loadDocument, getDocumentPaths } from "../document-storage.js";
 
-const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
+const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8000";
 const COMFYUI_WS_URL = COMFYUI_URL.replace(/^http/, "ws");
 const COMFYUI_OUTPUT_DIR =
   process.env.COMFYUI_OUTPUT_DIR || join(homedir(), "Documents/ComfyUI/output");

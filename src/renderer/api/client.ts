@@ -314,16 +314,12 @@ export const api = {
     }
   },
 
-  // Upload a model file
+  // Upload a model file (server auto-classifies into the correct folder)
   async uploadModel(
     file: File,
-    targetFolder: ModelFolder,
     onProgress?: (progress: number) => void
   ): Promise<ModelInfo> {
     const formData = new FormData();
-    // IMPORTANT: targetFolder must be appended BEFORE file
-    // because @fastify/multipart only sees fields that come before the file
-    formData.append("targetFolder", targetFolder);
     formData.append("file", file);
 
     const xhr = new XMLHttpRequest();

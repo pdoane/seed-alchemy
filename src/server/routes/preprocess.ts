@@ -7,7 +7,7 @@ import { CLIENT_ID, registerPendingPrompt } from "./progress.js";
 import { getUserImagesDir, getUserWorkflowFile } from "../user-utils.js";
 import type { DetectorParams } from "../../shared/types/image.js";
 
-const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
+const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8000";
 const COMFYUI_INPUT_DIR =
   process.env.COMFYUI_INPUT_DIR ||
   join(homedir(), "Documents", "ComfyUI", "input");

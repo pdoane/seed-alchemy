@@ -383,6 +383,93 @@ describe("generateImgWorkflow (ZIT)", () => {
   });
 });
 
+// Flux workflow tests
+const fluxParams: ImageParams = {
+  prompt: "a cat",
+  negativePrompt: "",
+  model: "flux1-dev.safetensors",
+  sampler: "euler",
+  scheduler: "simple",
+  width: 1024,
+  height: 1024,
+  steps: 20,
+  cfgScale: 3.5,
+  seed: 12345,
+  loras: [],
+  sourceImage: "",
+  sourceImageStrength: 0.75,
+  referenceImages: [],
+  referenceWeight: 1,
+  referenceWeightType: "linear",
+  referenceCombineMode: "concat",
+  controlNets: [],
+  faceDetailer: false,
+  upscaleEnabled: false,
+  upscaleFactor: 2,
+};
+
+describe("generateImgWorkflow (Flux)", () => {
+  it("should generate Flux workflow with UNETLoader and DualCLIPLoader", () => {
+    const workflow = generateImgWorkflow(fluxParams, 1, "flux");
+
+    expect(workflow["checkpoint"]).toBeUndefined();
+
+    expect(workflow["unet"]).toBeDefined();
+    expect(workflow["unet"]!.class_type).toBe("UNETLoader");
+    expect(workflow["unet"]!.inputs.unet_name).toBe("flux1-dev.safetensors");
+
+    expect(workflow["clip"]).toBeDefined();
+    expect(workflow["clip"]!.class_type).toBe("DualCLIPLoader");
+    expect(workflow["clip"]!.inputs.clip_name1).toBe("clip_l.safetensors");
+    expect(workflow["clip"]!.inputs.clip_name2).toBe("t5xxl_fp16.safetensors");
+    expect(workflow["clip"]!.inputs.type).toBe("flux");
+
+    expect(workflow["vae"]).toBeDefined();
+    expect(workflow["vae"]!.class_type).toBe("VAELoader");
+    expect(workflow["vae"]!.inputs.vae_name).toBe("ae.safetensors");
+  });
+
+  it("should use CLIPTextEncodeFlux with guidance for positive prompt", () => {
+    const workflow = generateImgWorkflow(fluxParams, 1, "flux");
+
+    expect(workflow["positive"]!.class_type).toBe("CLIPTextEncodeFlux");
+    expect(workflow["positive"]!.inputs.clip_l).toBe("a cat");
+    expect(workflow["positive"]!.inputs.t5xxl).toBe("a cat");
+    expect(workflow["positive"]!.inputs.guidance).toBe(3.5);
+  });
+
+  it("should always use ConditioningZeroOut for negative", () => {
+    const params = { ...fluxParams, negativePrompt: "ugly" };
+    const workflow = generateImgWorkflow(params, 1, "flux");
+
+    expect(workflow["negative"]!.class_type).toBe("ConditioningZeroOut");
+  });
+
+  it("should use EmptySD3LatentImage", () => {
+    const workflow = generateImgWorkflow(fluxParams, 1, "flux");
+
+    expect(workflow["latent"]!.class_type).toBe("EmptySD3LatentImage");
+  });
+
+  it("should not add ModelSamplingAuraFlow", () => {
+    const workflow = generateImgWorkflow(fluxParams, 1, "flux");
+
+    expect(workflow["model_sampling"]).toBeUndefined();
+  });
+
+  it("should chain LoRAs correctly", () => {
+    const params: ImageParams = {
+      ...fluxParams,
+      loras: [{ filename: "flux_lora.safetensors", weight: 0.8 }],
+    };
+    const workflow = generateImgWorkflow(params, 1, "flux");
+
+    expect(workflow["lora_0"]!.inputs.model).toEqual(["unet", 0]);
+    expect(workflow["lora_0"]!.inputs.clip).toEqual(["clip", 0]);
+    expect(workflow["sampler"]!.inputs.model).toEqual(["lora_0", 0]);
+  });
+});
+
 // IP Adapter tests
 describe("generateImgWorkflow (IP Adapter)", () => {
   it("should add IP Adapter nodes for SD1.5 with reference images", () => {

@@ -20,7 +20,7 @@ import {
 import { readSafetensorsHeader, detectArchitecture } from "../safetensors.js";
 import { getUserImagesDir, getUserWorkflowFile } from "../user-utils.js";
 
-const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
+const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8000";
 const COMFYUI_MODELS_DIR =
   process.env.COMFYUI_MODELS_DIR ||
   join(homedir(), "Documents", "ComfyUI", "models");
@@ -29,7 +29,7 @@ const COMFYUI_INPUT_DIR =
   join(homedir(), "Documents", "ComfyUI", "input");
 
 // Model folders to search for the model file
-const MODEL_FOLDERS = ["checkpoints", "diffusion_models"];
+const MODEL_FOLDERS = ["checkpoints", "diffusion_models", "unet"];
 
 // Copy source image to ComfyUI's input folder and return the new filename
 async function prepareSourceImage(

@@ -142,6 +142,18 @@ function parseModelspecArchitecture(value: string): Architecture {
 function parseKohyaArchitecture(value: string): Architecture {
   const lower = value.toLowerCase();
 
+  if (lower.includes("zimage") || lower.includes("z-image")) {
+    return "zit";
+  }
+  if (lower.includes("flux")) {
+    return "flux";
+  }
+  if (lower.includes("sd3") || lower.includes("sd_3")) {
+    if (lower.includes("3.5") || lower.includes("3_5")) {
+      return "sd35";
+    }
+    return "sd3";
+  }
   if (lower.includes("xl")) {
     return "sdxl";
   }
@@ -205,9 +217,22 @@ function detectArchitectureFromTensors(
     return "wan";
   }
 
-  // Check for LoRA-specific patterns
+  // Check for LoRA-specific patterns (Kohya-style)
   if (tensorNames.some((name) => name.startsWith("lora_"))) {
     return detectLoraArchitecture(tensorNames);
+  }
+
+  // Check for diffusers-style LoRAs (Flux, etc.)
+  if (
+    tensorNames.some(
+      (name) =>
+        name.includes(".lora_A.") ||
+        name.includes(".lora_B.") ||
+        name.includes(".lora_down.") ||
+        name.includes(".lora_up.")
+    )
+  ) {
+    return detectDiffusersLoraArchitecture(tensorNames);
   }
 
   // Check SD1.x/SD2.x/SDXL by context dimension in cross-attention
@@ -230,8 +255,17 @@ function detectArchitectureFromTensors(
   return "unknown";
 }
 
-// Detect LoRA architecture from tensor names
+// Detect LoRA architecture from Kohya-style tensor names (lora_ prefix)
 function detectLoraArchitecture(tensorNames: string[]): Architecture {
+  // Flux LoRAs use lora_unet_ with double_blocks/single_blocks
+  if (
+    tensorNames.some(
+      (name) => name.includes("double_blocks") || name.includes("single_blocks")
+    )
+  ) {
+    return "flux";
+  }
+
   const hasTE1 = tensorNames.some((name) => name.includes("lora_te1_"));
   const hasTE2 = tensorNames.some((name) => name.includes("lora_te2_"));
   const hasTE = tensorNames.some(
@@ -246,6 +280,34 @@ function detectLoraArchitecture(tensorNames: string[]): Architecture {
   // SD1.x/SD2.x uses single text encoder
   if (hasTE && !hasTE1 && !hasTE2) {
     return "sd15"; // Could be SD2, but SD1.5 is more common
+  }
+
+  return "unknown";
+}
+
+// Detect architecture for diffusers-style LoRAs (Flux, SD3, ZIT, etc.)
+function detectDiffusersLoraArchitecture(tensorNames: string[]): Architecture {
+  // Flux LoRAs have transformer.double_blocks or transformer.single_blocks
+  if (
+    tensorNames.some(
+      (name) =>
+        name.includes("transformer.double_blocks") ||
+        name.includes("transformer.single_blocks") ||
+        name.includes("double_blocks.") ||
+        name.includes("single_blocks.")
+    )
+  ) {
+    return "flux";
+  }
+
+  // ZIT LoRAs use diffusion_model.layers.N pattern
+  if (tensorNames.some((name) => name.startsWith("diffusion_model.layers."))) {
+    return "zit";
+  }
+
+  // SD3 LoRAs have joint_blocks
+  if (tensorNames.some((name) => name.includes("joint_blocks"))) {
+    return "sd3";
   }
 
   return "unknown";

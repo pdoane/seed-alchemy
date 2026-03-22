@@ -79,6 +79,7 @@ export function generateImgWorkflow(
   architecture?: Architecture
 ): ComfyWorkflow {
   const isZit = architecture === "zit";
+  const isFlux = architecture === "flux";
   const workflow: ComfyWorkflow = {};
 
   // Track references throughout the workflow
@@ -87,7 +88,33 @@ export function generateImgWorkflow(
   let vaeRef: [string, number];
 
   // Model loading
-  if (isZit) {
+  if (isFlux) {
+    workflow["unet"] = {
+      class_type: "UNETLoader",
+      inputs: {
+        unet_name: params.model,
+        weight_dtype: "default",
+      },
+    };
+    workflow["clip"] = {
+      class_type: "DualCLIPLoader",
+      inputs: {
+        clip_name1: "clip_l.safetensors",
+        clip_name2: "t5xxl_fp16.safetensors",
+        type: "flux",
+        device: "default",
+      },
+    };
+    workflow["vae"] = {
+      class_type: "VAELoader",
+      inputs: {
+        vae_name: "ae.safetensors",
+      },
+    };
+    modelRef = ["unet", 0];
+    clipRef = ["clip", 0];
+    vaeRef = ["vae", 0];
+  } else if (isZit) {
     workflow["unet"] = {
       class_type: "UNETLoader",
       inputs: {
@@ -217,30 +244,48 @@ export function generateImgWorkflow(
   }
 
   // Prompt encoding
-  workflow["positive"] = {
-    class_type: "CLIPTextEncode",
-    inputs: {
-      text: params.prompt,
-      clip: clipRef,
-    },
-  };
-
-  if (params.negativePrompt.trim()) {
-    workflow["negative"] = {
-      class_type: "CLIPTextEncode",
+  if (isFlux) {
+    workflow["positive"] = {
+      class_type: "CLIPTextEncodeFlux",
       inputs: {
-        text: params.negativePrompt,
         clip: clipRef,
+        clip_l: params.prompt,
+        t5xxl: params.prompt,
+        guidance: params.cfgScale,
       },
     };
-  } else {
-    // Use ConditioningZeroOut to ensure same tensor shape as positive
     workflow["negative"] = {
       class_type: "ConditioningZeroOut",
       inputs: {
         conditioning: ["positive", 0],
       },
     };
+  } else {
+    workflow["positive"] = {
+      class_type: "CLIPTextEncode",
+      inputs: {
+        text: params.prompt,
+        clip: clipRef,
+      },
+    };
+
+    if (params.negativePrompt.trim()) {
+      workflow["negative"] = {
+        class_type: "CLIPTextEncode",
+        inputs: {
+          text: params.negativePrompt,
+          clip: clipRef,
+        },
+      };
+    } else {
+      // Use ConditioningZeroOut to ensure same tensor shape as positive
+      workflow["negative"] = {
+        class_type: "ConditioningZeroOut",
+        inputs: {
+          conditioning: ["positive", 0],
+        },
+      };
+    }
   }
 
   // Track conditioning references (may be modified by ControlNet)
@@ -406,7 +451,7 @@ export function generateImgWorkflow(
   } else {
     // Generate empty latent
     workflow["latent"] = {
-      class_type: isZit ? "EmptySD3LatentImage" : "EmptyLatentImage",
+      class_type: isFlux || isZit ? "EmptySD3LatentImage" : "EmptyLatentImage",
       inputs: {
         width: params.width,
         height: params.height,

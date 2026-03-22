@@ -306,7 +306,7 @@ export function registerModelRoutes(fastify: FastifyInstance) {
     }
   );
 
-  // POST /api/models/upload - Upload a model file directly (for browser mode)
+  // POST /api/models/upload - Upload a model file (auto-classifies into correct folder)
   fastify.post("/api/models/upload", async (request, reply) => {
     const data = await request.file();
 
@@ -324,50 +324,51 @@ export function registerModelRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // Get target folder from fields (default to checkpoints)
-    // Note: targetFolder field must come BEFORE file in the multipart stream
-    const targetFolderField = data.fields.targetFolder;
-    let folder: ModelFolder = "checkpoints";
+    // Stream to a temp location first, then classify and move
+    const tempDir = join(COMFYUI_MODELS_DIR, ".tmp");
+    await mkdir(tempDir, { recursive: true });
+    const tempPath = join(tempDir, filename);
 
-    if (targetFolderField) {
-      const field = Array.isArray(targetFolderField)
-        ? targetFolderField[0]
-        : targetFolderField;
-      if (field && field.type === "field") {
-        const fieldValue = field.value as string;
-        if (fieldValue && MODEL_FOLDERS.includes(fieldValue as ModelFolder)) {
-          folder = fieldValue as ModelFolder;
-        }
+    try {
+      // Stream file to temp location
+      await pipeline(data.file, createWriteStream(tempPath));
+
+      // Classify the file to determine the target folder
+      const folder = await classifyModelFile(tempPath, filename);
+
+      // Ensure target folder exists
+      const folderPath = join(COMFYUI_MODELS_DIR, folder);
+      await mkdir(folderPath, { recursive: true });
+
+      const targetPath = join(folderPath, filename);
+
+      // Check if target already exists
+      try {
+        await access(targetPath);
+        await unlink(tempPath);
+        return reply.status(409).send({
+          error: `A model with this name already exists in ${folder}`,
+        });
+      } catch {
+        // Good - target doesn't exist
       }
-    }
 
-    // Ensure target folder exists
-    const folderPath = join(COMFYUI_MODELS_DIR, folder);
-    await mkdir(folderPath, { recursive: true });
-
-    const targetPath = join(folderPath, filename);
-
-    // Check if target already exists
-    try {
-      await access(targetPath);
-      return reply.status(409).send({
-        error: "A model with this name already exists in the target folder",
-      });
-    } catch {
-      // Good - target doesn't exist
-    }
-
-    try {
-      // Stream file directly to disk
-      await pipeline(data.file, createWriteStream(targetPath));
+      // Move from temp to final location
+      try {
+        await rename(tempPath, targetPath);
+      } catch {
+        // Cross-filesystem: copy then delete
+        await copyFile(tempPath, targetPath);
+        await unlink(tempPath);
+      }
 
       // Return the imported model info
       const modelInfo = await getModelInfo(targetPath, folder);
       return modelInfo;
     } catch (err) {
-      // Clean up partial file on error
+      // Clean up temp file on error
       try {
-        await unlink(targetPath);
+        await unlink(tempPath);
       } catch {
         // Ignore cleanup errors
       }
@@ -464,14 +465,121 @@ async function getModelInfo(
   };
 }
 
-// Suggest target folder based on filename patterns, architecture, and file size
+// Classify an uploaded model file by reading its content
+async function classifyModelFile(
+  filePath: string,
+  filename: string
+): Promise<ModelFolder> {
+  const lower = filename.toLowerCase();
+
+  // Check filename patterns first (these are unambiguous)
+  if (
+    lower.includes("lora") ||
+    lower.includes("loha") ||
+    lower.includes("lokr")
+  ) {
+    return "loras";
+  }
+  if (lower.includes("vae")) {
+    return "vae";
+  }
+  if (lower.includes("controlnet") || lower.includes("control_")) {
+    return "controlnet";
+  }
+  if (
+    lower.includes("upscale") ||
+    lower.includes("esrgan") ||
+    lower.includes("realesrgan")
+  ) {
+    return "upscale_models";
+  }
+  if (
+    lower.includes("embed") ||
+    lower.includes("textual_inversion") ||
+    lower.includes("ti_")
+  ) {
+    return "embeddings";
+  }
+  if (lower.includes("clip") && !lower.includes("clip_skip")) {
+    return "clip";
+  }
+  if (lower.includes("ipadapter") || lower.includes("ip_adapter")) {
+    return "ipadapter";
+  }
+
+  // For safetensors files, inspect the header for architecture clues
+  if (lower.endsWith(".safetensors")) {
+    try {
+      const header = await readSafetensorsHeader(filePath);
+      const tensorNames = Object.keys(header.tensors);
+
+      // LoRA tensors are definitive
+      if (tensorNames.some((name) => name.startsWith("lora_"))) {
+        return "loras";
+      }
+
+      // Diffusers-format LoRA (Flux, etc.)
+      if (
+        tensorNames.some(
+          (name) =>
+            name.includes(".lora_A.") ||
+            name.includes(".lora_B.") ||
+            name.includes(".lora_down.") ||
+            name.includes(".lora_up.")
+        )
+      ) {
+        return "loras";
+      }
+
+      // CLIP text encoder models
+      if (
+        tensorNames.some(
+          (name) =>
+            name.startsWith("text_model.") ||
+            name.startsWith("text_projection.")
+        ) &&
+        !tensorNames.some(
+          (name) => name.includes("diffusion_model") || name.includes("unet")
+        )
+      ) {
+        return "text_encoders";
+      }
+
+      // VAE-only models
+      if (
+        tensorNames.some(
+          (name) => name.startsWith("encoder.") || name.startsWith("decoder.")
+        ) &&
+        !tensorNames.some(
+          (name) => name.includes("diffusion_model") || name.includes("unet")
+        )
+      ) {
+        return "vae";
+      }
+
+      // Detect architecture to inform folder choice
+      const { architecture } = detectArchitecture(header);
+
+      // ZIT and Flux standalone models go to unet
+      if (architecture === "zit" || architecture === "flux") {
+        return "unet";
+      }
+    } catch {
+      // Failed to parse - fall through to default
+    }
+  }
+
+  // Default to checkpoints
+  return "checkpoints";
+}
+
+// Suggest target folder for the preview endpoint (server-side file import)
 function suggestFolder(
   filename: string,
   architecture: Architecture,
-  fileSizeBytes: number
+  _fileSizeBytes: number
 ): ModelFolder {
   const lower = filename.toLowerCase();
-  const sizeGB = fileSizeBytes / 1_000_000_000;
 
   // Check filename patterns first
   if (
@@ -504,22 +612,21 @@ function suggestFolder(
   if (lower.includes("clip") && !lower.includes("clip_skip")) {
     return "clip";
   }
-  if (lower.includes("unet")) {
+  if (
+    lower.includes("unet") ||
+    lower.includes("diffusion_model") ||
+    lower.includes("z_image") ||
+    lower.includes("z-image")
+  ) {
     return "unet";
   }
-  if (lower.includes("diffusion_model") || lower.includes("z_image")) {
-    return "diffusion_models";
+  if (lower.includes("ipadapter") || lower.includes("ip_adapter")) {
+    return "ipadapter";
   }
 
-  // Use file size as a heuristic for checkpoints vs smaller models
-  // Full checkpoints are typically 2GB+ for SD1.5, 6GB+ for SDXL
-  if (sizeGB > 1.5) {
-    return "checkpoints";
-  }
-
-  // LoRAs are typically under 500MB
-  if (sizeGB < 0.5 && architecture !== "unknown") {
-    return "loras";
+  // Use architecture if detected
+  if (architecture === "zit" || architecture === "flux") {
+    return "unet";
   }
 
   // Default to checkpoints for unknown

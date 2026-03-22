@@ -348,15 +348,22 @@ export const useImageStore = create<ImageState>((set, get) => ({
   browserColumns: 2,
   setBrowserColumns: (columns) => set({ browserColumns: columns }),
 
-  // Checkpoints (includes both checkpoints and diffusion_models folders)
+  // Checkpoints (includes checkpoints, diffusion_models, and unet folders)
   availableCheckpoints: [],
   loadCheckpoints: async () => {
     try {
-      const [checkpoints, diffusionModels] = await Promise.all([
+      const [checkpoints, diffusionModels, unetModels] = await Promise.all([
         api.getModels("checkpoints"),
         api.getModels("diffusion_models"),
+        api.getModels("unet"),
       ]);
-      set({ availableCheckpoints: [...checkpoints, ...diffusionModels] });
+      set({
+        availableCheckpoints: [
+          ...checkpoints,
+          ...diffusionModels,
+          ...unetModels,
+        ],
+      });
     } catch (error) {
       console.error("Failed to load checkpoints:", error);
     }
