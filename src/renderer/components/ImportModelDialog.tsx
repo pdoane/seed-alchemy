@@ -8,11 +8,12 @@ import {
   Spinner,
   Box,
   Progress,
+  IconButton,
 } from "@radix-ui/themes";
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ModelFolder } from "../../shared/types/models";
 import { api } from "../api/client";
-import { UploadSimpleIcon } from "@phosphor-icons/react";
+import { UploadSimpleIcon, XIcon } from "@phosphor-icons/react";
 
 const FOLDER_OPTIONS: { value: ModelFolder; label: string }[] = [
   { value: "checkpoints", label: "Checkpoints" },
@@ -31,6 +32,11 @@ interface ImportModelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImportSuccess: () => void;
+}
+
+interface FileEntry {
+  file: File;
+  folder: ModelFolder;
 }
 
 // Suggest folder based on filename and size
@@ -62,14 +68,26 @@ function suggestFolder(filename: string, fileSize: number): ModelFolder {
   return "checkpoints";
 }
 
+function formatSize(bytes: number): string {
+  const gb = bytes / 1_000_000_000;
+  if (gb >= 1) return `${gb.toFixed(2)} GB`;
+  const mb = bytes / 1_000_000;
+  return `${mb.toFixed(1)} MB`;
+}
+
+function isValidModelFile(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return MODEL_EXTENSIONS.some((e) => lower.endsWith(e));
+}
+
 export function ImportModelDialog({
   open,
   onOpenChange,
   onImportSuccess,
 }: ImportModelDialogProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [targetFolder, setTargetFolder] = useState<ModelFolder>("checkpoints");
+  const [entries, setEntries] = useState<FileEntry[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadIndex, setUploadIndex] = useState(0);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -78,48 +96,62 @@ export function ImportModelDialog({
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
-      setSelectedFile(null);
-      setTargetFolder("checkpoints");
+      setEntries([]);
       setUploadProgress(null);
+      setUploadIndex(0);
       setError(null);
       setIsDragOver(false);
       setUploading(false);
     }
   }, [open]);
 
-  const formatSize = (bytes: number): string => {
-    const gb = bytes / 1_000_000_000;
-    if (gb >= 1) return `${gb.toFixed(2)} GB`;
-    const mb = bytes / 1_000_000;
-    return `${mb.toFixed(1)} MB`;
-  };
+  const addFiles = useCallback(
+    (files: File[]) => {
+      setError(null);
 
-  const handleFile = useCallback((file: File) => {
-    setError(null);
-    setSelectedFile(null);
+      const invalid = files.filter((f) => !isValidModelFile(f.name));
+      if (invalid.length > 0) {
+        setError(
+          `Skipped ${invalid.length} unsupported file(s). Expected: ${MODEL_EXTENSIONS.join(", ")}`
+        );
+      }
 
-    // Validate file extension
-    const ext = file.name.toLowerCase();
-    if (!MODEL_EXTENSIONS.some((e) => ext.endsWith(e))) {
-      setError(
-        `Unsupported file type. Expected: ${MODEL_EXTENSIONS.join(", ")}`
-      );
-      return;
-    }
+      const valid = files.filter((f) => isValidModelFile(f.name));
+      if (valid.length === 0) return;
 
-    setSelectedFile(file);
-    setTargetFolder(suggestFolder(file.name, file.size));
+      // Deduplicate by name against existing entries
+      const existingNames = new Set(entries.map((e) => e.file.name));
+      const newEntries = valid
+        .filter((f) => !existingNames.has(f.name))
+        .map((f) => ({
+          file: f,
+          folder: suggestFolder(f.name, f.size),
+        }));
+
+      setEntries((prev) => [...prev, ...newEntries]);
+    },
+    [entries]
+  );
+
+  const removeEntry = useCallback((index: number) => {
+    setEntries((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const updateFolder = useCallback((index: number, folder: ModelFolder) => {
+    setEntries((prev) =>
+      prev.map((entry, i) => (i === index ? { ...entry, folder } : entry))
+    );
   }, []);
 
   const handleFileSelect = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0];
-      if (file) {
-        handleFile(file);
+      const files = event.target.files;
+      if (files && files.length > 0) {
+        addFiles(Array.from(files));
       }
       event.target.value = "";
     },
-    [handleFile]
+    [addFiles]
   );
 
   const handleDragOver = useCallback((event: React.DragEvent) => {
@@ -140,41 +172,54 @@ export function ImportModelDialog({
       event.stopPropagation();
       setIsDragOver(false);
 
-      const file = event.dataTransfer.files[0];
-      if (file) {
-        handleFile(file);
+      const files = event.dataTransfer.files;
+      if (files.length > 0) {
+        addFiles(Array.from(files));
       }
     },
-    [handleFile]
+    [addFiles]
   );
 
   const handleUpload = useCallback(async () => {
-    if (!selectedFile) return;
+    if (entries.length === 0) return;
 
     setUploading(true);
-    setUploadProgress(0);
     setError(null);
 
-    try {
-      await api.uploadModel(selectedFile, targetFolder, (progress) => {
-        setUploadProgress(progress);
-      });
-      onImportSuccess();
-      onOpenChange(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to upload model");
-    } finally {
-      setUploading(false);
-      setUploadProgress(null);
+    let anySuccess = false;
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]!;
+      setUploadIndex(i);
+      setUploadProgress(0);
+
+      try {
+        await api.uploadModel(entry.file, entry.folder, (progress) => {
+          setUploadProgress(progress);
+        });
+        anySuccess = true;
+      } catch (err) {
+        setError(
+          `Failed to upload ${entry.file.name}: ${err instanceof Error ? err.message : "Unknown error"}`
+        );
+        setUploading(false);
+        setUploadProgress(null);
+        if (anySuccess) onImportSuccess();
+        return;
+      }
     }
-  }, [selectedFile, targetFolder, onImportSuccess, onOpenChange]);
+
+    setUploading(false);
+    setUploadProgress(null);
+    onImportSuccess();
+    onOpenChange(false);
+  }, [entries, onImportSuccess, onOpenChange]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Content maxWidth="500px">
-        <Dialog.Title>Import Model</Dialog.Title>
+        <Dialog.Title>Import Models</Dialog.Title>
         <Dialog.Description size="2" color="gray" mb="4">
-          Upload a model file to your models folder.
+          Upload model files to your models folder.
         </Dialog.Description>
 
         <Flex direction="column" gap="4">
@@ -182,6 +227,7 @@ export function ImportModelDialog({
           <input
             ref={fileInputRef}
             type="file"
+            multiple
             accept=".safetensors,.ckpt,.pt,.pth,.bin"
             onChange={handleFileSelect}
             style={{ display: "none" }}
@@ -203,7 +249,7 @@ export function ImportModelDialog({
             <Flex direction="column" align="center" gap="2">
               <UploadSimpleIcon size={24} weight="bold" color="var(--gray-9)" />
               <Text size="2" color="gray" align="center">
-                Drop a model file here, or click to browse
+                Drop model files here, or click to browse
               </Text>
               <Text size="1" color="gray">
                 .safetensors, .ckpt, .pt, .pth, .bin
@@ -211,51 +257,79 @@ export function ImportModelDialog({
             </Flex>
           </Box>
 
-          {/* Selected file preview */}
-          {selectedFile && (
-            <Box
-              p="3"
-              className="rounded border border-[var(--gray-6)]"
-              style={{ backgroundColor: "var(--gray-2)" }}
+          {/* File list */}
+          {entries.length > 0 && (
+            <Flex
+              direction="column"
+              gap="2"
+              style={{ maxHeight: 300, overflowY: "auto" }}
             >
-              <Flex direction="column" gap="3">
-                <Flex justify="between" align="center">
-                  <Text size="2" weight="medium">
-                    {selectedFile.name}
-                  </Text>
-                  <Badge color="gray">{formatSize(selectedFile.size)}</Badge>
-                </Flex>
-              </Flex>
-            </Box>
-          )}
-
-          {/* Target folder selection */}
-          {selectedFile && (
-            <Flex direction="column" gap="2">
-              <Text size="2" weight="medium">
-                Target Folder
-              </Text>
-              <Select.Root
-                value={targetFolder}
-                onValueChange={(v) => setTargetFolder(v as ModelFolder)}
-              >
-                <Select.Trigger />
-                <Select.Content>
-                  {FOLDER_OPTIONS.map((opt) => (
-                    <Select.Item key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </Select.Item>
-                  ))}
-                </Select.Content>
-              </Select.Root>
+              {entries.map((entry, index) => (
+                <Box
+                  key={entry.file.name}
+                  p="3"
+                  className="rounded border border-[var(--gray-6)]"
+                  style={{ backgroundColor: "var(--gray-2)" }}
+                >
+                  <Flex direction="column" gap="2">
+                    <Flex justify="between" align="center" gap="2">
+                      <Text
+                        size="2"
+                        weight="medium"
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                      >
+                        {entry.file.name}
+                      </Text>
+                      <Flex align="center" gap="2" flexShrink="0">
+                        <Badge color="gray">
+                          {formatSize(entry.file.size)}
+                        </Badge>
+                        <IconButton
+                          size="1"
+                          variant="ghost"
+                          color="gray"
+                          disabled={uploading}
+                          onClick={() => removeEntry(index)}
+                        >
+                          <XIcon size={14} />
+                        </IconButton>
+                      </Flex>
+                    </Flex>
+                    <Select.Root
+                      size="1"
+                      value={entry.folder}
+                      disabled={uploading}
+                      onValueChange={(v) =>
+                        updateFolder(index, v as ModelFolder)
+                      }
+                    >
+                      <Select.Trigger />
+                      <Select.Content>
+                        {FOLDER_OPTIONS.map((opt) => (
+                          <Select.Item key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </Select.Item>
+                        ))}
+                      </Select.Content>
+                    </Select.Root>
+                  </Flex>
+                </Box>
+              ))}
             </Flex>
           )}
 
           {/* Upload progress */}
-          {uploadProgress !== null && (
+          {uploading && uploadProgress !== null && (
             <Flex direction="column" gap="2">
               <Text size="2" color="gray">
-                Uploading... {Math.round(uploadProgress)}%
+                Uploading {uploadIndex + 1} of {entries.length}...{" "}
+                {Math.round(uploadProgress)}%
               </Text>
               <Progress value={uploadProgress} />
             </Flex>
@@ -277,15 +351,17 @@ export function ImportModelDialog({
             </Dialog.Close>
             <Button
               onClick={handleUpload}
-              disabled={!selectedFile || uploading}
+              disabled={entries.length === 0 || uploading}
             >
               {uploading ? (
                 <>
                   <Spinner size="1" />
                   Uploading...
                 </>
-              ) : (
+              ) : entries.length <= 1 ? (
                 "Upload"
+              ) : (
+                `Upload ${entries.length} Files`
               )}
             </Button>
           </Flex>
